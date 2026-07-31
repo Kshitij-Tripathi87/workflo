@@ -1,5 +1,7 @@
 from app.connectors.datahub.writeback import (  # noqa: F401
-    _safe_resolve,
-    record_resolution_to_datahub,
     WritebackServiceSync,
+    _safe_resolve,
+    build_verdict_assertion_payload,
+    record_resolution_to_datahub,
+    record_verdict_assertion,
 )

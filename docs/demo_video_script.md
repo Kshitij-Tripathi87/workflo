@@ -1,9 +1,17 @@
 # Demo Video Script — Cortex Autopilot
 
-> **Target runtime:** 5 minutes.
+> **Target runtime:** 3 minutes (hackathon submission cap).
 > **Format:** voice-over screen recording + cutaways.
-> **Audience:** data platform engineers and their managers.
-> **Goal:** by the end of the video, the viewer knows what Cortex does, why it matters, and how to install it.
+> **Audience:** DataHub hackathon judges.
+> **Goal:** by the end of the video, judges understand the agent loop,
+> see both cherry features in action, and know how to test it.
+
+## Hackathon Edit — 3 Minute Cut
+
+For the DataHub hackathon submission, this script is cut to 3
+minutes. Scenes 4, 7, and 8 from the original 5-minute version are
+folded into Scene 3 (the agent loop). Two new scenes highlight the
+cherry-on-top features.
 
 ## Pre-Production Checklist
 
@@ -102,14 +110,37 @@ Then the Slack notification appears in a side-by-side split screen:
 
 - A structured table with verdict, asset, severity, blast radius
 - A "Why this was blocked" section listing affected consumers
-- A "Recommended action" with a generated SQL patch
+- A **"Suggested auto-fix"** `<details>` block — **CHERRY #1** — with a
+  ready-to-apply SQL migration script
 
 **Narration:**
 > "In a real PR, this comment posts automatically when the GitHub Action runs. The engineer doesn't just see 'BLOCKED'. They see exactly which consumers break, why, and what to do about it.
 >
-> The recommended action: create a SQL compatibility view that aliases the old column to a placeholder, then deprecate the column after downstream consumers migrate."
+> **And here's the cherry on top:** the comment includes a ready-to-apply migration script. The engineer clicks expand, reviews the SQL, applies it, and the second run passes — no Slack round-trip, no waiting on the data team."
 
 **On screen:** the SQL patch preview expands.
+
+---
+
+## Scene 6.5 — DataHub assertion writeback (new for hackathon)
+
+**Visual:** Cutaway to a DataHub UI showing the `orders` asset. The
+asset's documentation tab now contains a new section titled "Cortex
+Verdict" with the verdict, severity, blast radius, and reason. The
+asset's tags sidebar shows `cortex:verdict-block` and
+`cortex:severity-critical`.
+
+**Narration:**
+> "And here's the second cherry. The verdict isn't just posted to
+> GitHub — it's **written back to DataHub** as an assertion. The next
+> agent or human who views this asset sees what happened, when, and
+> why.
+>
+> This closes the read-write loop. The agent READS metadata, REASONS
+> about impact, ACTS by blocking, and WRITES BACK so the knowledge is
+> durable."
+
+**On screen:** the documentation tab with the verdict block.
 
 ---
 

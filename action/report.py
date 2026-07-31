@@ -34,6 +34,7 @@ def build_pr_comment(
     plan: Dict[str, Any],
     policy_result: Optional[Dict[str, Any]],
     verdict: str,
+    auto_fix: Optional[Dict[str, Any]] = None,
 ) -> str:
     ranked = plan.get("ranked_choice", {})
     severity = ranked.get("predicted_severity", 0)
@@ -117,6 +118,31 @@ def build_pr_comment(
                 f"| `{r.get('verdict', '-').upper()}` "
                 f"| {r.get('reason', '-')} |"
             )
+        lines.append("")
+
+    if auto_fix and auto_fix.get("body"):
+        lines.append("### :sparkles: Suggested auto-fix")
+        lines.append("")
+        artifact_type = auto_fix.get("artifact_type", "sql")
+        title = auto_fix.get("title", "Suggested fix")
+        confidence = auto_fix.get("confidence", 0.0)
+        lines.append(
+            "Cortex generated a ready-to-apply migration to address this "
+            "verdict. Review carefully before applying — auto-generated "
+            "scripts need human sign-off."
+        )
+        lines.append("")
+        lines.append("<details>")
+        lines.append(
+            f"<summary><strong>{title}</strong> "
+            f"(`{artifact_type}`, confidence {confidence:.0%})</summary>"
+        )
+        lines.append("")
+        lines.append("```" + artifact_type)
+        lines.append(auto_fix["body"].rstrip())
+        lines.append("```")
+        lines.append("")
+        lines.append("</details>")
         lines.append("")
 
     lines.append("---")

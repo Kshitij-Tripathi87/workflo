@@ -97,6 +97,123 @@ def _build_artifact_doc(artifact: Optional[ArtifactDraft]) -> str:
 """
 
 
+def build_verdict_assertion_payload(
+    asset_urn: str,
+    asset_name: str,
+    verdict: str,
+    reason: str,
+    severity: str,
+    blast_radius: int,
+    run_id: str,
+    created_by: str = "system",
+) -> dict:
+    """Build a structured assertion payload that mirrors DataHub's assertion schema.
+
+    The payload is designed to be:
+      - Persisted to the local JSONL log (always)
+      - Written as DataHub tags + documentation (real DataHub)
+      - Inspectable from the JSONL for debugging (mock mode)
+
+    Field shape mirrors DataHub's Assertion entity so a downstream
+    consumer can interpret the verdict without knowing it came from
+    Cortex.
+    """
+    timestamp = datetime.utcnow().isoformat()
+    return {
+        "assertion_type": "CORTEX_VERDICT",
+        "urn": asset_urn,
+        "asset_name": asset_name,
+        "verdict": verdict,
+        "severity": severity,
+        "blast_radius": blast_radius,
+        "reason": reason,
+        "run_id": run_id,
+        "created_by": created_by,
+        "timestamp": timestamp,
+    }
+
+
+async def record_verdict_assertion(
+    asset_urn: str,
+    asset_name: str,
+    verdict: str,
+    reason: str,
+    severity: str = "medium",
+    blast_radius: int = 0,
+    run_id: Optional[str] = None,
+    created_by: str = "system",
+) -> dict:
+    """Cherry #2 — write back the verdict to DataHub as an assertion.
+
+    Always persists to the JSONL log. When a real DataHub client is
+    available, additionally:
+      - Adds tags `cortex:assertion-{verdict}`, `cortex:severity-{...}`
+      - Appends the verdict to the asset's documentation tab
+
+    This closes the read-write loop with DataHub: the agent READS
+    metadata, REASONS about impact, ACTS by blocking, and WRITES
+    BACK so future agents or humans see what happened.
+    """
+    run_id = run_id or str(uuid4())
+    payload = build_verdict_assertion_payload(
+        asset_urn=asset_urn,
+        asset_name=asset_name,
+        verdict=verdict,
+        reason=reason,
+        severity=severity,
+        blast_radius=blast_radius,
+        run_id=run_id,
+        created_by=created_by,
+    )
+
+    # Always mirror to JSONL log so the verdict is durable + inspectable
+    jsonl_line = json.dumps(
+        {
+            "kind": "assertion",
+            "record_id": run_id,
+            "asset_urn": asset_urn,
+            "status": verdict,
+            "summary": reason,
+            "linked_artifact": None,
+            "affected_assets": [],
+            "created_by": created_by,
+            "created_at": payload["timestamp"],
+            "payload": payload,
+        }
+    )
+    with open(_writeback_path(), "a", encoding="utf-8") as f:
+        f.write(jsonl_line + "\n")
+
+    # Write to real DataHub if a client is available
+    client = adapter.async_client
+    if client is not None:
+        try:
+            tags = [
+                "cortex:assertion",
+                f"cortex:verdict-{verdict}",
+                f"cortex:severity-{severity}",
+                f"cortex:blast-radius-{blast_radius}",
+            ]
+            for tag in tags:
+                await client.add_tags(asset_urn, [tag])
+
+            doc = (
+                f"## Cortex Verdict ({payload['timestamp']})\n\n"
+                f"- **Verdict:** `{verdict.upper()}`\n"
+                f"- **Severity:** {severity}\n"
+                f"- **Blast radius:** {blast_radius} downstream\n"
+                f"- **Reason:** {reason}\n"
+                f"- **Run ID:** `{run_id}`\n"
+            )
+            await client.add_documentation(asset_urn, doc)
+        except Exception:
+            # Already mirrored to JSONL — DataHub failure is non-fatal
+            pass
+
+    return payload
+
+
+
 async def record_resolution_to_datahub(
     asset_urn: str,
     asset_name: str,

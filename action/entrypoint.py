@@ -84,7 +84,14 @@ def main() -> int:
 
     write_outputs(verdict=verdict, blast_radius=blast_radius, plan_id=plan_id)
 
-    comment_body = build_pr_comment(plan, policy_result, verdict)
+    auto_fix = fetch_auto_fix(
+        server=cortex_server,
+        plan=plan,
+        verdict=verdict,
+        token=api_token,
+    )
+
+    comment_body = build_pr_comment(plan, policy_result, verdict, auto_fix=auto_fix)
     print(comment_body)
 
     if pr_number is not None and _can_post_comments():
@@ -182,6 +189,80 @@ def fetch_backend_defaults(server: str, token: str) -> Optional[list]:
     except httpx.HTTPError:
         pass
     return None
+
+
+_ACTION_TYPE_FOR_SCENARIO = {
+    "schema_rename": "patch_sql",
+    "schema_remove": "patch_sql",
+    "type_change": "patch_sql",
+    "owner_missing": "assign_owner",
+    "pipeline_failure": "patch_dag",
+    "dataset_deprecation": "archive_asset",
+}
+
+
+def fetch_auto_fix(
+    server: str,
+    plan: Dict[str, Any],
+    verdict: str,
+    token: str,
+) -> Optional[Dict[str, Any]]:
+    """Fetch a ready-to-apply artifact from /artifacts/generate.
+
+    Returns None for `pass` verdicts (nothing to fix) or on any error.
+    The artifact is included in the PR comment so the developer can
+    review and apply the migration.
+    """
+    if verdict == "pass":
+        return None
+
+    import httpx
+
+    ranked = plan.get("ranked_choice", {}) or {}
+    scenario_type = ranked.get("scenario_type", "auto_detected")
+    action_type = _ACTION_TYPE_FOR_SCENARIO.get(scenario_type, "patch_sql")
+    asset_urn = plan.get("asset_urn", "asset")
+    asset_name = asset_urn.rsplit(":", 1)[-1] if ":" in asset_urn else asset_urn
+
+    payload = {
+        "action_type": action_type,
+        "title": f"Suggested migration for {asset_name}",
+        "rationale": (
+            f"Auto-generated migration addressing scenario '{scenario_type}' "
+            f"on asset {asset_name}. Review and apply."
+        ),
+        "impact_id": plan.get("plan_id", ""),
+        "confidence": float(ranked.get("confidence", 0.7)),
+        "risk": "low",
+        "artifacts": [],
+        "fallback_action": None,
+    }
+
+    url = f"{server}/artifacts/generate"
+    params = {
+        "scenario_type": scenario_type,
+        "asset_name": asset_name,
+    }
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        resp = httpx.post(
+            url, params=params, json=payload, headers=headers, timeout=15.0
+        )
+    except httpx.HTTPError as e:
+        print(f"::warning::Could not fetch auto-fix from {server}: {e}")
+        return None
+
+    if resp.status_code != 200:
+        print(
+            f"::warning::Auto-fix endpoint returned {resp.status_code}: "
+            f"{resp.text[:200]}"
+        )
+        return None
+
+    return resp.json()
 
 
 if __name__ == "__main__":
