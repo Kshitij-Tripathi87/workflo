@@ -1,0 +1,24 @@
+# Cortex Autopilot Impact Gate — sample config for jaffle_shop
+
+asset_urn: "urn:dbt:model:jaffle_shop:orders"
+
+# Change definition (auto-detected from git diff if omitted)
+change:
+  action: "do nothing"
+  removed_columns: []
+
+# Policies evaluated against the generated FuturePlan.
+# Block dominates Warn; Warn dominates Pass.
+policies:
+  - name: Prevent Critical-Severity Deployments
+    max_severity: 75
+    max_blast_radius: 10
+    action: block
+
+  - name: Warn on ML Downstream Impact
+    max_severity: 50
+    max_blast_radius: 3
+    action: warn
+
+# Engine objective
+objective: minimize incident risk

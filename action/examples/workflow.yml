@@ -1,0 +1,58 @@
+# Example: GitHub Actions workflow that uses the Cortex Autopilot Impact Gate.
+#
+# Features demonstrated:
+#   - manifest.json / catalog.json caching (actions/cache keyed by hash)
+#   - cortex.yml committed alongside the repo
+#   - Inline policy override (highest-priority)
+#   - Slack webhook notification
+#
+# Drop this file at .github/workflows/cortex-gate.yml in your repo.
+
+name: Cortex Autopilot Impact Gate
+
+on:
+  pull_request:
+    paths:
+      - "models/**"
+      - "macros/**"
+      - "cortex.yml"
+
+jobs:
+  cortex-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Cache dbt artifacts so repeat PRs on the same commit don't re-download.
+      # Keyed on the lockfile + the manifest hash so a manifest change invalidates.
+      - name: Cache dbt artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/manifest.json
+            target/catalog.json
+          key: ${{ runner.os }}-dbt-${{ hashFiles('**/dbt_project.yml', 'models/**/*.sql') }}
+          restore-keys: |
+            ${{ runner.os }}-dbt-
+
+      - name: Run Cortex Autopilot Impact Gate
+        uses: ./action
+        with:
+          cortex_server: ${{ secrets.CORTEX_SERVER_URL }}
+          api_token: ${{ secrets.CORTEX_API_TOKEN }}
+          cortex_yml: "cortex.yml"
+          slack_webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Optional: override policies inline (highest priority)
+          policy: |
+            - name: PR-time override — block on critical
+              max_severity: 75
+              max_blast_radius: 5
+              action: block

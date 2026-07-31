@@ -1,0 +1,1 @@
+from app.connectors.datahub.client import DataHubClient  # noqa: F401

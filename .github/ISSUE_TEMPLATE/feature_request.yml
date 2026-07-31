@@ -1,0 +1,37 @@
+---
+name: Feature request
+description: Suggest a new feature for Cortex Autopilot
+title: "[feature] "
+labels: ["enhancement", "needs-triage"]
+---
+
+## Summary
+
+One-paragraph description of the feature.
+
+## Problem It Solves
+
+What user pain does this address? Quantify if possible (e.g.,
+"users wait 30s for the engine on every PR").
+
+## Proposed Solution
+
+How should it work? Be specific.
+
+## Alternatives Considered
+
+What else did you think about? Why is your proposal better?
+
+## Use Case
+
+Describe a concrete scenario where this feature would help. The more
+specific, the better — fictitious users welcome.
+
+## Willing to Contribute?
+
+- [ ] I'm willing to submit a PR for this.
+- [ ] I'd like to discuss design first.
+
+## Additional Context
+
+Screenshots, related issues, anything else.

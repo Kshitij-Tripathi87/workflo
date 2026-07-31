@@ -1,0 +1,8 @@
+{
+  "asset_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)",
+  "scenario_type": "schema_remove",
+  "change": {
+    "removed": ["customer_name"]
+  },
+  "notes": "Remove deprecated customer_name column"
+}

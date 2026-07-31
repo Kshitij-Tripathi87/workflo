@@ -1,0 +1,99 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/catalog/v1.json",
+    "dbt_version": "1.5.0",
+    "generated_at": "2026-07-27T00:00:00.000Z"
+  },
+  "nodes": {
+    "model.jaffle_shop.stg_orders": {
+      "metadata": {
+        "type": "view",
+        "schema": "public",
+        "name": "stg_orders"
+      },
+      "columns": {
+        "order_id": {"type": "integer", "name": "order_id"},
+        "status": {"type": "string", "name": "status"},
+        "order_date": {"type": "date", "name": "order_date"}
+      }
+    },
+    "model.jaffle_shop.stg_customers": {
+      "metadata": {
+        "type": "view",
+        "schema": "public",
+        "name": "stg_customers"
+      },
+      "columns": {
+        "customer_id": {"type": "integer", "name": "customer_id"},
+        "first_name": {"type": "string", "name": "first_name"},
+        "last_name": {"type": "string", "name": "last_name"}
+      }
+    },
+    "model.jaffle_shop.orders": {
+      "metadata": {
+        "type": "table",
+        "schema": "public",
+        "name": "orders"
+      },
+      "columns": {
+        "order_id": {"type": "integer", "name": "order_id"},
+        "customer_id": {"type": "integer", "name": "customer_id"},
+        "amount": {"type": "numeric", "name": "amount"},
+        "status": {"type": "string", "name": "status"},
+        "order_date": {"type": "date", "name": "order_date"},
+        "customer_name": {"type": "string", "name": "customer_name"}
+      }
+    },
+    "model.jaffle_shop.customer_ltv": {
+      "metadata": {
+        "type": "incremental",
+        "schema": "public",
+        "name": "customer_ltv"
+      },
+      "columns": {
+        "customer_id": {"type": "integer", "name": "customer_id"},
+        "clv_score": {"type": "numeric", "name": "clv_score"},
+        "first_order_date": {"type": "date", "name": "first_order_date"}
+      }
+    },
+    "model.jaffle_shop.dashboard_feed": {
+      "metadata": {
+        "type": "table",
+        "schema": "public",
+        "name": "dashboard_feed"
+      },
+      "columns": {
+        "snapshot_date": {"type": "date", "name": "snapshot_date"},
+        "customer_id": {"type": "integer", "name": "customer_id"},
+        "total_revenue": {"type": "numeric", "name": "total_revenue"},
+        "ltv_score": {"type": "numeric", "name": "ltv_score"}
+      }
+    }
+  },
+  "sources": {
+    "source.jaffle_shop.raw.orders": {
+      "metadata": {
+        "type": "table",
+        "schema": "raw",
+        "name": "orders"
+      },
+      "columns": {
+        "order_id": {"type": "integer", "name": "order_id"},
+        "status": {"type": "string", "name": "status"},
+        "order_date": {"type": "date", "name": "order_date"}
+      }
+    },
+    "source.jaffle_shop.raw.customers": {
+      "metadata": {
+        "type": "table",
+        "schema": "raw",
+        "name": "customers"
+      },
+      "columns": {
+        "customer_id": {"type": "integer", "name": "customer_id"},
+        "first_name": {"type": "string", "name": "first_name"},
+        "last_name": {"type": "string", "name": "last_name"}
+      }
+    }
+  }
+}

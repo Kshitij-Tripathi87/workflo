@@ -1,0 +1,14 @@
+{
+  "record_id": "wb-001",
+  "asset_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)",
+  "status": "triaged",
+  "summary": "Impact analysis for orders: schema_remove affects 3 downstream assets. Recommended action: patch_sql.",
+  "linked_artifact": "artifact-001",
+  "affected_assets": [
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,orders_summary,PROD)",
+    "urn:li:dashboard:(looker,orders_monitoring)",
+    "urn:li:mlModel:(sagemaker,order_forecast,PROD)"
+  ],
+  "created_by": "system",
+  "created_at": "2026-07-22T00:00:00Z"
+}

@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Data
+backend/data/*.jsonl
+
+# Benchmark corpus (regenerated from seed)
+backend/tests/benchmark/corpus/
+backend/tests/benchmark/results/
+
+# Node
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
