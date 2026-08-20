@@ -17,6 +17,7 @@ Flag design:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -32,11 +33,20 @@ except ImportError:
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from tenant_shield_schema.sandbox import SandboxSpec
+from workflo_schema.sandbox import SandboxSpec
 
-from quarantyne_executor import SandboxExecutor
-from quarantyne_executor.executor import generate_sandbox_id
+from workflo_executor import SandboxExecutor
+from workflo_executor.executor import generate_sandbox_id
 from sandbox_isolation import generate_keypair, verify_receipt_signature
+
+# Auth commands
+from workflo_cli.auth_commands import (
+    auth_group,
+    login_alias,
+    logout_alias,
+    org_group,
+    workspace_group,
+)
 
 # Hard limits to prevent DoS / abuse
 MAX_RECEIPT_BYTES = 10 * 1024 * 1024   # 10 MB
@@ -47,7 +57,7 @@ MAX_COMMIT_SHA_LEN = 64
 
 # Config file recognized keys (CLI flag names, not Python identifiers)
 _CONFIG_KEYS = {
-    "repo", "test", "deep_test", "aggressive_test", "security", "web",
+    "repo", "path", "test", "deep_test", "aggressive_test", "security", "web", "publish",
     "start_command", "port", "commit_sha", "output", "worker_image",
     "deep_worker_image", "web_worker_image", "timeout", "memory", "cpu",
     "pubkey", "force", "dry_run", "via_api", "api_key",
@@ -93,6 +103,56 @@ def _validate_commit_sha(sha: Optional[str]) -> Optional[str]:
             "Use hex chars or a valid ref name."
         )
     return sha
+
+
+def _validate_local_path(path: str) -> str:
+    """Validate a local directory path for --path input.
+
+    Resolves to absolute, verifies the path exists and is a directory. We
+    allow any characters in the resolved path (it's host-side, not a
+    Docker argv element), but reject obviously dangerous input before
+    resolving — a hostile path with shell metacharacters shouldn't make
+    it to the executor at all.
+    """
+    path = path.strip()
+    if not path:
+        raise click.BadParameter("--path must not be empty")
+    # Reject control characters and shell-metachar-ish bytes before resolving.
+    if any(c in path for c in ["\x00", "\n", "\r"]):
+        raise click.BadParameter("--path contains forbidden characters (NUL/newline)")
+    resolved = Path(path).resolve()
+    if not resolved.exists():
+        raise click.BadParameter(f"--path does not exist: {resolved}")
+    if not resolved.is_dir():
+        raise click.BadParameter(f"--path is not a directory: {resolved}")
+    return str(resolved)
+
+
+# Same conservative manifest set the executor uses for two-stage install.
+# Kept in sync intentionally: a manifest the CLI detects is the same one
+# the executor will try to install from.
+_PACKAGE_MANIFESTS = (
+    "requirements.txt",
+    "pyproject.toml",
+    "setup.py",
+    "package.json",
+    "go.mod",
+    "Cargo.toml",
+)
+
+
+def _path_has_package_manifest(path: str) -> bool:
+    """Return True if the local directory has a recognized package manifest.
+
+    Drives the CLI's two-stage-flow gate: when --path points at a directory
+    with one of these manifests, dependency_install=True and the executor
+    runs Stage 1 (networked prep) before Stage 2 (sealed test). When no
+    manifest is present, the run stays single-stage sealed — no install
+    needed → no networked prep stage → no `dependency_install_had_network`
+    claim on the receipt.
+    """
+    repo_path = Path(path)
+    return any((repo_path / name).is_file() for name in _PACKAGE_MANIFESTS)
 
 
 def _load_config_file(path: str) -> dict[str, Any]:
@@ -184,6 +244,26 @@ def _load_ed25519_pubkey(path: Path) -> Ed25519PublicKey:
     return key
 
 
+def _load_ed25519_pubkey_from_string(pem: str) -> Ed25519PublicKey:
+    """Load and validate an Ed25519 public key from a PEM string.
+
+    Same validation as _load_ed25519_pubkey but takes a string instead
+    of a file path. Used when the control plane returns the key inline.
+    """
+    try:
+        key = serialization.load_pem_public_key(pem.encode("utf-8"))
+    except ValueError as e:
+        raise click.BadParameter(f"Invalid PEM format: {e}")
+
+    if not isinstance(key, Ed25519PublicKey):
+        raise click.BadParameter(
+            f"Pubkey must be Ed25519, got {type(key).__name__}. "
+            f"workflo uses Ed25519 signatures exclusively."
+        )
+
+    return key
+
+
 def _confirm_overwrite(path: Path) -> None:
     """Confirm before overwriting an existing file."""
     if path.exists():
@@ -213,10 +293,10 @@ def _internal_to_public_probe_groups(internal: list[str]) -> list[str]:
 
 
 def _read_cli_workflo_yaml(repo_url: str) -> tuple[Optional[str], Optional[int]]:
-    """Best-effort read of the target repo's workflo.yaml `web:` section.
+    """Best-effort read of the target repo's workflo.yaml `web:` or `security:` section.
 
     Only works for `file://` repos — for remote URLs the yaml is read
-    INSIDE the container after the clone (worker-side resolve_web_config).
+    INSIDE the container after the clone (worker-side resolve_web_config / resolve_security_config).
     This gives the CLI a local pre-flight fail-fast for dev/test repos
     while remote runs still get a clean worker-side failure.
 
@@ -233,9 +313,12 @@ def _read_cli_workflo_yaml(repo_url: str) -> tuple[Optional[str], Optional[int]]
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if isinstance(data, dict) and isinstance(data.get("web"), dict):
-            web = data["web"]
-            return web.get("start_command"), web.get("port")
+        if isinstance(data, dict):
+            # Check security section first, then fall back to web
+            for section_name in ("security", "web"):
+                if isinstance(data.get(section_name), dict):
+                    section = data[section_name]
+                    return section.get("start_command"), section.get("port")
     return None, None
 
 
@@ -245,19 +328,37 @@ def cli():
     """workflo - sandboxed code-testing agent that verifies specific claims.
 
     Commands:
-      run      Execute sandboxed tests against a repo
-      verify   Verify a receipt's Ed25519 signature (Claim #4)
-      keygen   Generate Ed25519 keypair for receipt signing
+      run           Execute sandboxed tests against a repo
+      verify        Verify a receipt's Ed25519 signature (Claim #4)
+      keygen        Generate Ed25519 keypair for receipt signing
+      auth          Authentication and profile management
+      login         Authenticate via device flow (alias for auth login)
+      logout        Log out and revoke tokens (alias for auth logout)
+      org           Organization management
+      workspace     Workspace management
     """
+
+
+# Register auth-related command groups and aliases
+cli.add_command(auth_group)
+cli.add_command(login_alias, name="login")
+cli.add_command(logout_alias, name="logout")
+cli.add_command(org_group)
+cli.add_command(workspace_group)
 
 
 @cli.command()
 @click.option("--repo", default=None, help="Git repository URL to test")
+@click.option("--path", "repo_path", default=None,
+              help="Local directory to test (mutually exclusive with --repo). "
+                   "If a package manifest is detected (requirements.txt, package.json, etc.), "
+                   "a networked prep stage runs to install dependencies before the sealed test stage.")
 @click.option("--test", "surface", is_flag=True, default=None, help="Surface tests: native pytest + basic smoke")
 @click.option("--deep-test", "deep", is_flag=True, default=None, help="Deep tests: + generated edge cases, API contracts")
 @click.option("--aggressive-test", "aggressive", is_flag=True, default=None, help="Aggressive tests: + fuzz, property-based, chaos")
 @click.option("--security", is_flag=True, default=None, help="Security: tenant isolation, network isolation, canary")
 @click.option("--web", is_flag=True, default=None, help="Web tier: run Playwright browser probes against a running app")
+@click.option("--publish", is_flag=True, default=None, help="Publish results to Cortex cloud (requires auth)")
 @click.option("--start-command", default=None,
               help="Command that starts the app under test (web tier). Shell-free; auto-start + port-wait.")
 @click.option("--port", default=None, type=int,
@@ -298,7 +399,7 @@ def cli():
 @click.option("--config", "config_path", default=None,
               help="Load defaults from a YAML or JSON config file (CLI flags override)")
 def run(
-    repo, surface, deep, aggressive, security, web, start_command, port,
+    repo, repo_path, surface, deep, aggressive, security, web, publish, start_command, port,
     commit_sha, output, worker_image, deep_worker_image, web_worker_image,
     timeout, memory, cpu, pubkey, force, dry_run, config_path, via_api, api_key,
 ):
@@ -308,8 +409,9 @@ def run(
       --test            Surface: repo's pytest + basic smoke
       --deep-test       Deep: + generated edge cases, API contracts
       --aggressive-test Aggressive: + fuzz, property-based, chaos
-      --security        Security: tenant isolation, network canary, teardown proof
+      --security        Security: tenant isolation, network canary, teardown proof (needs --start-command/--port)
       --web             Web: Playwright browser probes (needs --start-command/--port)
+      --publish         Publish results to Cortex cloud (requires `workflo auth login`)
 
     Only one functional tier (--test / --deep-test / --aggressive-test) may
     be selected. --security is independent and composable.
@@ -326,10 +428,12 @@ def run(
 
     Examples:
       workflo run --repo https://github.com/psf/requests.git --test
-      workflo run --repo https://github.com/psf/requests.git --test --security
+      workflo run --repo https://github.com/psf/requests.git --test --security \
+          --start-command "python app.py" --port 5000
       workflo run --repo https://github.com/psf/requests.git --deep-test
       workflo run --repo https://github.com/psf/requests.git --web \
           --start-command "python app.py" --port 5000
+      workflo run --repo https://github.com/psf/requests.git --test --publish
       workflo run --config workflo.yaml --dry-run
       workflo run --config workflo.yaml --test --force
     """
@@ -348,11 +452,13 @@ def run(
         return default
 
     repo = merge(repo, "repo")
+    repo_path = merge(repo_path, "path")
     surface = merge(surface, "test", False)
     deep = merge(deep, "deep_test", False)
     aggressive = merge(aggressive, "aggressive_test", False)
     security = merge(security, "security", False)
     web = merge(web, "web", False)
+    publish = merge(publish, "publish", False)
     start_command = merge(start_command, "start_command")
     port = merge(port, "port")
     commit_sha = merge(commit_sha, "commit_sha")
@@ -372,9 +478,26 @@ def run(
     api_key = merge(api_key, "api_key")
 
     # --- 2. Validate inputs FIRST - fail fast before any expensive work ---
-    if not repo:
-        raise click.BadParameter("--repo is required (or provide it in a config file)")
-    repo = _validate_repo_url(repo)
+    if repo and repo_path:
+        raise click.BadParameter(
+            "--repo and --path are mutually exclusive: choose one input source. "
+            "--repo for a git URL, --path for a local directory."
+        )
+    if not repo and not repo_path:
+        raise click.BadParameter(
+            "Either --repo <url> or --path <local-dir> is required "
+            "(or provide one in a config file)."
+        )
+    if repo_path:
+        repo_path = _validate_local_path(repo_path)
+        # --path implies no commit_sha (commit is only meaningful for git clones)
+        if commit_sha:
+            raise click.BadParameter(
+                "--commit-sha cannot be combined with --path "
+                "(commit_sha is only meaningful for git URL inputs)"
+            )
+    else:
+        repo = _validate_repo_url(repo)
     commit_sha = _validate_commit_sha(commit_sha)
 
     # Validate worker-image name (defense in depth)
@@ -470,6 +593,98 @@ def run(
         if not (1 <= port <= 65535):
             raise click.BadParameter(f"web port out of range: {port}")
 
+    # Fail fast for the security tier: same rationale as web — a security run
+    # without app-start config would burn a full sandbox cycle. Reuse the same
+    # --start-command/--port flags (and workflo.yaml web: section as fallback)
+    # since the security tier boots the same app-under-test.
+    if security and not (start_command and port):
+        yaml_start, yaml_port = _read_cli_workflo_yaml(repo)
+        start_command = start_command or yaml_start
+        port = port or yaml_port
+
+    if security:
+        missing = []
+        if not start_command:
+            missing.append("start_command")
+        if not port:
+            missing.append("port")
+        if missing:
+            flag_names = ", ".join("--" + m.replace("_", "-") for m in missing)
+            raise click.UsageError(
+                f"--security requires {flag_names}: "
+                f"provide them on the command line, in the config file, or via the "
+                f"repo's workflo.yaml (web: or security: section):\n"
+                f"  security:\n"
+                f"    start_command: <cmd>\n"
+                f"    port: <n>\n"
+                f"  # or reuse web config:\n"
+                f"  web:\n"
+                f"    start_command: <cmd>\n"
+                f"    port: <n>"
+            )
+        try:
+            port = int(port)
+        except (ValueError, TypeError):
+            raise click.BadParameter(f"security port is not an integer: {port!r}")
+        if not (1 <= port <= 65535):
+            raise click.BadParameter(f"security port out of range: {port}")
+
+    # Auth gate: every `workflo run` (including --dry-run and --via-api) requires
+    # authentication. Fail fast BEFORE any tmpfs mount, Docker create, or HTTP
+    # round-trip — an unauthenticated user should not watch sandbox setup start
+    # only to fail later. This is independent of --publish: publishing is an
+    # additional optional feature, but every run needs to be attributable to a
+    # logged-in user. Note: this only gates IDENTITY, not data egress — the
+    # "code never leaves your machine" privacy claim is unaffected.
+    try:
+        from cortex_auth.session import AuthSession
+        from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
+        auth_session = AuthSession(
+            product="workflo",
+            client_id=PRODUCT_CLIENT_IDS["workflo"],
+            base_url=os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001"),
+            scopes=WORKFLO_SCOPES,
+        )
+        if auth_session.status() is None:
+            click.echo(
+                "Not authenticated. Run `workflo auth login` first.",
+                err=True,
+            )
+            sys.exit(1)
+    except SystemExit:
+        raise
+    except Exception:
+        # If credential store is unreadable or auth status can't be determined,
+        # treat as unauthenticated rather than letting the run proceed with an
+        # unknown identity state.
+        click.echo(
+            "Not authenticated. Run `workflo auth login` first.",
+            err=True,
+        )
+        sys.exit(1)
+
+    # --publish requires authentication (local-first: auth is mandatory for --publish)
+    if publish:
+        try:
+            from cortex_auth.session import AuthSession
+            from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
+            auth_session = AuthSession(
+                product="workflo",
+                client_id=PRODUCT_CLIENT_IDS["workflo"],
+                base_url=os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001"),
+                scopes=WORKFLO_SCOPES,
+            )
+            if auth_session.status() is None:
+                raise click.UsageError(
+                    "--publish requires authentication. Run `workflo auth login` first."
+                )
+        except Exception as e:
+            if isinstance(e, click.UsageError):
+                raise
+            raise click.UsageError(
+                "--publish requires authentication. Run `workflo auth login` first."
+            )
+
     probe_groups.extend(functional_tiers)
     if security:
         probe_groups.append("security")
@@ -485,14 +700,18 @@ def run(
 
     sandbox_id = generate_sandbox_id()
 
-    # Web-tier config flows to the container via env vars (the executor
-    # forwards spec.run_spec["env"] into the container env verbatim). The
-    # worker's resolve_web_config reads these; workflo.yaml in the repo is
-    # only a fallback for config NOT passed at the CLI.
+    # Web-tier and security-tier config flows to the container via env vars
+    # (the executor forwards spec.run_spec["env"] into the container env
+    # verbatim). The worker's resolve_web_config / resolve_security_config
+    # reads these; workflo.yaml in the repo is only a fallback for config
+    # NOT passed at the CLI.
     run_env: dict[str, str] = {}
     if web:
         run_env["WORKFLO_START_COMMAND"] = str(start_command)
         run_env["WORKFLO_WEB_PORT"] = str(port)
+    if security:
+        run_env["WORKFLO_SECURITY_START_COMMAND"] = str(start_command)
+        run_env["WORKFLO_SECURITY_PORT"] = str(port)
 
     run_spec = {
         "goal": "security" if security else "functional",
@@ -507,15 +726,28 @@ def run(
         "env": run_env,
     }
 
+    # Two-stage flow gate: when --path is used AND a package manifest is
+    # detected, set dependency_install=True so the executor runs Stage 1
+    # (networked prep) before Stage 2 (sealed test). For plain --repo runs
+    # we keep the single-stage-after-clone flow — git clone already pulls
+    # the repo's source, and most repos don't need a separate install step
+    # beyond that. Plain --path runs without a manifest also stay
+    # single-stage (no install needed → no networked prep).
+    dependency_install = False
+    if repo_path:
+        dependency_install = _path_has_package_manifest(repo_path)
+
     try:
         spec = SandboxSpec(
             sandbox_id=sandbox_id,
-            repo_url=repo,
+            repo_url=repo or "",
+            repo_path=repo_path,
             commit_sha=commit_sha,
             run_spec=run_spec,
             timeout_seconds=timeout,
             memory_mb=memory,
             cpu_cores=cpu,
+            dependency_install=dependency_install,
         )
     except Exception as e:
         raise click.BadParameter(f"Invalid spec: {e}")
@@ -525,7 +757,7 @@ def run(
     # but the CLI also needs the answer for the dry-run plan and for the
     # stderr banner — we mirror the same rule here so the printed plan
     # matches what the executor would actually do.
-    from quarantyne_executor.executor import (
+    from workflo_executor.executor import (
         DEFAULT_DEEP_WORKER_IMAGE,
         DEFAULT_WEB_WORKER_IMAGE,
         _DEEP_PROBE_GROUPS,
@@ -553,6 +785,7 @@ def run(
             "mode": "dry-run",
             "sandbox_id": sandbox_id,
             "repo": repo,
+            "repo_path": repo_path,
             "commit_sha": commit_sha,
             "probe_groups": probe_groups,
             # Surface BOTH images and the auto-switch decision so a reviewer
@@ -566,10 +799,20 @@ def run(
             # bearing one). For --web, this is the web image (the Playwright
             # one). For --test/--security, this is the surface image.
             "selected_worker_image": selected_worker_image,
+            # Two-stage flow flag — when True, the executor runs Stage 1
+            # (networked prep to install dependencies) before Stage 2
+            # (sealed test, network=none). The reviewer sees this in the
+            # plan AND in the receipt's dependency_install_had_network.
+            "dependency_install": dependency_install,
             "web_config": {
                 "start_command": start_command,
                 "port": port,
             } if web else None,
+            "security_config": {
+                "start_command": start_command,
+                "port": port,
+            } if security else None,
+            "publish": publish,
             "timeout_seconds": timeout,
             "memory_mb": memory,
             "cpu_cores": cpu,
@@ -612,6 +855,11 @@ def run(
         click.echo(f"Web worker image (selected): {selected_worker_image}", err=True)
         click.echo(
             f"Web config: start_command={start_command!r} port={port}",
+            err=True,
+        )
+    if security:
+        click.echo(
+            f"Security config: start_command={start_command!r} port={port}",
             err=True,
         )
     click.echo(f"Public key fingerprint: {signer.public_key_fingerprint}", err=True)
@@ -803,14 +1051,21 @@ def _run_via_api(
 
 @cli.command()
 @click.option("--receipt", "receipt_path", required=True, help="Path to receipt JSON file")
-@click.option("--pubkey", required=True, help="Path to Ed25519 public key PEM file")
+@click.option("--pubkey", default=None,
+              help="Path to Ed25519 public key PEM file (not needed if receipt has key_id)")
 @click.option("--fingerprint", default=None, help="Expected public key fingerprint (SHA-256 hex)")
-def verify(receipt_path, pubkey, fingerprint):
+@click.option("--control-plane", default=None,
+              help="Control plane base URL for auto-fetching provisioned keys (default: env WORKFLO_AUTH_BASE_URL)")
+def verify(receipt_path, pubkey, fingerprint, control_plane):
     """Verify a receipt's Ed25519 signature against a published public key.
 
     Backs Claim #4: "every run produces a signed, tamper-evident receipt."
-    This is the command an outside verifier runs to check that a receipt
-    was actually signed by workflo and hasn't been tampered with.
+
+    If the receipt contains a `key_id` (i.e. it was signed by a key
+    provisioned via `workflo keygen --provision`), this command will
+    auto-fetch the public key from the control plane and also check
+    that the key is still active (not revoked). Use --pubkey to
+    override and verify against a local PEM file instead.
     """
 
     # Read receipt with size limit to prevent DoS
@@ -834,18 +1089,71 @@ def verify(receipt_path, pubkey, fingerprint):
     receipt_dict = receipt_data.get("receipt", receipt_data)
 
     try:
-        from tenant_shield_schema.sandbox import SignedReceipt
+        from workflo_schema.sandbox import SignedReceipt
         receipt = SignedReceipt(**receipt_dict)
     except Exception as e:
         click.echo(f"FAILED: receipt does not match schema: {e}", err=True)
         sys.exit(1)
 
-    # Load and validate Ed25519 pubkey
-    pubkey_file = Path(pubkey)
-    try:
-        public_key = _load_ed25519_pubkey(pubkey_file)
-    except click.BadParameter as e:
-        click.echo(f"FAILED: {e.message}", err=True)
+    # Resolve public key: prefer auto-fetch by key_id (provenance), fall back to --pubkey
+    public_key = None
+    key_status = None
+    key_metadata = {}
+
+    if receipt.key_id and not pubkey:
+        # Auto-fetch from control plane
+        import httpx
+        cp_base = (
+            control_plane
+            or os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001")
+        ).rstrip("/")
+        try:
+            resp = httpx.get(
+                f"{cp_base}/v1/auth/keys/{receipt.key_id}",
+                timeout=10,
+            )
+        except httpx.HTTPError as e:
+            click.echo(f"FAILED: cannot reach control plane: {e}", err=True)
+            sys.exit(1)
+
+        if resp.status_code == 404:
+            click.echo(f"FAILED: key_id {receipt.key_id} not found in control plane directory", err=True)
+            sys.exit(1)
+        if resp.status_code != 200:
+            click.echo(f"FAILED: control plane error (HTTP {resp.status_code}): {resp.text[:200]}", err=True)
+            sys.exit(1)
+
+        key_info = resp.json()
+        key_status = key_info.get("status")
+        key_metadata = {
+            "device_id": key_info.get("device_id"),
+            "user_id": key_info.get("user_id"),
+            "organization_id": key_info.get("organization_id"),
+            "provisioned_at": key_info.get("provisioned_at"),
+        }
+
+        if key_status == "revoked":
+            click.echo(f"FAILED: signing key has been REVOKED (revoked_at={key_info.get('revoked_at')})", err=True)
+            sys.exit(1)
+
+        # Load PEM from response
+        try:
+            public_key = _load_ed25519_pubkey_from_string(key_info["public_key"])
+        except Exception as e:
+            click.echo(f"FAILED: control plane returned invalid public key: {e}", err=True)
+            sys.exit(1)
+
+        click.echo(f"Auto-fetched public key from control plane (key_id={receipt.key_id})", err=True)
+    elif pubkey:
+        # Explicit --pubkey override
+        pubkey_file = Path(pubkey)
+        try:
+            public_key = _load_ed25519_pubkey(pubkey_file)
+        except click.BadParameter as e:
+            click.echo(f"FAILED: {e.message}", err=True)
+            sys.exit(1)
+    else:
+        click.echo("FAILED: receipt has no key_id and --pubkey not provided", err=True)
         sys.exit(1)
 
     # Optional fingerprint check
@@ -863,6 +1171,17 @@ def verify(receipt_path, pubkey, fingerprint):
         click.echo("VERIFIED: receipt signature is valid.")
         click.echo(f"  Sandbox ID: {receipt.sandbox_id}", err=True)
         click.echo(f"  Fingerprint: {receipt.public_key_fingerprint}", err=True)
+        if receipt.key_id:
+            click.echo(f"  Key ID: {receipt.key_id}", err=True)
+            click.echo(f"  Key Status: {key_status or 'unknown'}", err=True)
+            if key_metadata.get("device_id"):
+                click.echo(f"  Device: {key_metadata['device_id']}", err=True)
+            if key_metadata.get("user_id"):
+                click.echo(f"  User: {key_metadata['user_id']}", err=True)
+            if key_metadata.get("organization_id"):
+                click.echo(f"  Organization: {key_metadata['organization_id']}", err=True)
+            if key_metadata.get("provisioned_at"):
+                click.echo(f"  Provisioned: {key_metadata['provisioned_at']}", err=True)
         sys.exit(0)
     else:
         click.echo("FAILED: receipt signature is INVALID or tampered.", err=True)
@@ -872,11 +1191,20 @@ def verify(receipt_path, pubkey, fingerprint):
 @cli.command()
 @click.option("--output", "-o", default=None, help="Write the public key PEM to a file")
 @click.option("--force", is_flag=True, help="Overwrite output file if it exists")
-def keygen(output, force):
+@click.option("--provision", is_flag=True, help="Register the public key with Cortex (provenance)")
+@click.option("--device-id", default=None,
+              help="Device identifier (default: hostname-based). Used for provenance tracking.")
+def keygen(output, force, provision, device_id):
     """Generate a new Ed25519 keypair for receipt signing.
 
     Prints the public key PEM to stdout and the fingerprint to stderr.
     The private key is printed to stderr - capture it securely.
+
+    With --provision: registers the public key with the Cortex control-plane
+    (requires prior `workflo auth login`). The private key stays on this
+    device; only the public key is sent. Once provisioned, receipts signed
+    by this key carry a key_id that verifiers can look up to confirm the
+    key belongs to a known, authenticated device/user.
     """
 
     signer = generate_keypair()
@@ -892,6 +1220,53 @@ def keygen(output, force):
         encryption_algorithm=serialization.NoEncryption(),
     ).decode("utf-8")
 
+    # Optionally provision with Cortex for provenance
+    provisioned_key_id = None
+    if provision:
+        import platform as _platform
+        import socket as _socket
+        import uuid as _uuid
+        import httpx
+
+        # Use provided device_id or generate one based on hostname
+        resolved_device_id = device_id or f"{_socket.gethostname()}-{_uuid.uuid4().hex[:8]}"
+
+        # Check auth status — must be logged in
+        try:
+            from cortex_auth.session import AuthSession
+            from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
+            auth = AuthSession(
+                product="workflo",
+                client_id=PRODUCT_CLIENT_IDS["workflo"],
+                base_url=os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001"),
+                scopes=WORKFLO_SCOPES,
+            )
+            access_token = auth.get_access_token()
+        except Exception as e:
+            click.echo(f"FAILED: --provision requires authentication. Run `workflo auth login` first. ({e})", err=True)
+            sys.exit(1)
+
+        # POST to provisioning endpoint
+        base_url = os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001").rstrip("/")
+        try:
+            resp = httpx.post(
+                f"{base_url}/v1/auth/keys/provision",
+                json={"public_key": public_pem, "device_id": resolved_device_id},
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=15,
+            )
+        except httpx.HTTPError as e:
+            click.echo(f"FAILED: cannot reach control plane: {e}", err=True)
+            sys.exit(1)
+
+        if resp.status_code != 200:
+            click.echo(f"FAILED: provisioning rejected (HTTP {resp.status_code}): {resp.text[:200]}", err=True)
+            sys.exit(1)
+
+        provisioned_key_id = resp.json()["key_id"]
+        click.echo(f"Key provisioned: {provisioned_key_id} (device: {resolved_device_id})", err=True)
+        click.echo(f"  Fingerprint: {resp.json()['fingerprint']}", err=True)
+
     if output:
         output_path = Path(output).resolve()
         if not force and output_path.exists():
@@ -900,8 +1275,13 @@ def keygen(output, force):
             ):
                 raise click.Abort()
         try:
+            # Write public key + (if provisioned) the key_id as a sidecar file
             output_path.write_text(public_pem, encoding="utf-8")
             click.echo(f"Public key written to {output_path}", err=True)
+            if provisioned_key_id:
+                key_id_path = output_path.with_suffix(output_path.suffix + ".keyid")
+                key_id_path.write_text(provisioned_key_id, encoding="utf-8")
+                click.echo(f"Key ID written to {key_id_path}", err=True)
         except OSError as e:
             click.echo(f"Failed to write public key: {e}", err=True)
             sys.exit(1)
@@ -909,6 +1289,12 @@ def keygen(output, force):
         click.echo(public_pem)
 
     click.echo(f"Fingerprint: {signer.public_key_fingerprint}", err=True)
+    if not provision:
+        click.echo(
+            "Note: This key is local-only. Use --provision to register it with Cortex "
+            "for receipt provenance (requires `workflo auth login`).",
+            err=True,
+        )
     click.echo("Private key (keep secret!):", err=True)
     click.echo(private_pem, err=True)
 

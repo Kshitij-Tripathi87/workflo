@@ -16,7 +16,8 @@ def _uuid() -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    # Naive UTC — see app.core.crypto.utc_now for why (SQLite round-trip).
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Organization(Base):
@@ -28,6 +29,7 @@ class Organization(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     projects: Mapped[list["Project"]] = relationship(back_populates="org", cascade="all, delete-orphan")
+    users: Mapped[list["User"]] = relationship(back_populates="org")
 
 
 class Project(Base):
@@ -124,3 +126,114 @@ class Artifact(Base):
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
     run: Mapped["TestRun"] = relationship(back_populates="artifacts")
+
+
+class DeviceCode(Base):
+    """OAuth 2.0 Device Authorization Grant (RFC 8628) — device code.
+
+    Created when a CLI requests a device code. The user authorizes it via
+    the verification URI, then the CLI polls /device/token to exchange the
+    device_code for tokens. ``user_id`` is bound at approval time (POST
+    /device, which requires an authenticated browser session) — the device
+    code carries no identity before then.
+    """
+
+    __tablename__ = "device_codes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    device_code: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    user_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    client_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    scopes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    authorized_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    token_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # FK to OAuthToken after auth
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    user: Mapped["User | None"] = relationship(back_populates="device_codes")
+
+
+class OAuthToken(Base):
+    """OAuth access/refresh token pair for a user+client combination."""
+
+    __tablename__ = "oauth_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    client_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    organization_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    scopes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    access_token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    refresh_token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    access_token_expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    refresh_token_expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    user: Mapped["User"] = relationship(back_populates="oauth_tokens")
+
+    # Index for token lookup by refresh token hash
+    __table_args__ = ()
+
+
+class ProvisionedKey(Base):
+    """A registered Ed25519 public key for receipt provenance.
+
+    When a CLI user runs `workflo keygen --provision`, their local keypair
+    stays on their device; only the public key is sent to Cortex. The
+    private key signs receipts locally. The `key_id` is embedded in the
+    receipt, so verifiers can fetch the public key from this table to
+    verify the signature AND check that the key was provisioned by a
+    known, authenticated device/user.
+
+    This enables the authenticity/provenance guarantee: a receipt signed
+    by a key registered to a specific device + user + org is traceable,
+    not just internally consistent.
+    """
+
+    __tablename__ = "provisioned_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    public_key: Mapped[str] = mapped_column(String(2048), nullable=False)  # PEM-encoded
+    fingerprint: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)  # SHA-256 hex
+    device_id: Mapped[str] = mapped_column(String(128), nullable=False)  # unique per device
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    organization_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    provisioned_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | revoked
+
+    user: Mapped["User"] = relationship(back_populates="provisioned_keys")
+
+    __table_args__ = (
+        # One key per (device, fingerprint) — prevents double-registration
+        {"sqlite_autoincrement": False},
+    )
+
+
+class User(Base):
+    """A registered user account with email + password hash.
+
+    Linked to an Organization. Owns OAuth tokens and provisioned keys.
+    ``project_id`` is the user's own default workspace (created at signup) —
+    per-user project ownership, so users never share a workspace.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)  # argon2id hash
+    org_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"))
+    project_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("projects.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    org: Mapped["Organization | None"] = relationship(back_populates="users")
+    project: Mapped["Project | None"] = relationship()
+    oauth_tokens: Mapped[list["OAuthToken"]] = relationship(back_populates="user")
+    provisioned_keys: Mapped[list["ProvisionedKey"]] = relationship(back_populates="user")
+    device_codes: Mapped[list["DeviceCode"]] = relationship(back_populates="user")

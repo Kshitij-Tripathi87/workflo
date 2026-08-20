@@ -9,15 +9,25 @@ Header reconciliation (Phase 3 Track B):
     plane. It's accepted for backwards compatibility and will be dropped
     in v2. The contract header is checked first; when both are present,
     `X-API-Key` wins.
+
+Bearer access-token verification (identity binding):
+  Access tokens are HS256 JWTs signed with the identity claims (sub, email,
+  organization_*, workspace_*). Verification checks the signature + expiry,
+  then confirms the matching OAuthToken row is not revoked/expired and
+  loads the bound User — a valid signature alone is not enough, revocation
+  must be honored.
 """
 
 import hashlib
 import secrets
+from typing import Optional
 from fastapi import Request, HTTPException, status, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.services.api_key_service import ApiKeyService
-from app.db.models import ApiKey
+from app.db.models import ApiKey, OAuthToken, User
+from app.core.crypto import verify_token, verify_access_token
 
 
 def _extract_api_key(request: Request) -> str:
@@ -46,6 +56,59 @@ async def require_api_key(request: Request, db: AsyncSession = Depends(get_db)) 
         )
     request.state.api_key = record
     return record
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> str:
+    """Pull the raw token from an Authorization: Bearer header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+    raw = authorization[len("Bearer "):].strip()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Empty bearer token")
+    return raw
+
+
+async def verify_bearer_token(
+    authorization: Optional[str],
+    db: AsyncSession,
+) -> tuple[OAuthToken, User]:
+    """Verify a Bearer JWT access token; return (token_record, user).
+
+    The signature and expiry are checked via ``verify_access_token``, then
+    the token's OAuthToken row is located by its stored hash to honor
+    revocation. The bound user is loaded and returned so callers bind
+    identity (user_id / workspace) without an extra round trip.
+    """
+    raw_token = _extract_bearer_token(authorization)
+    claims = verify_access_token(raw_token)
+    if not claims:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+        )
+
+    stmt = select(OAuthToken)
+    records = (await db.execute(stmt)).scalars().all()
+    record = next(
+        (t for t in records if not t.revoked_at and verify_token(raw_token, t.access_token_hash)),
+        None,
+    )
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+        )
+
+    user = await db.get(User, record.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+        )
+    return record, user
 
 
 async def require_scope(scope: str):
