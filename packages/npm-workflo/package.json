@@ -1,11 +1,22 @@
 {
-  "name": "workflo",
-  "version": "0.1.0",
+  "name": "@cortex/workflo",
+  "version": "0.2.0",
+  "description": "workflo — sandboxed code-testing agent with signed receipts. npm distribution shim; the engine ships as prebuilt Python wheels in a package-local venv.",
+  "license": "Proprietary",
   "bin": {
     "workflo": "bin/workflo.js"
   },
-  "scripts": {
-    "postinstall": "node scripts/postinstall.js"
+  "files": [
+    "bin",
+    "scripts",
+    "vendor"
+  ],
+  "engines": {
+    "node": ">=18"
   },
-  "files": ["bin", "scripts", "vendor"]
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "pack:build": "python scripts/build-wheels.py && npm pack --pack-destination dist",
+    "test": "node scripts/smoke-test.js"
+  }
 }
