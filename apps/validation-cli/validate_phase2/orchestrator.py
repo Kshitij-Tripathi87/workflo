@@ -145,9 +145,16 @@ def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 300,
 
 
 def clone_repo(repo_url: str, work: Path) -> Path:
-    """Shallow clone of the repo into work/repo."""
+    """Shallow clone of the repo into work/repo.
+
+    Raises subprocess.CalledProcessError on clone failure so callers can
+    fail loud rather than silently continuing with a broken state.
+    """
     target = work / "repo"
-    _run(["git", "clone", "--depth=50", repo_url, str(target)], timeout=300)
+    subprocess.run(
+        ["git", "clone", "--depth=50", repo_url, str(target)],
+        cwd=work, check=True, capture_output=True, text=True, timeout=300,
+    )
     return target
 
 
