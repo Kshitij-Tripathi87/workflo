@@ -6,7 +6,7 @@ connections are made and tests stay fast.
 
 from unittest.mock import MagicMock, patch
 
-from tenant_shield_agent.client import ControlPlaneClient
+from workflo_agent.client import ControlPlaneClient
 
 
 def _patch_httpx_client():
@@ -18,7 +18,7 @@ def _patch_httpx_client():
     client_mock = MagicMock()
     client_mock.__enter__.return_value = client_mock
     client_mock.__exit__.return_value = None
-    patcher = patch("tenant_shield_agent.client.httpx.Client", return_value=client_mock)
+    patcher = patch("workflo_agent.client.httpx.Client", return_value=client_mock)
     return patcher, client_mock
 
 
@@ -31,7 +31,7 @@ def test_client_reads_api_key_and_base_url_from_config(monkeypatch):
         return mapping.get(key, default)
 
     monkeypatch.setattr(
-        "tenant_shield_agent.client.get_config_value", fake_get_config_value
+        "workflo_agent.client.get_config_value", fake_get_config_value
     )
 
     client = ControlPlaneClient()
@@ -47,7 +47,7 @@ def test_client_uses_config_default_base_url_when_missing(monkeypatch):
         return default
 
     monkeypatch.setattr(
-        "tenant_shield_agent.client.get_config_value", fake_get_config_value
+        "workflo_agent.client.get_config_value", fake_get_config_value
     )
 
     client = ControlPlaneClient()

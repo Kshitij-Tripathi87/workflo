@@ -6,7 +6,7 @@ mocked so the tests run headless and fast.
 
 from unittest.mock import patch
 
-from tenant_shield_agent.ui.prompts import (
+from workflo_agent.ui.prompts import (
     GOAL_CHOICES,
     prompt_goal,
     prompt_execution_mode,
@@ -27,7 +27,7 @@ def test_goal_choices_entries_have_label_and_markers():
         assert isinstance(value["markers"], list)
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.select")
+@patch("workflo_agent.ui.prompts.questionary.select")
 def test_prompt_goal_returns_selected_choice(mock_select):
     mock_select.return_value.ask.return_value = "security"
     result = prompt_goal()
@@ -36,14 +36,14 @@ def test_prompt_goal_returns_selected_choice(mock_select):
     assert mock_select.return_value.ask.called
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.select")
+@patch("workflo_agent.ui.prompts.questionary.select")
 def test_prompt_goal_defaults_to_smoke_when_answer_falsy(mock_select):
     mock_select.return_value.ask.return_value = None
     result = prompt_goal()
     assert result == "smoke"
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.select")
+@patch("workflo_agent.ui.prompts.questionary.select")
 def test_prompt_execution_mode_returns_cloud(mock_select):
     mock_select.return_value.ask.return_value = "cloud"
     result = prompt_execution_mode()
@@ -51,21 +51,21 @@ def test_prompt_execution_mode_returns_cloud(mock_select):
     mock_select.assert_called_once()
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.select")
+@patch("workflo_agent.ui.prompts.questionary.select")
 def test_prompt_execution_mode_returns_local(mock_select):
     mock_select.return_value.ask.return_value = "local"
     result = prompt_execution_mode()
     assert result == "local"
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.select")
+@patch("workflo_agent.ui.prompts.questionary.select")
 def test_prompt_execution_mode_defaults_to_cloud_when_falsy(mock_select):
     mock_select.return_value.ask.return_value = None
     result = prompt_execution_mode()
     assert result == "cloud"
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.text")
+@patch("workflo_agent.ui.prompts.questionary.text")
 def test_prompt_overrides_returns_expected_keys(mock_text):
     mock_text.return_value.ask.side_effect = ["staging", "8", "3"]
     result = prompt_overrides()
@@ -74,7 +74,7 @@ def test_prompt_overrides_returns_expected_keys(mock_text):
     assert mock_text.call_count == 3
 
 
-@patch("tenant_shield_agent.ui.prompts.questionary.text")
+@patch("workflo_agent.ui.prompts.questionary.text")
 def test_prompt_overrides_passes_correct_defaults(mock_text):
     mock_text.return_value.ask.side_effect = ["staging", "4", "2"]
     prompt_overrides()

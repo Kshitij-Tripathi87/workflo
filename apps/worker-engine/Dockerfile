@@ -11,10 +11,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy local shared packages first (worker depends on them)
 COPY packages/core-schema/ /app/packages/core-schema/
 COPY packages/common-utils/ /app/packages/common-utils/
+COPY packages/probe-engine/ /app/packages/probe-engine/
 
 # Install the shared packages
 RUN pip install --no-cache-dir /app/packages/core-schema \
-    && pip install --no-cache-dir /app/packages/common-utils
+    && pip install --no-cache-dir /app/packages/common-utils \
+    && pip install --no-cache-dir /app/packages/probe-engine
+
+# Common PEP 517 build backends so the offline repo install
+# (`pip install --no-deps --no-build-isolation .`) works for modern repos —
+# setuptools, flit (click, flask), hatchling (many 2023+ repos), poetry-core.
+# Pure-Python, tiny; without these the offline install can't build the
+# repo's wheel and its tests can't import the package.
+RUN pip install --no-cache-dir flit-core hatchling poetry-core
 
 # Now copy and install the worker itself
 COPY apps/worker-engine/pyproject.toml /app/worker-engine/pyproject.toml

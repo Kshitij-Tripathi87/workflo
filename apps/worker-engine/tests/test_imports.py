@@ -1,10 +1,10 @@
 """Test that all worker-engine modules import cleanly."""
 
-from tenant_shield_worker.executor import execute_run, _parse_results
-from tenant_shield_worker.streamer import ResultStreamer
-from tenant_shield_worker.adapters.browser import BrowserAdapter
-from tenant_shield_worker.adapters.grid import GridAdapter
-from tenant_shield_schema import RunSpec, RunSummary, BrowserMode
+from workflo_worker.executor import execute_run, _parse_results
+from workflo_worker.streamer import ResultStreamer
+from workflo_worker.adapters.browser import BrowserAdapter
+from workflo_worker.adapters.grid import GridAdapter
+from workflo_schema import RunSpec, RunSummary, BrowserMode
 
 
 def test_executor_imports():

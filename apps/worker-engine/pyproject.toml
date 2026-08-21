@@ -3,12 +3,12 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tenant-shield-worker"
+name = "workflo-worker"
 version = "0.1.0"
-description = "The Tenant Shield execution engine — pulls specs from the queue, runs pytest/Playwright, streams results."
+description = "The workflo execution engine — pulls specs from the queue, runs pytest/Playwright, streams results."
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
-authors = [{ name = "Tenant Shield" }]
+license = { text = "Apache-2.0" }
+authors = [{ name = "workflo" }]
 dependencies = [
     "tenacity>=8.2.0",
     "redis>=5.0.0",
@@ -18,8 +18,9 @@ dependencies = [
     "pytest>=7.4.0",
     "pytest-json-report>=1.5.0",
     "pyyaml>=6.0",
-    "tenant-shield-schema",
-    "tenant-shield-utils",
+    "workflo-schema",
+    "workflo-utils",
+    "workflo-probe-engine",
 ]
 
 [project.optional-dependencies]

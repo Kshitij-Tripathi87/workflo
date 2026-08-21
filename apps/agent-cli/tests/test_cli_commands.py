@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 
-from tenant_shield_agent.cli import main
-from tenant_shield_agent.commands.auth import auth
-from tenant_shield_agent.commands.runs import runs
+from workflo_agent.cli import main
+from workflo_agent.commands.auth import auth
+from workflo_agent.commands.runs import runs
 
 
-@patch("tenant_shield_agent.commands.auth.load_config")
+@patch("workflo_agent.commands.auth.load_config")
 def test_auth_status_when_not_authenticated(mock_load_config):
     mock_load_config.return_value = {}
     runner = CliRunner()
@@ -23,7 +23,7 @@ def test_auth_status_when_not_authenticated(mock_load_config):
     mock_load_config.assert_called_once()
 
 
-@patch("tenant_shield_agent.commands.auth.load_config")
+@patch("workflo_agent.commands.auth.load_config")
 def test_auth_status_when_authenticated_shows_masked_key(mock_load_config):
     mock_load_config.return_value = {"auth": {"api_key": "1234567890abcdef"}}
     runner = CliRunner()
@@ -33,8 +33,8 @@ def test_auth_status_when_authenticated_shows_masked_key(mock_load_config):
     assert "API Key" in result.output
 
 
-@patch("tenant_shield_agent.commands.auth.save_config")
-@patch("tenant_shield_agent.commands.auth.load_config")
+@patch("workflo_agent.commands.auth.save_config")
+@patch("workflo_agent.commands.auth.load_config")
 def test_auth_login_stores_api_key(mock_load_config, mock_save_config):
     mock_load_config.return_value = {}
     runner = CliRunner()
@@ -46,8 +46,8 @@ def test_auth_login_stores_api_key(mock_load_config, mock_save_config):
     assert "Authenticated" in result.output
 
 
-@patch("tenant_shield_agent.commands.auth.save_config")
-@patch("tenant_shield_agent.commands.auth.load_config")
+@patch("workflo_agent.commands.auth.save_config")
+@patch("workflo_agent.commands.auth.load_config")
 def test_auth_login_preserves_existing_config(mock_load_config, mock_save_config):
     mock_load_config.return_value = {"defaults": {"api_base_url": "https://custom"}}
     runner = CliRunner()
@@ -59,8 +59,8 @@ def test_auth_login_preserves_existing_config(mock_load_config, mock_save_config
     assert saved_config["defaults"] == {"api_base_url": "https://custom"}
 
 
-@patch("tenant_shield_agent.commands.auth.save_config")
-@patch("tenant_shield_agent.commands.auth.load_config")
+@patch("workflo_agent.commands.auth.save_config")
+@patch("workflo_agent.commands.auth.load_config")
 def test_auth_logout_removes_auth_key(mock_load_config, mock_save_config):
     mock_load_config.return_value = {
         "auth": {"api_key": "k"},
@@ -92,7 +92,7 @@ def test_main_help_shows_usage():
     assert "Tenant Shield" in result.output
 
 
-@patch("tenant_shield_agent.commands.runs.ControlPlaneClient")
+@patch("workflo_agent.commands.runs.ControlPlaneClient")
 def test_runs_list_handles_api_error_gracefully(mock_client_cls):
     mock_client_cls.return_value.list_runs.side_effect = RuntimeError("boom")
     runner = CliRunner()
@@ -101,7 +101,7 @@ def test_runs_list_handles_api_error_gracefully(mock_client_cls):
     assert "Failed to fetch runs" in result.output
 
 
-@patch("tenant_shield_agent.commands.runs.ControlPlaneClient")
+@patch("workflo_agent.commands.runs.ControlPlaneClient")
 def test_runs_get_handles_api_error_gracefully(mock_client_cls):
     mock_client_cls.return_value.get_run.side_effect = RuntimeError("not found")
     runner = CliRunner()

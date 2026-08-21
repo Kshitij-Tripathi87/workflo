@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tenant_shield_worker.web.stage import (
+from workflo_worker.web.stage import (
     WebConfigError,
     resolve_web_config,
     run_web_stage,
@@ -97,13 +97,13 @@ class TestRunWebStage:
         fake_proc = object()
 
         with patch(
-            "tenant_shield_worker.web.stage.start_app_under_test",
+            "workflo_worker.web.stage.start_app_under_test",
             return_value=fake_proc,
         ), patch(
-            "tenant_shield_worker.web.stage.run_web_probes",
+            "workflo_worker.web.stage.run_web_probes",
             return_value=[{"name": "page_loads", "passed": True, "detail": "status=200"}],
         ), patch(
-            "tenant_shield_worker.web.stage.stop_app_under_test",
+            "workflo_worker.web.stage.stop_app_under_test",
         ) as mock_stop:
             payload = run_web_stage(str(tmp_path), env={})
 
@@ -121,7 +121,7 @@ class TestRunWebStage:
         )
 
         with patch(
-            "tenant_shield_worker.web.stage.start_app_under_test",
+            "workflo_worker.web.stage.start_app_under_test",
             side_effect=RuntimeError("app process exited early with code 1"),
         ):
             payload = run_web_stage(str(tmp_path), env={})

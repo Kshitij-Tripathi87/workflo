@@ -24,7 +24,7 @@ from sandbox_isolation import (
 )
 from sandbox_isolation.teardown_proof import build_teardown_proof
 
-from tenant_shield_schema.sandbox import (
+from workflo_schema.sandbox import (
     SandboxSpec,
     SandboxLifecycleEvent,
     TeardownProof,

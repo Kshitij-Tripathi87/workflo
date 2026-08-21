@@ -15,11 +15,11 @@ from unittest.mock import patch, MagicMock
 # Ensure package can be imported when run directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "packages" / "datahub-client" / "src"))
 
-from tenant_shield_datahub.generator import TestGenerator
-from tenant_shield_datahub.client import DataHubClient
-from tenant_shield_datahub.models import DatasetSchema, ColumnInfo, LineageEdge, TestArtifact
-from tenant_shield_datahub.inspector import MetadataInspector
-from tenant_shield_datahub.writeback import ResultWriteback
+from workflo_datahub.generator import TestGenerator
+from workflo_datahub.client import DataHubClient
+from workflo_datahub.models import DatasetSchema, ColumnInfo, LineageEdge, TestArtifact
+from workflo_datahub.inspector import MetadataInspector
+from workflo_datahub.writeback import ResultWriteback
 
 
 # Sample DataHub metadata for a realistic B2B SaaS (WorkFlow Pro):

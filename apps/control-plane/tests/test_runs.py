@@ -126,7 +126,7 @@ class TestRunExecutionOutcomes:
         # background asyncio task that only runs while later requests
         # drive the event loop — if the patch exits first, the real
         # SandboxExecutor would be invoked.
-        with patch("quarantyne_executor.SandboxExecutor") as mock_cls:
+        with patch("workflo_executor.SandboxExecutor") as mock_cls:
             mock_cls.return_value.run.return_value = self._fake_result()
             resp = client.post(
                 "/v1/runs",
@@ -147,7 +147,7 @@ class TestRunExecutionOutcomes:
         """An executor crash is status=failed with error and NO receipt —
         the contract distinguishes infra crashes from test failures."""
         headers = _demo_headers(client)
-        with patch("quarantyne_executor.SandboxExecutor") as mock_cls:
+        with patch("workflo_executor.SandboxExecutor") as mock_cls:
             mock_cls.return_value.run.side_effect = RuntimeError("Ollama did not respond within 30s")
             resp = client.post(
                 "/v1/runs",

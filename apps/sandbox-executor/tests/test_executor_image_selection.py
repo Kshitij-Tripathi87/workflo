@@ -34,9 +34,9 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from quarantyne_executor import SandboxExecutor
-from quarantyne_executor.docker_runner import ContainerConfig, ContainerResult
-from quarantyne_executor.executor import (
+from workflo_executor import SandboxExecutor
+from workflo_executor.docker_runner import ContainerConfig, ContainerResult
+from workflo_executor.executor import (
     DEFAULT_DEEP_WORKER_IMAGE,
     DEFAULT_WEB_WORKER_IMAGE,
     DEFAULT_WORKER_IMAGE,
@@ -44,7 +44,7 @@ from quarantyne_executor.executor import (
     _WEB_PROBE_GROUPS,
     _probe_groups_from_spec,
 )
-from tenant_shield_schema.sandbox import SandboxSpec
+from workflo_schema.sandbox import SandboxSpec
 
 
 def _spec_with_probe_groups(groups):
@@ -257,7 +257,7 @@ class TestRunImageSelectionEndToEnd:
         from pathlib import Path
         from sandbox_isolation.ephemeral_fs import EphemeralMount
         from sandbox_isolation.network_policy import CanaryResult
-        from tenant_shield_schema.sandbox import TeardownProof
+        from workflo_schema.sandbox import TeardownProof
 
         # In-container worker emits both WORKFLO_REPORT and WORKFLO_CANARY
         # so the executor doesn rollover into the "not checked" canary path.
@@ -298,10 +298,10 @@ class TestRunImageSelectionEndToEnd:
         # ExitStack handles the __enter__/__exit__ for all nested context managers.
         with ExitStack() as stack:
             stack.enter_context(patch("subprocess.run", side_effect=fake_git_success))
-            stack.enter_context(patch("quarantyne_executor.executor.mount_tmpfs", return_value=fake_mount))
-            stack.enter_context(patch("quarantyne_executor.executor.unmount_tmpfs"))
-            stack.enter_context(patch("quarantyne_executor.executor.verify_ephemeral_gone", return_value=True))
-            stack.enter_context(patch("quarantyne_executor.executor.build_teardown_proof", side_effect=_fake_teardown))
+            stack.enter_context(patch("workflo_executor.executor.mount_tmpfs", return_value=fake_mount))
+            stack.enter_context(patch("workflo_executor.executor.unmount_tmpfs"))
+            stack.enter_context(patch("workflo_executor.executor.verify_ephemeral_gone", return_value=True))
+            stack.enter_context(patch("workflo_executor.executor.build_teardown_proof", side_effect=_fake_teardown))
 
             executor = SandboxExecutor(
                 worker_image="workflo-worker:test",
@@ -483,7 +483,7 @@ class TestRunWebImageSelectionEndToEnd:
         import tempfile as _tempfile, shutil as _shutil
         from pathlib import Path
         from sandbox_isolation.ephemeral_fs import EphemeralMount
-        from tenant_shield_schema.sandbox import TeardownProof
+        from workflo_schema.sandbox import TeardownProof
 
         container_stdout = (
             'WORKFLO_REPORT: {"total":5,"passed":5,"failed":0,"skipped":0}\n'
@@ -520,10 +520,10 @@ class TestRunWebImageSelectionEndToEnd:
 
         with ExitStack() as stack:
             stack.enter_context(patch("subprocess.run", side_effect=fake_git_success))
-            stack.enter_context(patch("quarantyne_executor.executor.mount_tmpfs", return_value=fake_mount))
-            stack.enter_context(patch("quarantyne_executor.executor.unmount_tmpfs"))
-            stack.enter_context(patch("quarantyne_executor.executor.verify_ephemeral_gone", return_value=True))
-            stack.enter_context(patch("quarantyne_executor.executor.build_teardown_proof", side_effect=_fake_teardown))
+            stack.enter_context(patch("workflo_executor.executor.mount_tmpfs", return_value=fake_mount))
+            stack.enter_context(patch("workflo_executor.executor.unmount_tmpfs"))
+            stack.enter_context(patch("workflo_executor.executor.verify_ephemeral_gone", return_value=True))
+            stack.enter_context(patch("workflo_executor.executor.build_teardown_proof", side_effect=_fake_teardown))
 
             executor = SandboxExecutor(
                 worker_image="workflo-worker:test",

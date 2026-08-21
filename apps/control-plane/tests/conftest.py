@@ -98,7 +98,7 @@ def _no_real_executor(monkeypatch):
     loop are torn down underneath it), which makes later tests flaky.
 
     The fake is deterministic and instant; execution-outcome tests override
-    it with their own `patch("quarantyne_executor.SandboxExecutor")` for
+    it with their own `patch("workflo_executor.SandboxExecutor")` for
     the duration of their polling loop (inner patches win over this one).
     """
     from unittest.mock import MagicMock
@@ -107,5 +107,5 @@ def _no_real_executor(monkeypatch):
     fake.run.return_value.to_json.return_value = (
         '{"receipt": true, "sandbox_id": "sb-fake"}'
     )
-    monkeypatch.setattr("quarantyne_executor.SandboxExecutor", fake)
+    monkeypatch.setattr("workflo_executor.SandboxExecutor", fake)
     yield

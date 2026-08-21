@@ -11,17 +11,17 @@ from __future__ import annotations
 
 import pytest
 
-from quarantyne_executor.docker_runner import (
+from workflo_executor.docker_runner import (
     ContainerConfig,
     _validate_safe_name,
     create_container,
 )
-from quarantyne_executor.executor import SandboxExecutor
-from tenant_shield_schema.sandbox import WebProbeResult
+from workflo_executor.executor import SandboxExecutor
+from workflo_schema.sandbox import WebProbeResult
 
 
 def _container_result_with(stdout: str):
-    from quarantyne_executor.docker_runner import ContainerResult
+    from workflo_executor.docker_runner import ContainerResult
     return ContainerResult(
         container_id="c1", returncode=0, stdout=stdout, stderr="", timed_out=False,
     )
@@ -87,7 +87,7 @@ class TestWebEnvKeysPassSafeNameValidation:
 
         config = ContainerConfig(
             image="workflo-worker-web:latest",
-            command=["python", "-m", "tenant_shield_worker.main"],
+            command=["python", "-m", "workflo_worker.main"],
             env={
                 "PROBE_GROUPS": '["web"]',
                 "WORKFLO_START_COMMAND": "python app.py",

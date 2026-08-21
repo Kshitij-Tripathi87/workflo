@@ -95,7 +95,7 @@ class TestWebRunThroughApi:
         headers = _demo_headers(client)
         mock_cls, specs = _fake_executor_with_spec_capture()
 
-        with patch("quarantyne_executor.SandboxExecutor", mock_cls):
+        with patch("workflo_executor.SandboxExecutor", mock_cls):
             resp = client.post(
                 "/v1/runs",
                 json={
@@ -140,7 +140,7 @@ class TestWebRunThroughApi:
         headers = _demo_headers(client)
         mock_cls, specs = _fake_executor_with_spec_capture()
 
-        with patch("quarantyne_executor.SandboxExecutor", mock_cls):
+        with patch("workflo_executor.SandboxExecutor", mock_cls):
             resp = client.post(
                 "/v1/runs",
                 json={
@@ -185,7 +185,7 @@ class TestWebRunThroughApi:
         headers = _demo_headers(client)
         mock_cls, _ = _fake_executor_with_spec_capture()
 
-        with patch("quarantyne_executor.SandboxExecutor", mock_cls):
+        with patch("workflo_executor.SandboxExecutor", mock_cls):
             resp = client.post(
                 "/v1/runs",
                 json={

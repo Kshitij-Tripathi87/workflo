@@ -1,7 +1,7 @@
 """Native pytest suite for the sample_pkg fixture repo.
 
 These three tests are the surface-tier baseline — they are what `python -m
-tenant_shield_worker --spec-file spec.json --repo-path <this repo>` runs
+workflo_worker --spec-file spec.json --repo-path <this repo>` runs
 unfiltered with `pytest -v --json-report`. They MUST pass so the surface
 run's receipt records `total=3, passed=3` deterministically and downstream
 tests can compare against a constant.

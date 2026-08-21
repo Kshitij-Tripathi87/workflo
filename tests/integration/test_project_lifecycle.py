@@ -22,12 +22,12 @@ Edge Cases:
 import os
 import pytest
 from playwright.sync_api import expect
-from tenant_shield.api.client import APIClient
-from tenant_shield.ui.pages.login_page import LoginPage
-from tenant_shield.ui.pages.projects_page import ProjectsPage
-from tenant_shield.mobile.pages.mobile_projects_page import MobileProjectsPage
+from workflo.api.client import APIClient
+from workflo.ui.pages.login_page import LoginPage
+from workflo.ui.pages.projects_page import ProjectsPage
+from workflo.mobile.pages.mobile_projects_page import MobileProjectsPage
 from data.factories.project_factory import ProjectFactory
-from tenant_shield.isolation import assert_summary, verify_cross_tenant_access
+from workflo.isolation import assert_summary, verify_cross_tenant_access
 
 
 def create_project_via_api(api_client, project_data):

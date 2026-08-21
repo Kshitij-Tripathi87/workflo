@@ -16,7 +16,7 @@ import subprocess
 from datetime import datetime, UTC
 from typing import Optional
 
-from tenant_shield_schema.sandbox import TeardownProof
+from workflo_schema.sandbox import TeardownProof
 
 
 def verify_container_gone(container_id: Optional[str]) -> bool:

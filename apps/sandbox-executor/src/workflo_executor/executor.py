@@ -61,7 +61,7 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
 
-from tenant_shield_schema.sandbox import (
+from workflo_schema.sandbox import (
     CanaryCheckResult,
     RunReport,
     SandboxLifecycleEvent,
@@ -531,12 +531,21 @@ class SandboxExecutor:
             container_id_for_proof = container_id
             container_id = None
 
-            # Brief pause to let Windows release file handles from:
+            # Brief pause + retry to let Windows release file handles from:
             #   - the just-killed container's bind mount (Docker Desktop lag)
-            #   - the git clone subprocess that opened pack files
+            #   - the git clone subprocess that opened pack files.
             # The retry loop in unmount_tmpfs() also handles this, but a small
-            # upfront sleep makes the common case cleaner.
-            time.sleep(0.3)
+            # upfront retry makes the common case cleaner. We use 2 attempts
+            # with 1s between them (2s total budget) — less than the full
+            # unmount_tmpfs budget (5s) but more than the fixed 0.3s sleep.
+            _ok = False
+            for _try in range(2):
+                time.sleep(1.0)
+                if not mount.exists:
+                    _ok = True
+                    break
+            if _ok:
+                pass  # mount already gone; proceed to unmount
 
             unmount_tmpfs(mount)
             fs_gone = verify_ephemeral_gone(mount)
@@ -720,7 +729,7 @@ class SandboxExecutor:
         # We use --spec-file so the spec lives on the tmpfs at /workspace, 
         # not baked into the container (so each run is fully isolated).
         spec_file_in_container = "/workspace/spec.json"
-        cmd = ["python", "-m", "tenant_shield_worker", "--spec-file", spec_file_in_container]
+        cmd = ["python", "-m", "workflo_worker", "--spec-file", spec_file_in_container]
         cmd.append("--repo-path")
         cmd.append(repo_path_in_container)
         return cmd

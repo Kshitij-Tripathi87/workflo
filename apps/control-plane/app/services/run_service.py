@@ -1,13 +1,13 @@
 """Service-layer logic for test run management."""
 
-from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.crypto import utc_now
 from app.db.models import TestRun, TestResultRecord
 from app.db.queue import run_queue
-from tenant_shield_schema import RunSummary
+from workflo_schema import RunSummary
 
 
 class RunService:
@@ -44,7 +44,7 @@ class RunService:
     async def update_status(self, run_id: str, status: str) -> bool:
         stmt = update(TestRun).where(TestRun.id == run_id).values(status=status)
         if status in ("completed", "failed", "cancelled"):
-            stmt = stmt.values(finished_at=datetime.now(timezone.utc))
+            stmt = stmt.values(finished_at=utc_now())
         await self.db.execute(stmt)
         await self.db.commit()
         return True
@@ -63,7 +63,7 @@ class RunService:
             return False
         run.summary_json = summary
         run.status = summary.get("status", "completed")
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = utc_now()
         await self.db.commit()
         return True
 
@@ -73,7 +73,7 @@ class RunService:
             return False
         run.status = "failed"
         run.summary_json = {"error": error}
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = utc_now()
         await self.db.commit()
         return True
 

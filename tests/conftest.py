@@ -3,8 +3,8 @@ import json
 import threading
 import pytest
 from playwright.sync_api import sync_playwright
-from tenant_shield.config.settings import EnvironmentConfig, BrowserStackConfig
-from tenant_shield.api.client import APIClient
+from workflo.config.settings import EnvironmentConfig, BrowserStackConfig
+from workflo.api.client import APIClient
 
 
 def _is_mock_mode():

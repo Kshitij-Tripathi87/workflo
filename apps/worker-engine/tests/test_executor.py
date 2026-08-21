@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
 
-from tenant_shield_worker.executor import _parse_results, execute_run
-from tenant_shield_schema import RunSummary
+from workflo_worker.executor import _parse_results, execute_run
+from workflo_schema import RunSummary
 
 
 def test_parse_results_valid():
@@ -87,9 +87,9 @@ def test_execute_run_minimal_spec_success():
     streamer = MagicMock()
 
     with patch(
-        "tenant_shield_worker.executor.subprocess.run", return_value=mock_proc
+        "workflo_worker.executor.subprocess.run", return_value=mock_proc
     ) as mock_run, patch(
-        "tenant_shield_worker.executor.tempfile.mktemp", return_value=fake_results_path
+        "workflo_worker.executor.tempfile.mktemp", return_value=fake_results_path
     ), patch.object(
         Path, "exists", return_value=True
     ), patch(
@@ -139,9 +139,9 @@ def test_execute_run_markers_not_passed_to_pytest():
         return mock_proc
 
     with patch(
-        "tenant_shield_worker.executor.subprocess.run", side_effect=fake_run
+        "workflo_worker.executor.subprocess.run", side_effect=fake_run
     ), patch(
-        "tenant_shield_worker.executor.tempfile.mktemp", return_value=fake_results_path
+        "workflo_worker.executor.tempfile.mktemp", return_value=fake_results_path
     ), patch.object(
         Path, "exists", return_value=True
     ), patch(
@@ -188,9 +188,9 @@ def test_execute_run_no_pytest_m_argument():
         return mock_proc
 
     with patch(
-        "tenant_shield_worker.executor.subprocess.run", side_effect=fake_run
+        "workflo_worker.executor.subprocess.run", side_effect=fake_run
     ), patch(
-        "tenant_shield_worker.executor.tempfile.mktemp", return_value=fake_results_path
+        "workflo_worker.executor.tempfile.mktemp", return_value=fake_results_path
     ), patch.object(
         Path, "exists", return_value=True
     ), patch(
@@ -233,9 +233,9 @@ def test_execute_run_includes_targets_in_cmd():
         return mock_proc
 
     with patch(
-        "tenant_shield_worker.executor.subprocess.run", side_effect=fake_run
+        "workflo_worker.executor.subprocess.run", side_effect=fake_run
     ), patch(
-        "tenant_shield_worker.executor.tempfile.mktemp", return_value=fake_results_path
+        "workflo_worker.executor.tempfile.mktemp", return_value=fake_results_path
     ), patch.object(
         Path, "exists", return_value=True
     ), patch(
@@ -265,9 +265,9 @@ def test_execute_run_nonzero_returncode_still_returns_summary():
     streamer = MagicMock()
 
     with patch(
-        "tenant_shield_worker.executor.subprocess.run", return_value=mock_proc
+        "workflo_worker.executor.subprocess.run", return_value=mock_proc
     ), patch(
-        "tenant_shield_worker.executor.tempfile.mktemp", return_value=fake_results_path
+        "workflo_worker.executor.tempfile.mktemp", return_value=fake_results_path
     ), patch.object(
         Path, "exists", return_value=True
     ), patch(

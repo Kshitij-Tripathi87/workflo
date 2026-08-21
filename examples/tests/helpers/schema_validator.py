@@ -1,7 +1,7 @@
 """Schema validators used by auto-generated Tenant Shield test modules.
 
 These helpers are imported by tests generated via
-`tenant_shield_datahub.generator.TestGenerator`. Production deployments would
+`workflo_datahub.generator.TestGenerator`. Production deployments would
 swap these stubs with real DB adapters (asyncpg/psycopg/sqlalchemy).
 """
 

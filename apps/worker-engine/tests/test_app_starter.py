@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tenant_shield_worker.web.app_starter import (
+from workflo_worker.web.app_starter import (
     start_app_under_test,
     stop_app_under_test,
 )
@@ -58,10 +58,10 @@ class TestStartAppUnderTest:
     def test_returns_popen_when_port_binds(self, fake_popen):
         """Happy path: the app binds the port -> we return the Popen handle."""
         with patch(
-            "tenant_shield_worker.web.app_starter.subprocess.Popen",
+            "workflo_worker.web.app_starter.subprocess.Popen",
             return_value=fake_popen,
         ), patch(
-            "tenant_shield_worker.web.app_starter.socket.create_connection",
+            "workflo_worker.web.app_starter.socket.create_connection",
         ) as mock_connect:
             proc = start_app_under_test("/repo", "python app.py", 5000, timeout=2)
 
@@ -74,10 +74,10 @@ class TestStartAppUnderTest:
         (app crashed vs never bound) and must stay distinguishable."""
         dead_popen = FakePopen(returncode=1)
         with patch(
-            "tenant_shield_worker.web.app_starter.subprocess.Popen",
+            "workflo_worker.web.app_starter.subprocess.Popen",
             return_value=dead_popen,
         ), patch(
-            "tenant_shield_worker.web.app_starter.socket.create_connection",
+            "workflo_worker.web.app_starter.socket.create_connection",
             side_effect=OSError("connection refused"),
         ):
             with pytest.raises(RuntimeError, match="app process exited early"):
@@ -87,10 +87,10 @@ class TestStartAppUnderTest:
         """App alive but never binds -> TimeoutError, and the app gets
         terminated so we don't leak a background process."""
         with patch(
-            "tenant_shield_worker.web.app_starter.subprocess.Popen",
+            "workflo_worker.web.app_starter.subprocess.Popen",
             return_value=fake_popen,
         ), patch(
-            "tenant_shield_worker.web.app_starter.socket.create_connection",
+            "workflo_worker.web.app_starter.socket.create_connection",
             side_effect=OSError("connection refused"),
         ):
             with pytest.raises(TimeoutError, match="did not bind to port 5000"):
@@ -101,7 +101,7 @@ class TestStartAppUnderTest:
     def test_empty_start_command_raises_before_launch(self):
         """An empty start_command is a config bug — fail before spawning
         anything (defense in depth: never invoke subprocess with [''])."""
-        with patch("tenant_shield_worker.web.app_starter.subprocess.Popen") as mock_popen:
+        with patch("workflo_worker.web.app_starter.subprocess.Popen") as mock_popen:
             with pytest.raises(RuntimeError, match="start_command is empty"):
                 start_app_under_test("/repo", "   ", 5000, timeout=1)
         mock_popen.assert_not_called()

@@ -1,8 +1,8 @@
 """Tests for the Browser and Grid adapters."""
 
-from tenant_shield_worker.adapters.browser import BrowserAdapter
-from tenant_shield_worker.adapters.grid import GridAdapter
-from tenant_shield_schema import BrowserMode
+from workflo_worker.adapters.browser import BrowserAdapter
+from workflo_worker.adapters.grid import GridAdapter
+from workflo_schema import BrowserMode
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 import os
 import pytest
 from playwright.sync_api import expect
-from tenant_shield.ui.pages.login_page import LoginPage
-from tenant_shield.ui.pages.dashboard_page import DashboardPage
-from tenant_shield.ui.pages.projects_page import ProjectsPage
+from workflo.ui.pages.login_page import LoginPage
+from workflo.ui.pages.dashboard_page import DashboardPage
+from workflo.ui.pages.projects_page import ProjectsPage
 
 
 def test_tenant_scoped_data_visibility(browser_context, env_config):

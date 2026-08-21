@@ -6,7 +6,7 @@ Uses a simple asyncio Queue for dev/testing. In production, swap to Redis/Celery
 import asyncio
 import json
 from typing import Optional
-from tenant_shield_utils.logging import get_logger
+from workflo_utils.logging import get_logger
 
 logger = get_logger(__name__)
 

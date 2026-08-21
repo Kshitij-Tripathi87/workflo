@@ -1,4 +1,4 @@
-"""Unit tests for tenant_shield_worker.model.probe_adapter.
+"""Unit tests for workflo_worker.model.probe_adapter.
 
 These back the model stage's parse/validate layer. The function under test
 is intentionally pure (no I/O, no model calls) so its test surface is
@@ -48,7 +48,7 @@ from unittest.mock import patch
 import pytest
 
 from probe_engine.models import ProbeSpec
-from tenant_shield_worker.model.probe_adapter import (
+from workflo_worker.model.probe_adapter import (
     ModelOutputInvalid,
     build_correction_prompt,
     generate_from_model_output,
@@ -261,7 +261,7 @@ class TestValidationBehavior:
             _spec_dict(name="good2", path="/y"),
             {"pattern": "api_read", "path": "/z"},  # missing name
         ]
-        with caplog.at_level(logging.WARNING, logger="tenant_shield_worker.model.probe_adapter"):
+        with caplog.at_level(logging.WARNING, logger="workflo_worker.model.probe_adapter"):
             specs = generate_from_model_output(json.dumps(mixed))
 
         # Valid subset returned — 2 valid ProbeSpecs out of 4 inputs.

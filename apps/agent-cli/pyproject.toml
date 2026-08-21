@@ -3,27 +3,23 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tenant-shield-agent"
+name = "workflo-agent"
 version = "0.1.0"
-description = "The Tenant Shield interactive CLI agent — goal-based test orchestration, local + cloud execution."
+description = "The workflo interactive CLI agent — goal-based test orchestration, local + cloud execution."
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
-authors = [{ name = "Tenant Shield" }]
+license = { text = "Apache-2.0" }
+authors = [{ name = "workflo" }]
 dependencies = [
     "click>=8.1.0",
     "rich>=13.7.0",
     "questionary>=2.0.0",
     "httpx>=0.26.0",
     "pyyaml>=6.0",
-    "tenant-shield-schema",
-    "tenant-shield-utils",
+    "workflo-schema",
+    "workflo-utils",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest>=7.4", "pytest-cov>=4.0"]
-
 [project.scripts]
-tenant-shield = "tenant_shield_agent.cli:main"
+workflo = "workflo_agent.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

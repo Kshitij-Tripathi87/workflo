@@ -3,12 +3,12 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tenant-shield-control-plane"
+name = "workflo-control-plane"
 version = "0.1.0"
-description = "The Tenant Shield Control Plane — FastAPI backend for auth, run orchestration, and results."
+description = "The workflo Control Plane — FastAPI backend for auth, run orchestration, and results."
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
-authors = [{ name = "Tenant Shield" }]
+license = { text = "Apache-2.0" }
+authors = [{ name = "workflo" }]
 dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
@@ -18,9 +18,10 @@ dependencies = [
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "python-multipart>=0.0.6",
-    "tenant-shield-schema",
-    "tenant-shield-utils",
-    "quarantyne-executor",
+    "argon2-cffi>=23.1.0",
+    "workflo-schema",
+    "workflo-utils",
+    "workflo-executor",
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,4 @@
-"""Unit tests for tenant_shield_worker.model.model_server.ModelServer.
+"""Unit tests for workflo_worker.model.model_server.ModelServer.
 
 These back the Phase 1 exit gate for the model stage. They DO NOT require
 Ollama to be installed, network access, or a real subprocess — every
@@ -36,7 +36,7 @@ from unittest.mock import patch, MagicMock, call
 
 import pytest
 
-from tenant_shield_worker.model.model_server import (
+from workflo_worker.model.model_server import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     DEFAULT_MODEL,
@@ -111,11 +111,11 @@ class TestStartLifecycle:
 
             return _S()
 
-        with patch("tenant_shield_worker.model.model_server.subprocess.Popen",
+        with patch("workflo_worker.model.model_server.subprocess.Popen",
                    return_value=_fake_popen()) as mock_popen, \
-             patch("tenant_shield_worker.model.model_server.socket.create_connection",
+             patch("workflo_worker.model.model_server.socket.create_connection",
                    side_effect=fake_socket), \
-             patch("tenant_shield_worker.model.model_server.time.sleep"):
+             patch("workflo_worker.model.model_server.time.sleep"):
             server.start()
 
         assert server._started is True
@@ -143,7 +143,7 @@ class TestStartLifecycle:
     def test_start_raises_when_ollama_binary_missing(self):
         """FileNotFoundError from Popen must surface as ModelServerError."""
         server = ModelServer()
-        with patch("tenant_shield_worker.model.model_server.subprocess.Popen",
+        with patch("workflo_worker.model.model_server.subprocess.Popen",
                    side_effect=FileNotFoundError("ollama: command not found")), \
              patch.object(ModelServer, "_is_port_open", return_value=False):
             with pytest.raises(ModelServerError, match="ollama binary not found"):
@@ -166,7 +166,7 @@ class TestStartLifecycle:
         """reuse_existing=True means start() takes the running server as-is."""
         server = ModelServer(ModelServerConfig(reuse_existing=True))
         with patch.object(ModelServer, "_is_port_open", return_value=True), \
-             patch("tenant_shield_worker.model.model_server.subprocess.Popen") as mock_popen:
+             patch("workflo_worker.model.model_server.subprocess.Popen") as mock_popen:
             server.start()
         # No Popen — we adopted the existing process.
         mock_popen.assert_not_called()
@@ -191,11 +191,11 @@ class TestStartLifecycle:
             return _S()
 
         fake_proc = _fake_popen()
-        with patch("tenant_shield_worker.model.model_server.subprocess.Popen",
+        with patch("workflo_worker.model.model_server.subprocess.Popen",
                    return_value=fake_proc), \
-             patch("tenant_shield_worker.model.model_server.socket.create_connection",
+             patch("workflo_worker.model.model_server.socket.create_connection",
                    side_effect=always_closed), \
-             patch("tenant_shield_worker.model.model_server.time.sleep"), \
+             patch("workflo_worker.model.model_server.time.sleep"), \
              patch.object(ModelServer, "_is_port_open", return_value=False):
             with pytest.raises(ModelServerError, match="failed to start within"):
                 server.start()
@@ -212,7 +212,7 @@ class TestStartLifecycle:
 
 class TestGenerate:
     # We patch `requests.post` directly (not
-    # `tenant_shield_worker.model.model_server.requests.post`) because the
+    # `workflo_worker.model.model_server.requests.post`) because the
     # model_server module does a local `import requests` inside generate().
     # That local import resolves to the same global `requests` module object
     # regardless of namespace, so patching the module-level attribute is the

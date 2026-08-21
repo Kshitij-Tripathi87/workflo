@@ -21,8 +21,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tenant_shield_schema import RunStatus as LegacyRunStatusEnum
-from tenant_shield_schema.api import RunRequest, RunStatus
+from workflo_schema import RunStatus as LegacyRunStatusEnum
+from workflo_schema.api import RunRequest, RunStatus
 
 from app.db import database as db_module
 from app.db.database import get_db
@@ -74,7 +74,7 @@ async def _execute_run(run_id: str, request: RunRequest) -> None:
     """
     try:
         spec = request.to_sandbox_spec()
-        from quarantyne_executor import SandboxExecutor
+        from workflo_executor import SandboxExecutor
 
         executor = SandboxExecutor()
         # SandboxExecutor.run is blocking (docker/git subprocesses); run it

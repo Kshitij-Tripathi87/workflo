@@ -4,8 +4,8 @@ from unittest.mock import patch, MagicMock
 
 import httpx
 
-from tenant_shield_worker.streamer import ResultStreamer
-from tenant_shield_schema import RunSummary
+from workflo_worker.streamer import ResultStreamer
+from workflo_schema import RunSummary
 
 
 def _make_streamer(**overrides):
@@ -31,7 +31,7 @@ def test_log_posts_to_correct_url():
     mock_client.__exit__.return_value = False
     mock_client.post.return_value = mock_response
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", return_value=mock_client) as mock_client_cls:
+    with patch("workflo_worker.streamer.httpx.Client", return_value=mock_client) as mock_client_cls:
         streamer.log("hello world")
 
     mock_client_cls.assert_called_once()
@@ -53,7 +53,7 @@ def test_log_appends_to_buffer():
     mock_client.__enter__.return_value = mock_client
     mock_client.__exit__.return_value = False
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", return_value=mock_client):
+    with patch("workflo_worker.streamer.httpx.Client", return_value=mock_client):
         streamer.log("line one")
         streamer.log("line two")
 
@@ -71,7 +71,7 @@ def test_complete_posts_summary():
     mock_client.__exit__.return_value = False
     mock_client.post.return_value = mock_response
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", return_value=mock_client):
+    with patch("workflo_worker.streamer.httpx.Client", return_value=mock_client):
         streamer.complete(summary)
 
     mock_client.post.assert_called_once()
@@ -92,7 +92,7 @@ def test_fail_posts_error_info():
     mock_client.__enter__.return_value = mock_client
     mock_client.__exit__.return_value = False
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", return_value=mock_client):
+    with patch("workflo_worker.streamer.httpx.Client", return_value=mock_client):
         streamer.fail("something blew up")
 
     mock_client.post.assert_called_once()
@@ -108,7 +108,7 @@ def test_log_swallows_exceptions():
     def boom(*args, **kwargs):
         raise httpx.ConnectError("connection refused")
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", side_effect=boom):
+    with patch("workflo_worker.streamer.httpx.Client", side_effect=boom):
         # Should not raise
         streamer.log("this should not raise")
 
@@ -124,7 +124,7 @@ def test_complete_swallows_exceptions():
     def boom(*args, **kwargs):
         raise httpx.ConnectError("connection refused")
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", side_effect=boom):
+    with patch("workflo_worker.streamer.httpx.Client", side_effect=boom):
         # Should not raise
         streamer.complete(summary)
 
@@ -136,7 +136,7 @@ def test_fail_swallows_exceptions():
     def boom(*args, **kwargs):
         raise httpx.ConnectError("connection refused")
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", side_effect=boom):
+    with patch("workflo_worker.streamer.httpx.Client", side_effect=boom):
         # Should not raise
         streamer.fail("boom")
 
@@ -150,6 +150,6 @@ def test_log_post_exception_inside_post_is_swallowed():
     mock_client.__exit__.return_value = False
     mock_client.post.side_effect = httpx.ConnectError("dropped")
 
-    with patch("tenant_shield_worker.streamer.httpx.Client", return_value=mock_client):
+    with patch("workflo_worker.streamer.httpx.Client", return_value=mock_client):
         # Should not raise
         streamer.log("surviving a dropped post")

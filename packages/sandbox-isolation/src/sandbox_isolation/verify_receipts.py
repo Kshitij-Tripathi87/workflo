@@ -34,7 +34,7 @@ def verify_receipt_file(
 ) -> int:
     """Verify a receipt file. Returns 0 on success, 1 on failure."""
 
-    from tenant_shield_schema.sandbox import SignedReceipt
+    from workflo_schema.sandbox import SignedReceipt
     from sandbox_isolation import verify_receipt_signature, fingerprint_public_key
 
     try:

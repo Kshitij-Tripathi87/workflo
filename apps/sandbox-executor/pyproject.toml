@@ -3,12 +3,12 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "quarantyne-executor"
+name = "workflo-executor"
 version = "0.1.0"
-description = "The Quarantyne sandbox executor — per-job ephemeral lifecycle wrapper tying mount_tmpfs + Docker container + worker-engine payload + teardown + receipt signing together."
+description = "The workflo sandbox executor — per-job ephemeral lifecycle wrapper tying mount_tmpfs + Docker container + worker-engine payload + teardown + receipt signing together."
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
-authors = [{ name = "Quarantyne" }]
+authors = [{ name = "workflo" }]
 dependencies = [
     "pydantic>=2.5.0",
     "tenant-shield-schema",

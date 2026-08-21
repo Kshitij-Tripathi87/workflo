@@ -4,8 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     app_name: str = "Tenant Shield Control Plane"
     environment: str = "development"
-    database_url: str = "sqlite+aiosqlite:///./tenant_shield.db"
+    database_url: str = "sqlite+aiosqlite:///./workflo.db"
     redis_url: str = ""
+    cp_port: int = 3001  # local-mode port for the auth site (WORKFLO_CP_PORT)
     s3_endpoint: str = ""
     s3_bucket: str = "tenant-shield-artifacts"
     s3_access_key: str = ""

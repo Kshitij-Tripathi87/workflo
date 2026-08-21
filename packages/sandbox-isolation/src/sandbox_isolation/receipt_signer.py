@@ -27,7 +27,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from cryptography.hazmat.primitives import serialization
 from cryptography.exceptions import InvalidSignature
 
-from tenant_shield_schema.sandbox import SignedReceipt
+from workflo_schema.sandbox import SignedReceipt
 
 
 @dataclass

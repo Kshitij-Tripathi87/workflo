@@ -2,12 +2,12 @@
 
 import click
 
-from tenant_shield_agent.cli import main
-from tenant_shield_agent.client import ControlPlaneClient
-from tenant_shield_agent.commands.auth import auth
-from tenant_shield_agent.commands.test import test
-from tenant_shield_agent.commands.runs import runs
-from tenant_shield_agent.ui.prompts import GOAL_CHOICES
+from workflo_agent.cli import main
+from workflo_agent.client import ControlPlaneClient
+from workflo_agent.commands.auth import auth
+from workflo_agent.commands.test import test
+from workflo_agent.commands.runs import runs
+from workflo_agent.ui.prompts import GOAL_CHOICES
 
 
 def test_main_is_callable():

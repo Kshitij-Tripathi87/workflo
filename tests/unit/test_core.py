@@ -9,9 +9,9 @@ import tempfile
 
 import pytest
 
-from tenant_shield.isolation.patterns import IsolationPattern
-from tenant_shield.isolation.result import VerificationRecord, VerificationSummary
-from tenant_shield.isolation.verifier import (
+from workflo.isolation.patterns import IsolationPattern
+from workflo.isolation.result import VerificationRecord, VerificationSummary
+from workflo.isolation.verifier import (
     verify_read,
     verify_list_excludes,
     verify_modify_denied,
@@ -21,7 +21,7 @@ from tenant_shield.isolation.verifier import (
     assert_summary,
     _tenants_of,
 )
-from tenant_shield.adapters import (
+from workflo.adapters import (
     AdapterRegistry,
     TenantAwareRequest,
     HeaderTenantResolver,
@@ -31,8 +31,8 @@ from tenant_shield.adapters import (
     SessionAuthProvider,
     APIKeyAuthProvider,
 )
-from tenant_shield.reporting.results import RunReport, TestResult
-from tenant_shield.reporting.compliance_report import (
+from workflo.reporting.results import RunReport, TestResult
+from workflo.reporting.compliance_report import (
     build_context,
     _short,
     _pass_rate,
@@ -40,7 +40,7 @@ from tenant_shield.reporting.compliance_report import (
     _append_history,
     _control_mappings,
 )
-from tenant_shield.cli import _split_results_arg
+from workflo.cli import _split_results_arg
 
 
 class DummyClient:

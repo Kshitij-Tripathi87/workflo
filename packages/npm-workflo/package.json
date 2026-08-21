@@ -1,0 +1,11 @@
+{
+  "name": "workflo",
+  "version": "0.1.0",
+  "bin": {
+    "workflo": "bin/workflo.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "files": ["bin", "scripts", "vendor"]
+}

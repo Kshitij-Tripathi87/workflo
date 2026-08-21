@@ -1,12 +1,11 @@
 """Service-layer logic for API key management."""
 
 import secrets
-from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ApiKey, Project, Organization
-from app.core.crypto import hash_api_key, verify_api_key
+from app.core.crypto import hash_api_key, utc_now, verify_api_key
 
 
 class ApiKeyService:
@@ -47,11 +46,11 @@ class ApiKeyService:
         result = await self.db.execute(stmt)
         for record in result.scalars():
             if verify_api_key(raw_key, record.key_hash):
-                # Check expiration
-                if record.expires_at and record.expires_at < datetime.now(timezone.utc):
+                # Check expiration (naive UTC == naive UTC; see crypto.utc_now)
+                if record.expires_at and record.expires_at < utc_now():
                     return None
                 # Update last_used
-                record.last_used = datetime.now(timezone.utc)
+                record.last_used = utc_now()
                 await self.db.commit()
                 return record
         return None

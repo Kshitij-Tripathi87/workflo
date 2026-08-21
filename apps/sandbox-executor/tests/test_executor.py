@@ -16,9 +16,9 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from quarantyne_executor import SandboxExecutor
-from quarantyne_executor.docker_runner import ContainerConfig, ContainerResult
-from tenant_shield_schema.sandbox import (
+from workflo_executor import SandboxExecutor
+from workflo_executor.docker_runner import ContainerConfig, ContainerResult
+from workflo_schema.sandbox import (
     CanaryCheckResult,
     RunReport,
     SandboxSpec,
@@ -113,7 +113,7 @@ def _patched_orchestration(
     )
     full_stdout = container_stdout + "\n" + canary_line
 
-    from tenant_shield_schema.sandbox import TeardownProof
+    from workflo_schema.sandbox import TeardownProof
 
     # Real tempdir so the executor's spec-file write succeeds.
     import tempfile as _tempfile
@@ -152,10 +152,10 @@ def _patched_orchestration(
     import shutil as _shutil
 
     with patch("subprocess.run", side_effect=_fake_git_clone_success), \
-         patch("quarantyne_executor.executor.mount_tmpfs", return_value=fake_mount), \
-         patch("quarantyne_executor.executor.unmount_tmpfs") as mock_unmount, \
-         patch("quarantyne_executor.executor.verify_ephemeral_gone", return_value=fs_gone), \
-         patch("quarantyne_executor.executor.build_teardown_proof", side_effect=_fake_build_teardown_proof):
+         patch("workflo_executor.executor.mount_tmpfs", return_value=fake_mount), \
+         patch("workflo_executor.executor.unmount_tmpfs") as mock_unmount, \
+         patch("workflo_executor.executor.verify_ephemeral_gone", return_value=fs_gone), \
+         patch("workflo_executor.executor.build_teardown_proof", side_effect=_fake_build_teardown_proof):
         try:
             yield {
                 "runtime": mock_runtime,
@@ -178,8 +178,8 @@ def _patched_clone_failure():
         return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
     with patch("subprocess.run", side_effect=fake_clone_fail), \
-         patch("quarantyne_executor.executor.mount_tmpfs", return_value=_fake_mount()), \
-         patch("quarantyne_executor.executor.unmount_tmpfs"):
+         patch("workflo_executor.executor.mount_tmpfs", return_value=_fake_mount()), \
+         patch("workflo_executor.executor.unmount_tmpfs"):
         yield
 
 
@@ -241,7 +241,7 @@ class TestSandboxExecutorOrchestration:
         executor = SandboxExecutor(worker_image="workflo-worker:test")
 
         with _patched_orchestration(
-            container_stdout='QUARANTYNE_REPORT: {"total":1,"passed":1}\n'
+            container_stdout='WORKFLO_REPORT: {"total":1,"passed":1}\n'
         ) as mocks:
             executor.runtime = mocks["runtime"]
             result = executor.run(_make_spec())
@@ -324,7 +324,7 @@ class TestDockerRunner:
 
     def test_create_container_builds_correct_command(self):
         """The docker create command must include --network none and resource limits."""
-        from quarantyne_executor.docker_runner import create_container
+        from workflo_executor.docker_runner import create_container
 
         captured = []
 
@@ -335,7 +335,7 @@ class TestDockerRunner:
             )
 
         config = ContainerConfig(
-            image="quarantyne-worker:test",
+            image="workflo-worker:test",
             command=["pytest", "-v"],
             network_mode="none",
             memory_mb=1024,
@@ -357,7 +357,7 @@ class TestDockerRunner:
         assert "1.5" in cmd
 
     def test_create_container_raises_on_failure(self):
-        from quarantyne_executor.docker_runner import create_container
+        from workflo_executor.docker_runner import create_container
 
         def fake_fail(*args, **kwargs):
             return subprocess.CompletedProcess(
@@ -370,7 +370,7 @@ class TestDockerRunner:
 
     def test_kill_container_is_idempotent(self):
         """kill_container must not raise even if the container is already gone."""
-        from quarantyne_executor.docker_runner import kill_container
+        from workflo_executor.docker_runner import kill_container
 
         with patch("subprocess.run", return_value=subprocess.CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""

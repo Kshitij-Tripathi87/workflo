@@ -1,4 +1,4 @@
-"""Tests for the outside-verifier script — the thing that checks claims without trusting Quarantyne."""
+"""Tests for the outside-verifier script — the thing that checks claims without trusting workflo."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives import serialization
 
 from sandbox_isolation import generate_keypair
 from sandbox_isolation.verify_receipts import verify_receipt_file
-from tenant_shield_schema.sandbox import (
+from workflo_schema.sandbox import (
     CanaryCheckResult,
     RunReport,
     SandboxLifecycleEvent,

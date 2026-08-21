@@ -11,9 +11,10 @@ This is the Phase 1 Exit Gate test that proves:
 
   1. `--test` (surface) produces 3 passing tests, NO model teardown line,
      NO generated test file, NO model findings.
-  2. `--deep-test` produces 3 + N passing tests (surface + model-generated),
-     YES model teardown line (teardown=true), YES generated test file at
-     tests/test_workflo_generated.py, YES model findings in the report.
+  2. `--deep-test` produces 3 passed + N skipped model probes when no
+     app-under-test is booted (WORKFLO_API_BASE_URL unset), YES model
+     teardown line, YES generated ProbeRunner file, YES model findings.
+     (With a live target, those N probes pass/fail for real.)
 
 The difference in the RunReport is the auditable, receipt-level proof that
 --deep-test and --test do DIFFERENT WORK.
@@ -30,10 +31,10 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from tenant_shield_worker.executor import execute_run
-from tenant_shield_worker.model import ModelServer, ModelServerError
-from tenant_shield_worker.streamer import ResultStreamer
-from tenant_shield_schema import RunSummary
+from workflo_worker.executor import execute_run
+from workflo_worker.model import ModelServer, ModelServerError
+from workflo_worker.streamer import ResultStreamer
+from workflo_schema import RunSummary
 
 
 # --------------------------------------------------------------------
@@ -131,8 +132,8 @@ def _mock_model_server(deep_tier: bool):
     the mock is a no-op.
     """
     # A valid YAML list of 5 ProbeSpecs — the model's "proposal".
-    # The worker writes these as tests/test_workflo_generated.py, each
-    # becoming a pass-through assert True.
+    # The worker writes these via ProbeGenerator.generate_pytest_file;
+    # without WORKFLO_API_BASE_URL they skip rather than assert True.
     model_probes_yaml = (
         "- name: model_probe_1\n"
         "  pattern: api_read\n"
@@ -180,7 +181,7 @@ def _mock_model_server(deep_tier: bool):
         mock.start = MagicMock(side_effect=AssertionError("ModelServer.start() must not be called for surface tier"))
         mock.generate = MagicMock(side_effect=AssertionError("ModelServer.generate() must not be called for surface tier"))
         mock.stop = MagicMock()
-        return patch("tenant_shield_worker.executor.ModelServer", return_value=mock)
+        return patch("workflo_worker.executor.ModelServer", return_value=mock)
 
     # Deep tier: mock ModelServer to return our probes on generate().
     mock_server = MagicMock()
@@ -188,7 +189,7 @@ def _mock_model_server(deep_tier: bool):
     mock_server.generate = MagicMock(return_value=model_probes_yaml)
     mock_server.stop = MagicMock()
     mock_server.is_alive = MagicMock(return_value=True)
-    return patch("tenant_shield_worker.executor.ModelServer", return_value=mock_server)
+    return patch("workflo_worker.executor.ModelServer", return_value=mock_server)
 
 
 # --------------------------------------------------------------------
@@ -216,6 +217,12 @@ class TestWorkerSurfaceVsDeep:
             f"Expected no model teardown line for surface; got {model_teardown_lines}"
         )
 
+        # No WORKFLO_SECURITY_PROBES line — security tier wasn't requested.
+        security_lines = [l for l in streamer.lines if l.startswith("WORKFLO_SECURITY_PROBES:")]
+        assert security_lines == [], (
+            f"Expected no security probes line for surface; got {security_lines}"
+        )
+
         # No generated test file was written.
         generated = FIXTURE_REPO / "tests" / "test_workflo_generated.py"
         assert not generated.exists(), (
@@ -233,15 +240,16 @@ class TestWorkerSurfaceVsDeep:
 
     def test_deep_run_surface_plus_model_probes(self):
         """--deep-test: runs the fixture's 3 native tests PLUS 5
-        model-generated probes = 8 total. Model teardown line emitted,
-        generated file written, model findings present."""
+        model-generated probes. Without an app-under-test
+        (WORKFLO_API_BASE_URL unset), generated probes skip — they must
+        NOT silently pass. Model teardown + findings still recorded."""
         with _mock_model_server(deep_tier=True):
             streamer, summary = _run_worker(["deep"])
 
-        # 3 surface + 5 model = 8 total tests (all pass — model probes are
-        # pass-through assert True).
+        # 3 surface pass + 5 generated probes skip (no live API target).
         assert summary.total == 8
-        assert summary.passed == 8
+        assert summary.passed == 3
+        assert summary.skipped == 5
         assert summary.failed == 0
 
         # WORKFLO_MODEL_TEARDOWN line was emitted with teardown=true.
@@ -258,10 +266,14 @@ class TestWorkerSurfaceVsDeep:
         generated = FIXTURE_REPO / "tests" / "test_workflo_generated.py"
         assert generated.exists(), "Deep run must create test_workflo_generated.py"
 
-        # The generated file contains 5 test functions (one per model probe).
+        # Real ProbeRunner codegen — not assert-True stubs.
         content = generated.read_text()
         test_func_count = content.count("def test_")
         assert test_func_count == 5, f"Expected 5 generated tests; found {test_func_count}"
+        assert "ProbeRunner" in content
+        assert "runner.run_one(" in content
+        assert "assert True" not in content
+        assert "WORKFLO_API_BASE_URL" in content
 
         # Model findings are present in the summary — these are the
         # structured ProbeSpecs the model proposed, converted to finding
@@ -282,8 +294,9 @@ class TestWorkerSurfaceVsDeep:
         with _mock_model_server(deep_tier=True):
             streamer, summary = _run_worker(["aggressive"])
 
-        assert summary.total == 8  # 3 + 5
-        assert summary.passed == 8
+        assert summary.total == 8  # 3 pass + 5 skip
+        assert summary.passed == 3
+        assert summary.skipped == 5
         model_teardown_lines = [l for l in streamer.lines if l.startswith("WORKFLO_MODEL_TEARDOWN:")]
         assert len(model_teardown_lines) == 1
         teardown_data = json.loads(model_teardown_lines[0][len("WORKFLO_MODEL_TEARDOWN:"):].strip())
@@ -291,6 +304,7 @@ class TestWorkerSurfaceVsDeep:
 
         generated = FIXTURE_REPO / "tests" / "test_workflo_generated.py"
         assert generated.exists()
+        assert "ProbeRunner" in generated.read_text()
         generated.unlink(missing_ok=True)
 
     def test_surface_plus_security_no_model_stage(self):
@@ -309,6 +323,19 @@ class TestWorkerSurfaceVsDeep:
         generated = FIXTURE_REPO / "tests" / "test_workflo_generated.py"
         assert not generated.exists()
 
+        # The security tier boots the app-under-test (start_app_under_test)
+        # and emits a WORKFLO_SECURITY_PROBES line — ALWAYS produced, even
+        # when the app fails to start (same discipline as the web tier).
+        # Without config (no WORKFLO_SECURITY_START_COMMAND/PORT and no
+        # workflo.yaml), the payload carries an app_start_error.
+        security_lines = [l for l in streamer.lines if l.startswith("WORKFLO_SECURITY_PROBES:")]
+        assert len(security_lines) == 1, (
+            f"Expected one WORKFLO_SECURITY_PROBES line; got {security_lines}"
+        )
+        security_payload = json.loads(security_lines[0][len("WORKFLO_SECURITY_PROBES:"):].strip())
+        assert security_payload["app_start_error"] is not None
+        assert security_payload["probes"] == []
+
     def test_deep_plus_security_model_stage_runs(self):
         """--deep-test --security: deep model stage runs + security
         composable flag. Same model output as deep alone, but the receipt
@@ -317,7 +344,12 @@ class TestWorkerSurfaceVsDeep:
             streamer, summary = _run_worker(["deep", "security"])
 
         assert summary.total == 8  # 3 surface + 5 model
-        assert summary.passed == 8
+        # Same skip behavior as deep-only: without an app-under-test
+        # (WORKFLO_API_BASE_URL unset), the 5 generated probes skip rather
+        # than silently pass — consistency with test_deep_run_surface_plus_model_probes.
+        assert summary.passed == 3
+        assert summary.skipped == 5
+        assert summary.failed == 0
 
         model_teardown_lines = [l for l in streamer.lines if l.startswith("WORKFLO_MODEL_TEARDOWN:")]
         assert len(model_teardown_lines) == 1
@@ -340,7 +372,7 @@ class TestWorkerModelStageFailureHandling:
         mock_server.start.side_effect = ModelServerError("ollama failed to start")
         mock_server.stop = MagicMock()
 
-        with patch("tenant_shield_worker.executor.ModelServer", return_value=mock_server):
+        with patch("workflo_worker.executor.ModelServer", return_value=mock_server):
             streamer, summary = _run_worker(["deep"])
 
         # The run should still complete the surface tests (the model stage

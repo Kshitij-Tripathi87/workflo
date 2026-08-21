@@ -1,0 +1,277 @@
+{
+  "elapsed_seconds": 78.51615020001191,
+  "error": "24 test(s) failed",
+  "lifecycle_events": [
+    {
+      "detail": {
+        "spec": {
+          "allowed_egress_hosts": [],
+          "commit_sha": null,
+          "cpu_cores": 2.0,
+          "memory_mb": 2048,
+          "repo_url": "https://github.com/pallets/click.git",
+          "run_spec": {
+            "env": {},
+            "goal": "security",
+            "markers": [
+              "surface",
+              "security"
+            ],
+            "probe_groups": [
+              "surface",
+              "security"
+            ]
+          },
+          "sandbox_id": "sandbox-2d428610c487",
+          "timeout_seconds": 600
+        }
+      },
+      "event": "created",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:21:24.543939Z"
+    },
+    {
+      "detail": {
+        "mount_point": "C:\\Users\\21330\\AppData\\Local\\Temp\\workflo-sandbox-2d428610c487-vypyabhp"
+      },
+      "event": "tmpfs_mounted",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:21:24.546306Z"
+    },
+    {
+      "detail": {
+        "repo_url": "https://github.com/pallets/click.git"
+      },
+      "event": "repo_cloned",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:21:26.262162Z"
+    },
+    {
+      "detail": {
+        "worker_image": "workflo-worker:latest"
+      },
+      "event": "worker_image_selected",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:21:26.262701Z"
+    },
+    {
+      "detail": {
+        "container_id": "f38663adac4f05cd27f1da43e0272799bf525d3cef41caee4b5774dc363a5543"
+      },
+      "event": "container_created",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:21:26.697861Z"
+    },
+    {
+      "detail": {
+        "container_id": "f38663adac4f05cd27f1da43e0272799bf525d3cef41caee4b5774dc363a5543"
+      },
+      "event": "tests_started",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:21:27.253841Z"
+    },
+    {
+      "detail": {
+        "duration_seconds": 69.47647009999491,
+        "returncode": 0
+      },
+      "event": "tests_completed",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:22:36.174412Z"
+    },
+    {
+      "detail": {
+        "error": "<urlopen error [Errno -3] Temporary failure in name resolution>",
+        "request_succeeded": false
+      },
+      "event": "canary_checked",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:22:36.174649Z"
+    },
+    {
+      "detail": {},
+      "event": "teardown_started",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:22:36.174656Z"
+    },
+    {
+      "detail": {
+        "container_removed": true,
+        "filesystem_removed": true
+      },
+      "event": "destroyed",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:22:42.658236Z"
+    },
+    {
+      "detail": {
+        "fingerprint": "59383c410a51b0c31dbc221c3eeb3a9e58cc4ff91ff97b0ba96f24f676ccfa9a"
+      },
+      "event": "receipt_signed",
+      "sandbox_id": "sandbox-2d428610c487",
+      "timestamp": "2026-08-14T21:22:43.059326Z"
+    }
+  ],
+  "receipt": {
+    "canary_check": {
+      "attempted_at": "2026-08-14T21:22:34.813613Z",
+      "error": "<urlopen error [Errno -3] Temporary failure in name resolution>",
+      "request_succeeded": false,
+      "sandbox_id": "sandbox-2d428610c487",
+      "target_host": "https://example.com"
+    },
+    "issued_at": "2026-08-14T21:22:43.059339Z",
+    "lifecycle_events": [
+      {
+        "detail": {
+          "spec": {
+            "allowed_egress_hosts": [],
+            "commit_sha": null,
+            "cpu_cores": 2.0,
+            "memory_mb": 2048,
+            "repo_url": "https://github.com/pallets/click.git",
+            "run_spec": {
+              "env": {},
+              "goal": "security",
+              "markers": [
+                "surface",
+                "security"
+              ],
+              "probe_groups": [
+                "surface",
+                "security"
+              ]
+            },
+            "sandbox_id": "sandbox-2d428610c487",
+            "timeout_seconds": 600
+          }
+        },
+        "event": "created",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:21:24.543939Z"
+      },
+      {
+        "detail": {
+          "mount_point": "C:\\Users\\21330\\AppData\\Local\\Temp\\workflo-sandbox-2d428610c487-vypyabhp"
+        },
+        "event": "tmpfs_mounted",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:21:24.546306Z"
+      },
+      {
+        "detail": {
+          "repo_url": "https://github.com/pallets/click.git"
+        },
+        "event": "repo_cloned",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:21:26.262162Z"
+      },
+      {
+        "detail": {
+          "worker_image": "workflo-worker:latest"
+        },
+        "event": "worker_image_selected",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:21:26.262701Z"
+      },
+      {
+        "detail": {
+          "container_id": "f38663adac4f05cd27f1da43e0272799bf525d3cef41caee4b5774dc363a5543"
+        },
+        "event": "container_created",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:21:26.697861Z"
+      },
+      {
+        "detail": {
+          "container_id": "f38663adac4f05cd27f1da43e0272799bf525d3cef41caee4b5774dc363a5543"
+        },
+        "event": "tests_started",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:21:27.253841Z"
+      },
+      {
+        "detail": {
+          "duration_seconds": 69.47647009999491,
+          "returncode": 0
+        },
+        "event": "tests_completed",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:22:36.174412Z"
+      },
+      {
+        "detail": {
+          "error": "<urlopen error [Errno -3] Temporary failure in name resolution>",
+          "request_succeeded": false
+        },
+        "event": "canary_checked",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:22:36.174649Z"
+      },
+      {
+        "detail": {},
+        "event": "teardown_started",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:22:36.174656Z"
+      },
+      {
+        "detail": {
+          "container_removed": true,
+          "filesystem_removed": true
+        },
+        "event": "destroyed",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:22:42.658236Z"
+      },
+      {
+        "detail": {
+          "fingerprint": "59383c410a51b0c31dbc221c3eeb3a9e58cc4ff91ff97b0ba96f24f676ccfa9a"
+        },
+        "event": "receipt_signed",
+        "sandbox_id": "sandbox-2d428610c487",
+        "timestamp": "2026-08-14T21:22:43.059326Z"
+      }
+    ],
+    "public_key_fingerprint": "59383c410a51b0c31dbc221c3eeb3a9e58cc4ff91ff97b0ba96f24f676ccfa9a",
+    "run_report": {
+      "collection_error": null,
+      "duration_seconds": 63.25877571105957,
+      "failed": 24,
+      "findings": [],
+      "passed": 1933,
+      "run_id": null,
+      "sandbox_id": "sandbox-2d428610c487",
+      "skipped": 24,
+      "soc2_controls_covered": [],
+      "total": 1982
+    },
+    "sandbox_id": "sandbox-2d428610c487",
+    "signature": "4b8ebd1fc3eb7ca9f85f27cbc3fa1c8a72c75f9aa260f2fa3552c5a4d2bfc72119cd75385c22ab6a5ee506d89726f54dbe7b751bf162115793f344d192ad910a",
+    "signature_algorithm": "ed25519",
+    "teardown_proof": {
+      "container_id": "f38663adac4f05cd27f1da43e0272799bf525d3cef41caee4b5774dc363a5543",
+      "container_removed": true,
+      "destroyed_at": "2026-08-14T21:22:43.059183Z",
+      "filesystem_removed": true,
+      "filesystem_wipe_method": "tmpfs_umount",
+      "model_inference_error": null,
+      "model_inference_teardown": null,
+      "no_snapshot_retained": true,
+      "sandbox_id": "sandbox-2d428610c487"
+    },
+    "web_probes": null
+  },
+  "report": {
+    "collection_error": null,
+    "duration_seconds": 63.25877571105957,
+    "failed": 24,
+    "findings": [],
+    "passed": 1933,
+    "run_id": null,
+    "sandbox_id": "sandbox-2d428610c487",
+    "skipped": 24,
+    "soc2_controls_covered": [],
+    "total": 1982
+  },
+  "success": false
+}

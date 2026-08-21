@@ -1,4 +1,4 @@
-"""Unit tests for tenant_shield_worker.model.no_log_guard (the teardown wipe).
+"""Unit tests for workflo_worker.model.no_log_guard (the teardown wipe).
 
 The teardown-side guard's contract is what makes the receipt's
 `model_inference_teardown: true` field trustworthy: the wipe MUST have
@@ -33,7 +33,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from tenant_shield_worker.model.no_log_guard import (
+from workflo_worker.model.no_log_guard import (
     DEFAULT_STATE_DIRS,
     confirm_no_ollama_state,
     resolve_state_dirs,
@@ -152,9 +152,9 @@ class TestWipeModelState:
                 raise PermissionError(13, "Access is denied", str(path))
             return original_rmtree(path, *args, **kwargs)
 
-        with patch("tenant_shield_worker.model.no_log_guard.shutil.rmtree",
+        with patch("workflo_worker.model.no_log_guard.shutil.rmtree",
                    side_effect=flaky_rmtree), \
-             patch("tenant_shield_worker.model.no_log_guard.time.sleep") as _sleep:
+             patch("workflo_worker.model.no_log_guard.time.sleep") as _sleep:
             result = wipe_model_state(
                 extra_dirs=[str(target)],
                 max_retries=5,
@@ -175,9 +175,9 @@ class TestWipeModelState:
         (target / "x").write_text("locked")
 
         # rmtree always raises PermissionError — never succeeds.
-        with patch("tenant_shield_worker.model.no_log_guard.shutil.rmtree",
+        with patch("workflo_worker.model.no_log_guard.shutil.rmtree",
                    side_effect=PermissionError(13, "denied", str(target))), \
-             patch("tenant_shield_worker.model.no_log_guard.time.sleep"):
+             patch("workflo_worker.model.no_log_guard.time.sleep"):
             result = wipe_model_state(
                 extra_dirs=[str(target)],
                 max_retries=3,
@@ -208,7 +208,7 @@ class TestWipeModelState:
             call_count[0] += 1
             raise FileNotFoundError("already gone")
 
-        with patch("tenant_shield_worker.model.no_log_guard.shutil.rmtree",
+        with patch("workflo_worker.model.no_log_guard.shutil.rmtree",
                    side_effect=racing_rmtree):
             result = wipe_model_state(extra_dirs=[str(target)])
 
@@ -225,7 +225,7 @@ class TestWipeModelState:
         target = tmp_path / "bad"
         target.mkdir()
 
-        with patch("tenant_shield_worker.model.no_log_guard.shutil.rmtree",
+        with patch("workflo_worker.model.no_log_guard.shutil.rmtree",
                    side_effect=OSError("cross-device link")):
             with pytest.raises(OSError, match="cross-device link"):
                 wipe_model_state(extra_dirs=[str(target)])

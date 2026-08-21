@@ -17,8 +17,9 @@ dependencies = [
     "httpx>=0.26.0",
     "tenant-shield-schema",
     "airlock-sandbox-isolation",
-    "quarantyne-executor",
-    "quarantyne-probe-engine",
+    "workflo-executor",
+    "workflo-probe-engine",
+    "cortex-auth",
 ]
 
 [project.optional-dependencies]

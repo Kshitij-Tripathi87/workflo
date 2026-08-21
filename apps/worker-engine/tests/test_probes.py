@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tenant_shield_worker.web.probes import run_web_probes
+from workflo_worker.web.probes import run_web_probes
 
 
 class FakePage:

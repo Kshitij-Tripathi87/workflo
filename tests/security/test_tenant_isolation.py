@@ -12,8 +12,8 @@ owned by IsolationScenario.
 
 import os
 import pytest
-from tenant_shield.api.client import APIClient
-from tenant_shield.isolation import IsolationScenario
+from workflo.api.client import APIClient
+from workflo.isolation import IsolationScenario
 
 
 @pytest.fixture(scope="function")
