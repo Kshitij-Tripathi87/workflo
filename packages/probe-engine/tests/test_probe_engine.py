@@ -218,7 +218,9 @@ class TestProbeGenerator:
         assert "def test_" in test_file
         assert "ProbeRunner" in test_file
         assert "WORKFLO_API_BASE_URL" in test_file
-        assert "workflo" not in test_file
+        # Legacy framework names must never leak into generated code.
+        assert "tenant_shield" not in test_file
+        assert "quarantyne" not in test_file
         compile(test_file, "<generated>", "exec")
 
     def test_generated_pytest_has_one_test_per_probe(self):

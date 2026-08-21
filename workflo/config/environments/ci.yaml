@@ -1,5 +1,0 @@
-base_url: "https://app.staging.workflowpro.com"
-api_url: "https://api.staging.workflowpro.com"
-tenant_id: "company1"
-default_timeout: 30000
-headless: true

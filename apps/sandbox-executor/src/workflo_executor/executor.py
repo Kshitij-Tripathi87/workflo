@@ -569,6 +569,7 @@ class SandboxExecutor:
             proof.model_inference_teardown = model_teardown_status
             proof.model_inference_error = model_teardown_error
             # Populate session metadata — ephemeral summary, never source code or artifacts.
+            elapsed = time.monotonic() - run_start
             proof.session_duration_seconds = elapsed
             proof.peak_memory_mb = spec.memory_mb  # best-effort placeholder
             proof.peak_cpu_percent = spec.cpu_cores  # best-effort placeholder
@@ -598,7 +599,6 @@ class SandboxExecutor:
             )
             self.signer.sign(receipt)
 
-            elapsed = time.monotonic() - run_start
             success = (
                 report.failed == 0
                 and not report.collection_error

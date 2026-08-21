@@ -12,7 +12,7 @@ authors = [{ name = "workflo" }]
 dependencies = [
     "pydantic>=2.5.0",
     "pyyaml>=6.0",
-    "tenant-shield-schema",
+    "workflo-schema",
 ]
 
 [project.optional-dependencies]

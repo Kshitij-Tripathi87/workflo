@@ -11,8 +11,8 @@ license = { text = "Proprietary" }
 authors = [{ name = "workflo" }]
 dependencies = [
     "pydantic>=2.5.0",
-    "tenant-shield-schema",
-    "airlock-sandbox-isolation",
+    "workflo-schema",
+    "sandbox-isolation",
 ]
 
 [project.optional-dependencies]

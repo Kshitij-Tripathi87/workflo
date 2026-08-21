@@ -3,16 +3,16 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "airlock-sandbox-isolation"
+name = "sandbox-isolation"
 version = "0.1.0"
-description = "Airlock no-retention primitive — tmpfs mounting, teardown proof, signed receipts. The architectural enforcement of the privacy guarantee."
+description = "Sandbox no-retention primitive — tmpfs mounting, teardown proof, signed receipts. The architectural enforcement of the privacy guarantee."
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
-authors = [{ name = "Airlock" }]
+authors = [{ name = "workflo" }]
 dependencies = [
     "pydantic>=2.5.0",
     "cryptography>=42.0.0",
-    "tenant-shield-schema",
+    "workflo-schema",
 ]
 
 [project.optional-dependencies]
