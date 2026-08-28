@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: workflo_core
-title: workflo_core
-scope:
-    - workflo/
-source_files: []
-depends_on: []
-related_to: []

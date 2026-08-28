@@ -1,0 +1,146 @@
+# Workflo Revision Tasks
+
+- [x] Replace slogan-like hero and principle labels with precise professional product language.
+- [x] Remove all CSS gradients and replace them with flat graphite surfaces, solid rules, and structured texture.
+- [x] Refine the homepage hierarchy into a more disciplined control-plane composition.
+- [x] Add purposeful live interactions for the sandbox preview, protocol steps, and console data views.
+- [x] Validate the revised routes and create a delivery checkpoint.
+- [x] Remove the intrusive center divider from the landing-page hero and rebalance its composition.
+- [x] Replace green emphasis with a restrained dark graphite and steel-blue hierarchy.
+- [x] Build a scroll-driven 3D sandbox-entry sequence around the hero visual.
+- [x] Add privacy-first and security-compliance information to the hero section.
+- [x] Enrich the execution panel and add subtle hover feedback throughout the landing page.
+- [x] Validate the revised animated experience and save a delivery checkpoint.
+- [x] Replace the static hero sandbox art with an interactive WebGL scene.
+- [x] Add explicit rotate, reset, and motion-reduction controls for the scene.
+- [x] Validate the WebGL scene across desktop and mobile layouts, then save a delivery checkpoint.
+- [x] Add a user-controlled WebGL performance mode with adaptive scene quality.
+- [x] Add restrained steel-blue data-stream particles that communicate active QA execution.
+- [x] Verify high- and low-performance scene states and save a delivery checkpoint.
+- [x] Persist the WebGL performance preference in browser local storage.
+- [x] Synchronize particle-stream intensity and speed with execution stages.
+- [x] Add clickable WebGL hotspots with detailed sandbox-control and receipt-artifact panels.
+- [x] Validate the persistent interactive scene and save a delivery checkpoint.
+- [x] Rework the main hero into a first-load cinematic sandbox-entry sequence.
+- [x] Couple enclosure rotation and camera travel directly to scroll progress so the viewer enters the runtime.
+- [x] Optimize the 3D update loop for smooth scroll-driven playback and validate the hero experience.
+- [x] Add a scroll-synchronized core-feature reveal that appears only after the camera enters the sandbox.
+- [x] Validate the feature fade-in composition across the hero transition and save a delivery checkpoint.
+- [x] Replace the framed sandbox panel with a full-viewport interactive background scene.
+- [x] Reduce the landing page to a heading, sub-headline, and QA Console and Documentation actions.
+- [x] Remove all nonessential landing-page sections and validate the minimal composition.
+- [x] Add a sleek WebGL loading state with visible progress before the scene is ready.
+- [x] Add a staggered first-load fade-in for the hero heading, sub-headline, and essential actions.
+- [x] Add restrained premium hover feedback to the QA Console and Documentation actions.
+- [x] Validate the loading and motion experience, then save a delivery checkpoint.
+- [x] Add subtle pointer-driven camera drift to the WebGL sandbox background.
+- [x] Add restrained pointer parallax for the hero headline and essential actions.
+- [x] Shift the scene lighting smoothly while either hero action is hovered.
+- [x] Validate the pointer-responsive hero and save a delivery checkpoint.
+- [x] Add a rapid WebGL sandbox-entry transition before QA Console navigation.
+- [x] Add cursor-reactive floating data particles to the WebGL sandbox.
+- [x] Validate the entry transition and particle response, then save a delivery checkpoint.
+- [x] Expand the documentation into a clear end-to-end Workflo QA reference.
+- [x] Add richer technical explanations for isolation, execution lifecycle, receipts, and CI integration.
+- [x] Add visual protocol and receipt diagrams to improve comprehension.
+- [x] Validate the upgraded documentation across desktop and mobile, then save a delivery checkpoint.
+- [x] Add client-side reference search across Workflo documentation and run-status terms.
+- [x] Add reusable copy-to-clipboard confirmation for all technical examples.
+- [x] Ensure copy confirmations reflect actual clipboard success and expose an unavailable state.
+- [x] Add a dedicated security and compliance reference with visual isolation and encryption indicators.
+- [x] Validate the expanded documentation interactions and save a delivery checkpoint.
+- [x] Add cURL, Python, and Node.js variants for the API run-status example.
+- [x] Add Cmd/Ctrl+K search focus and highlighted search-result terms.
+- [x] Validate language switching and keyboard search behavior, then save a delivery checkpoint.
+- [x] Build a clearly labeled local placeholder playground for run status, receipt retrieval, and new-run creation.
+- [x] Add cURL, Python, and Node.js examples for all three documented API endpoints.
+- [x] Validate the placeholder playground behavior and save a delivery checkpoint.
+- [x] Refine the hero headline and supporting copy into sharper Workflo positioning.
+- [x] Add a clear Workflo wordmark at the top-left of the minimal hero.
+- [x] Verify the revised minimal hero and save a delivery checkpoint.
+- [x] Make the Workflo wordmark a clear clickable home control with subtle glow feedback.
+- [x] Add a completed-load typewriter reveal for the Autonomous QA tagline.
+- [x] Validate the refined hero interactions and save a delivery checkpoint.
+- [x] Refine the typewriter cursor to blink briefly and fade after completing the tagline.
+- [x] Add a custom Workflo technical-glyph favicon to the application shell.
+- [x] Verify the completed-load motion and favicon configuration, then save a delivery checkpoint.
+- [x] Add a subtle underline reveal after the typewriter cursor finishes its completion sequence.
+- [x] Add a reduced-motion navigation control that pauses WebGL animation and disables typing motion.
+- [x] Validate the hero completion and reduced-motion behavior, then save a delivery checkpoint.
+- [x] Remove the post-typewriter underline from the minimal hero.
+- [x] Replace the landing-page headline and supporting copy with concise professional Workflo positioning.
+- [x] Create and integrate a clearer, more sophisticated dark 3D sandbox visual direction.
+- [x] Refine the hero’s interactive motion, performance, and action UX without adding unnecessary content.
+- [x] Validate the redesigned landing page and save a delivery checkpoint.
+- [x] Replace the current opening hero phrase with a new concise professional headline.
+- [x] Reduce the landing hero to only its headline and a single supporting subheading.
+- [x] Update hero-copy regression coverage and validate the simplified layout.
+- [x] Rename the primary hero action to Start Free Trial and refine its hover animation.
+- [x] Shorten the hero subheading into a punchier editorial line that remains within two lines.
+- [x] Validate the CTA and revised supporting copy with automated and visual checks.
+- [x] Review the Workflo hero at small mobile breakpoints and identify readability or spacing issues.
+- [x] Improve mobile heading, subheading, action layout, and tap-target spacing while preserving the minimal composition.
+- [x] Validate the responsive hero and save a delivery checkpoint.
+- [x] Review the current non-WebGL fallback and initial hero reveal behavior.
+- [x] Add a high-quality static sandbox fallback for devices without WebGL support.
+- [x] Refine the initial hero text and CTA fade-in while respecting reduced-motion settings.
+- [x] Validate fallback rendering and entry animation, then save a delivery checkpoint.
+- [x] Review the existing hero background motion and loading overlay for opportunities to improve perceived performance.
+- [x] Add a subtle scroll-linked parallax response to the hero background image.
+- [x] Add a lightweight visual loading indicator that remains clear on slow connections.
+- [x] Validate the scrolling and loading states, then save a delivery checkpoint.
+- [x] Review the translucent hero rendering layer and current touch-scroll parallax behavior.
+- [x] Remove the translucent WebGL overlay so only the box background image remains visible.
+- [x] Tune the hero image parallax for smooth touch scrolling and reduced-motion safety.
+- [x] Validate the image-only hero on desktop and mobile and save a delivery checkpoint.
+- [x] Review the existing dialog, server, and database foundations for trial email capture.
+- [x] Add an accessible Start Free Trial modal with email validation and persistent submission handling.
+- [x] Add a deduplicated database record for trial sign-up emails and verify the backend procedure.
+- [x] Refine the hero image crop for tablet breakpoints and add restrained desktop hover feedback.
+- [x] Validate the trial form, image behavior, and responsive layout, then save a delivery checkpoint.
+- [x] Review the current Docs, Dashboard, and trial-modal implementation against the new onboarding and empty-state requirements.
+- [x] Add installation, download, and further-testing guidance to the technical documentation.
+- [x] Rework the console as a polished empty zero-state with no fabricated metrics, run data, or table values.
+- [x] Add consent, privacy-policy access, success feedback, and explicit outside/Escape dismissal behavior to the trial modal.
+- [x] Validate the revised Docs, console, and modal experiences, then save a delivery checkpoint.
+- [x] Review existing installation command controls, empty-console actions, and trial form state handling.
+- [x] Ensure every installation command exposes an accessible copy-to-clipboard control.
+- [x] Add a Create your first test run action to the empty QA Console.
+- [x] Open the trial-form privacy policy in a new tab and add real-time email validation feedback.
+- [x] Validate the revised interactions and save a delivery checkpoint.
+- [x] Review the current hero visual, loading treatment, and consent-required submission flow.
+- [x] Create and prepare a cinematic moving sandbox background that retains safe space for hero copy.
+- [x] Add a clear inline consent error when a user attempts to submit without agreeing.
+- [x] Replace static hero rendering with loading-aware motion playback and preserve an accessible fallback.
+- [x] Validate the new hero motion and trial-form feedback, then save a delivery checkpoint.
+- [x] Review the current video playback, poster fallback, and reduced-motion behavior.
+- [x] Add a restrained visual transition at the video loop boundary to avoid a hard replay cut.
+- [x] Add an accessible background-video play/pause control and synchronize it with motion preferences.
+- [x] Validate the loop and playback-control behavior, then save a delivery checkpoint.
+- [x] Review the landing hero copy and API-reference documentation heading hierarchy.
+- [x] Replace the landing heading and subheading with concise, direct Workflo positioning and refine the API-reference introduction.
+- [x] Rebalance the documentation side panel with more open spacing and clearer active-state hierarchy.
+- [x] Remove the hero background video and excess motion controls while retaining one restrained static sandbox image.
+- [x] Validate the final simplified landing and documentation experience, then save a delivery checkpoint.
+- [x] Review the Docs sidebar utilities and current landing-page typewriter and content structure.
+- [x] Add a concise changelog surface and improved API-reference search access to the Docs sidebar.
+- [x] Replace the typewriter headline with a motion-safe appear–disappear–appear reveal and remove nonessential hero copy.
+- [x] Apply a restrained dark neumorphic treatment without compromising readability or the established technical aesthetic.
+- [x] Validate the revised Docs sidebar and minimal landing experience, then save a delivery checkpoint.
+- [x] Review the landing cursor-depth behavior, neumorphic action styling, and sidebar changelog implementation.
+- [x] Restore subtle cursor-driven sandbox-image movement and add a motion-safe pressed-shadow treatment for landing actions.
+- [x] Connect the Docs changelog to an accessible detailed release-notes modal.
+- [x] Validate landing interaction and release-notes behavior, then save a delivery checkpoint.
+- [x] Review the current hero cursor-depth transform behavior and documentation navigation interaction states.
+- [x] Smooth the hero image motion and add a restrained 3D tilt that respects reduced-motion settings.
+- [x] Apply a matching neumorphic pressed state to documentation sidebar links.
+- [x] Validate the refined motion and navigation feedback, then save a delivery checkpoint.
+- [x] Review the current motion preference, sandbox image layer, and Docs changelog interaction implementation.
+- [x] Add a visible, accessible landing motion toggle that persists the visitor’s preference.
+- [x] Refine sandbox tilt for ultrawide screens and add a restrained cursor-driven glare layer.
+- [x] Apply matching neumorphic pressed feedback to Docs changelog controls.
+- [x] Validate the motion preference, sandbox effect, and sidebar interactions, then save a delivery checkpoint.
+- [x] Review the current Workflo documentation sections, navigation, and interactions for consolidation opportunities.
+- [x] Reorganize the Docs page into a concise getting-started, guides, API reference, and support information architecture.
+- [x] Apply a clean reading layout with focused search, code-copy controls, progressive disclosure, and minimal chrome.
+- [x] Validate the redesigned documentation on desktop and mobile and save a delivery checkpoint.
