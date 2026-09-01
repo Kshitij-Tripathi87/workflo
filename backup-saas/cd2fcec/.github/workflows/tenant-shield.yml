@@ -1,0 +1,48 @@
+name: Tenant Shield
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Nightly run at 03:00 UTC — useful for the heavier regression matrix
+    - cron: "0 3 * * *"
+
+jobs:
+  isolation:
+    name: Tenant isolation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          python-version: "3.11"
+          pytest-args: "-m 'security or integration'"
+          report-format: html
+        env:
+          TEST_ENV: ci
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          TENANT_ID: ${{ vars.TENANT_ID }}
+          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          COMPANY1_TOKEN: ${{ secrets.COMPANY1_TOKEN }}
+          COMPANY2_TOKEN: ${{ secrets.COMPANY2_TOKEN }}
+
+  smoke:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          pytest-args: "-m smoke"
+          install-playwright: "true"
+        env:
+          TEST_ENV: ci
+          BASE_URL: ${{ secrets.BASE_URL }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          TENANT_ID: ${{ vars.TENANT_ID }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}

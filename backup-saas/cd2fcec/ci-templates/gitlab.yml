@@ -1,0 +1,41 @@
+# Tenant Shield — GitLab CI template
+#
+# Usage in .gitlab-ci.yml:
+#   include:
+#     - template: 'Workflows/Tenant-Shield.gitlab-ci.yml'
+#       # or, if vendored locally:
+#     - local: 'ci-templates/gitlab.yml'
+#
+#   tenant-shield:
+#     extends: .tenant-shield
+#     variables:
+#       PYTEST_ARGS: "-m security"
+
+.tenant-shield:
+  image: python:3.11-slim
+  variables:
+    TEST_ENV: "ci"
+    RESULTS_PATH: "reports/tenant-shield-results.json"
+    REPORT_FORMAT: "html"
+    PYTEST_ARGS: ""
+    INSTALL_PLAYWRIGHT: "true"
+  before_script:
+    - pip install --upgrade pip
+    - |
+      if [ -f requirements.txt ]; then
+        pip install -r requirements.txt
+      else
+        pip install tenant-shield
+      fi
+    - if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then python -m playwright install chromium --with-deps; fi
+  script:
+    - mkdir -p "$(dirname "$RESULTS_PATH")"
+    - tenant-shield run $PYTEST_ARGS --output-json "$RESULTS_PATH"
+    - tenant-shield report --results "$RESULTS_PATH" --format "$REPORT_FORMAT"
+  artifacts:
+    when: always
+    paths:
+      - "$RESULTS_PATH"
+      - reports/compliance/
+    reports:
+      junit: test-results.xml

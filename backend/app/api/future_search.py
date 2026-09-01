@@ -118,6 +118,25 @@ async def run_future_search(
                 results=[r.model_dump() for r in results],
             )
 
+        # Generate tamper-evident cryptographic receipt with teardown proof
+        from app.core.receipts import receipt_engine
+        plan.receipt = receipt_engine.create_and_sign_receipt(
+            action_type="future_search",
+            asset_urn=payload.asset_urn,
+            parameters={
+                "objective": payload.objective,
+                "connector": payload.connector,
+                "policies_count": len(payload.policies or []),
+            },
+            result_summary={
+                "candidates_count": len(plan.candidates),
+                "ranked_choice_severity": plan.ranked_choice.predicted_severity,
+                "ranked_choice_blast_radius": plan.ranked_choice.predicted_blast_radius,
+                "verdict": plan.policy_result.verdict if plan.policy_result else "pass",
+            },
+            soc2_controls=["CC6.1", "CC7.2"],
+        )
+
         return plan
 
     except HTTPException:

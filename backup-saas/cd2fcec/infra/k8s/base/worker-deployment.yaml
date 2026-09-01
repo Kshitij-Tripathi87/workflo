@@ -1,0 +1,64 @@
+# Kubernetes deployment manifest for the Tenant Shield Worker Engine.
+# Scales via KEDA based on the Redis queue depth.
+# In Enterprise mode, this same manifest is deployed into the customer's VPC.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-engine
+  labels:
+    app: tenant-shield
+    component: worker-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tenant-shield
+      component: worker-engine
+  template:
+    metadata:
+      labels:
+        app: tenant-shield
+        component: worker-engine
+    spec:
+      containers:
+        - name: worker
+          image: tenantshield/worker-engine:latest
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-shield-secrets
+                  key: redis-url
+            - name: CONTROL_PLANE_URL
+              value: "http://control-plane"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-shield-secrets
+                  key: worker-api-key
+            - name: WORKER_MODE
+              value: "queue"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-scaler
+spec:
+  scaleTargetRef:
+    name: worker-engine
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  triggers:
+    - type: redis
+      metadata:
+        redisAddress: "redis:6379"
+        listLength: "10"
+        listName: "test-runs"

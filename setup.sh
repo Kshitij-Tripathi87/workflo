@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cortex Autopilot — one-command setup.
+# Workflo — one-command setup.
 #
 # Brings up Postgres + backend + frontend, waits for /health, and
 # opens the UI in the default browser.
@@ -21,7 +21,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-log()   { printf "${BLUE}[cortex]${NC} %s\n" "$*"; }
+log()   { printf "${BLUE}[workflo]${NC} %s\n" "$*"; }
 ok()    { printf "${GREEN}[ok]${NC} %s\n" "$*"; }
 warn()  { printf "${YELLOW}[warn]${NC} %s\n" "$*"; }
 fail()  { printf "${RED}[fail]${NC} %s\n" "$*" >&2; exit 1; }
@@ -116,7 +116,7 @@ if [ "${SKIP_BROWSER:-0}" != "1" ]; then
 fi
 
 echo ""
-ok "Cortex Autopilot is running!"
+ok "Workflo is running!"
 echo "  Frontend : http://localhost:3000"
 echo "  Backend  : http://localhost:8000"
 echo "  Health   : http://localhost:8000/health"

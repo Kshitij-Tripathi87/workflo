@@ -1,72 +1,34 @@
-# Cortex Autopilot local development stack
-# Usage: docker compose --env-file compose.env up
-# Frontend: http://localhost:3000
-# Backend:  http://localhost:8000
+version: "3.9"
 
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+  db:
+    image: postgres:15-alpine
     environment:
-      - ENV=${COMPOSE_ENV:-dev}
-      - USE_MOCK_DATAHUB=${USE_MOCK_DATAHUB:-true}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-cortex}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cortex}
-      - AUTH_REQUIRED=${AUTH_REQUIRED:-false}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-      - LOG_LEVEL=INFO
-      - CORTEX_DBT_MANIFEST_PATH=${CORTEX_DBT_MANIFEST_PATH:-}
-      - CORTEX_SNOWFLAKE_MOCK=${CORTEX_SNOWFLAKE_MOCK:-true}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./backend/data:/app/data
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
-    depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000", "||", "exit", "1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-cortex}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-cortex}
+      POSTGRES_USER: workflo
+      POSTGRES_PASSWORD: workflo
+      POSTGRES_DB: workflo
     ports:
       - "5432:5432"
     volumes:
-      - cortex_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cortex} -d ${POSTGRES_DB:-cortex}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
 
 volumes:
-  cortex_pgdata:
+  pgdata:
+  miniodata:

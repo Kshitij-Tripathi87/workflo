@@ -13,6 +13,9 @@ import { WritebackStatus } from "../components/WritebackStatus";
 import { LineageGraph } from "../components/LineageGraph";
 import { SeverityBadge } from "../components/SeverityBadge";
 import { FutureSearchPanel } from "../components/FutureSearchPanel";
+import { ContractTestPanel } from "../components/ContractTestPanel";
+import { ReceiptVerifierModal } from "../components/ReceiptVerifierModal";
+import { ComplianceCenter } from "../components/ComplianceCenter";
 import * as api from "../lib/api";
 import type {
   AssetNode,
@@ -352,14 +355,14 @@ export default function Home() {
           {selectedAsset && (
             <div style={{ marginTop: 12, fontSize: 13, color: "#94a3b8" }}>
               <div>
-                <b>URN</b> <span style={{ color: "#cbd5e1" }}>{selectedAsset.urn</span>
+                <b>URN</b> <span style={{ color: "#cbd5e1" }}>{selectedAsset.urn}</span>
              </div>
               <div>
                 <b>Owner</b>{" "}
                 <span style={{ color: "#cbd5e1" }}>{selectedAsset.owner || "Unassigned"}</span>
              </div>
               <div>
-                <b>Kind</b> <span style={{ color: "#cbd5e1" }}>{selectedAsset.kind</span>
+                <b>Kind</b> <span style={{ color: "#cbd5e1" }}>{selectedAsset.kind}</span>
              </div>
            </div>
           )}
@@ -404,17 +407,25 @@ export default function Home() {
        </Panel>
      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 16 }}>
         <Panel title="5. Artifact">
           <ArtifactPreview artifact={artifact} />
-       </Panel>
+        </Panel>
 
         <Panel title="6. Write-back">
           <WritebackStatus record={writeback} />
-       </Panel>
-     </div>
+        </Panel>
+      </div>
 
       <FutureSearchPanel plan={futurePlan} onRun={runFutureSearch} loading={futureLoading} />
-   </main>
+
+      {futurePlan?.receipt && (
+        <ReceiptVerifierModal receipt={futurePlan.receipt} />
+      )}
+
+      <ContractTestPanel assetUrn={selectedUrn} />
+
+      <ComplianceCenter />
+    </main>
   );
 }

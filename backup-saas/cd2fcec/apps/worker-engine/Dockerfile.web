@@ -1,0 +1,48 @@
+# workflo-worker-web — sandboxed test worker with Playwright + Chromium.
+#
+# This is a SECOND image layered on top of workflo-worker:latest, exactly
+# like Dockerfile.deep. The plain `workflo-worker:latest` stays small and
+# fast. The `--web` flag auto-selects this image via the ContainerRuntime —
+# `--worker-image` is for the base, `--web-worker-image` is for the
+# browser-bearing one.
+#
+# Build context is the repo root (same as Dockerfile). Build at:
+#   docker build -t workflo-worker-web:latest -f apps/worker-engine/Dockerfile.web .
+#
+# Image contents:
+#   - Playwright pinned to 1.48.0 + its Chromium build (network ON at build)
+#   - The Python worker engine + dependencies (re-installed from layers
+#     cached by the base image, so this image is cheap to build)
+#
+# Runtime contract:
+#   - The web tier runs ONLY inside this image; the base image never imports
+#     the playwright module (probes.py imports it lazily inside the function).
+#   - Sandbox runs with --network none, so the browser can only reach
+#     127.0.0.1 — the app-under-test started by app_starter.py.
+#   - Version pinned to 1.48.0 (not "latest") so the browser binary and the
+#     Python package can't drift apart between builds — a real risk with
+#     unpinned Playwright, since `playwright install` fetches the browser
+#     that matches the installed package version.
+
+# ---- Stage 1: base worker, already built ----
+FROM workflo-worker:latest AS base
+
+# ---- Stage 2: add Playwright + Chromium ----
+WORKDIR /app
+
+# Install system deps Playwright's Chromium needs, then the pinned
+# playwright package, then the matching Chromium build. `--with-deps`
+# also installs apt packages that the core-shell apt steps may have
+# missed (glibc deps like libnss3, libatk-bridge2.0-0, etc.).
+# The Chromium binaries land in /root/.cache/ms-playwright and are baked
+# into this image — DO NOT prune that cache, the browser must be present
+# at runtime (the sandbox has no network to fetch it).
+RUN pip install --no-cache-dir playwright==1.48.0 \
+    && playwright install --with-deps chromium
+
+ENV PYTHONUNBUFFERED=1
+ENV WORKER_MODE=queue
+
+WORKDIR /app/worker-engine
+
+CMD ["python", "-m", "tenant_shield_worker.main"]

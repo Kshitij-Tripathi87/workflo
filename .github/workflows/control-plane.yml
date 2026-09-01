@@ -1,0 +1,28 @@
+name: Control Plane CI
+
+on:
+  push:
+    paths:
+      - "apps/control-plane/**"
+      - "packages/workflo-schema/**"
+      - "packages/workflo-utils/**"
+  pull_request:
+    paths:
+      - "apps/control-plane/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install -e ./packages/workflo-schema
+          pip install -e ./packages/workflo-utils
+          pip install -e ./apps/control-plane
+      - name: Run tests
+        run: |
+          cd apps/control-plane && pytest -v

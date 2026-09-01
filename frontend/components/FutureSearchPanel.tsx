@@ -17,7 +17,7 @@ function SeverityBar({ value, label }: { value: number; label: string }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-        <span>{label</span>
+        <span>{label}</span>
         <span>{clamped}/100</span>
      </div>
       <div style={{ height: 6, backgroundColor: "#1e293b", borderRadius: 3, overflow: "hidden" }}>

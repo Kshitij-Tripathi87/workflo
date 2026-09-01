@@ -1,0 +1,68 @@
+name: Architecture Review
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # Required for SARIF upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for merge-base baseline
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install validation CLI
+        run: pip install -e ./apps/validation-cli
+
+      - name: Install gate dependencies
+        # FAIL-LOUD: a missing or renamed gate dependency must abort the
+        # workflow. Silently swallowing install failures would let the
+        # pipeline report "gates ran" when they may not have actually
+        # executed — the same false-confidence pattern that was caught
+        # earlier this session in the auth/sandbox layers.
+        run: |
+          pip install -e ./packages/cortex-auth
+          pip install -e ./apps/control-plane
+          pip install -e ./apps/workflo-cli
+
+      - name: Run architecture review
+        id: validate
+        env:
+          MODEL_ENDPOINT: ${{ secrets.VLLM_ENDPOINT }}
+        run: |
+          validate-phase2 \
+            --repo . \
+            --output ./reports \
+            --formats sarif,md,json,html
+        continue-on-error: true # Reports are still written on failure
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ./reports/validation_report.sarif
+          category: validate-phase2
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-reports
+          path: ./reports/
+
+      - name: Fail job on critical findings or gate failures
+        if: steps.validate.outcome == 'failure'
+        run: |
+          echo "::error::Architecture review found critical/high issues or gate failures. See SARIF for details."
+          exit 1

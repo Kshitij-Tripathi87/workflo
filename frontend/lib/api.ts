@@ -213,3 +213,34 @@ export async function fetchDetailedHealth(): Promise<any> {
 export async function fetchHealth(): Promise<{ status: string; env: string }> {
   return request(`${apiBase}/health`);
 }
+
+// Data Contracts & Pytest Generation ---------------------------------------
+
+export async function generateContractTest(datasetUrn: string, customOwner?: string): Promise<import("./types").GeneratedContractTest> {
+  return request<import("./types").GeneratedContractTest>(`${apiBase}/contracts/generate`, {
+    method: "POST",
+    body: JSON.stringify({ dataset_urn: datasetUrn, custom_owner: customOwner }),
+  });
+}
+
+export async function executeContractTest(datasetUrn: string): Promise<import("./types").ContractExecutionResult> {
+  return request<import("./types").ContractExecutionResult>(`${apiBase}/contracts/execute`, {
+    method: "POST",
+    body: JSON.stringify({ dataset_urn: datasetUrn }),
+  });
+}
+
+// Cryptographic Receipts & Verification -------------------------------------
+
+export async function verifyReceipt(receipt: import("./types").SignedReceipt): Promise<import("./types").ReceiptVerificationResponse> {
+  return request<import("./types").ReceiptVerificationResponse>(`${apiBase}/receipts/verify`, {
+    method: "POST",
+    body: JSON.stringify(receipt),
+  });
+}
+
+// SOC 2 Compliance Report ---------------------------------------------------
+
+export async function fetchComplianceReport(): Promise<import("./types").ComplianceReport> {
+  return request<import("./types").ComplianceReport>(`${apiBase}/compliance/report`);
+}

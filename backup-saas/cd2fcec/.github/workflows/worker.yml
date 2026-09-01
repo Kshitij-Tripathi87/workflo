@@ -1,0 +1,40 @@
+name: Worker Engine CI
+
+on:
+  push:
+    paths:
+      - "apps/worker-engine/**"
+      - "packages/core-schema/**"
+      - "packages/common-utils/**"
+  pull_request:
+    paths:
+      - "apps/worker-engine/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install -e ./packages/core-schema
+          pip install -e ./packages/common-utils
+          pip install -e ./apps/worker-engine
+      - name: Run tests
+        run: |
+          cd apps/worker-engine && pytest -v
+
+  docker:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/build-push-action@v5
+        with:
+          context: apps/worker-engine
+          push: false
+          tags: tenantshield/worker-engine:latest

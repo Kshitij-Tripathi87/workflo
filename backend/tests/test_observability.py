@@ -19,7 +19,7 @@ def test_version_endpoint():
     """Version endpoint returns cortex version."""
     res = client.get("/version")
     assert res.status_code == 200
-    assert res.json()["name"] == "Cortex Autopilot"
+    assert res.json()["name"] == "Workflo"
 
 
 def test_metrics_endpoint():

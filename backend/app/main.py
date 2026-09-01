@@ -37,6 +37,9 @@ from app.api.future_search import router as future_search_router
 from app.api.auth import router as auth_router
 from app.api.autopilot import router as autopilot_router
 from app.api.policy import router as policy_router
+from app.api.contracts import router as contracts_router
+from app.api.receipts import router as receipts_router
+from app.api.compliance import router as compliance_router
 from app.services.autopilot import get_autopilot
 
 
@@ -63,7 +66,7 @@ async def lifespan(app: FastAPI):
     logger.info("shutdown")
 
 
-app = FastAPI(title="Cortex Autopilot", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Workflo", version="0.3.0", lifespan=lifespan)
 
 # Middleware (order matters - outermost first)
 app.add_middleware(ErrorHandlingMiddleware)
@@ -95,7 +98,7 @@ async def health_detailed():
 
 @app.get("/version")
 async def version():
-    return {"version": "0.3.0", "name": "Cortex Autopilot"}
+    return {"version": "0.3.0", "name": "Workflo"}
 
 
 @app.get("/metrics")
@@ -116,3 +119,6 @@ app.include_router(demo_router)
 app.include_router(future_search_router)
 app.include_router(autopilot_router)
 app.include_router(policy_router)
+app.include_router(contracts_router)
+app.include_router(receipts_router)
+app.include_router(compliance_router)

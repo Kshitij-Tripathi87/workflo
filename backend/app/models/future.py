@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Literal, Optional
 from datetime import datetime
+from app.models.receipt import SignedReceipt
 
 ScenarioType = Literal[
     "schema_rename",
@@ -52,3 +53,4 @@ class FuturePlan(BaseModel):
     explanation: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     policy_result: Optional[PolicyResultSummary] = None
+    receipt: Optional[SignedReceipt] = None

@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: workflo_core/cli_entrypoints
+title: cli_entrypoints
+scope:
+    - workflo/cli.py
+    - workflo/scaffolding.py
+    - workflo/__main__.py
+source_files: []
+depends_on: []
+related_to: []

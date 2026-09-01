@@ -1,0 +1,92 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: main
+nodes_managed: true
+exported_at: "2026-08-20T21:32:22Z"
+modules:
+    ai_integration:
+        dir_name: ai_integration
+        title: ai_integration
+        scope:
+            - workflo-ai-integration/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    apps:
+        dir_name: apps
+        title: apps
+        scope:
+            - apps/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    docs:
+        dir_name: docs
+        title: docs
+        scope:
+            - docs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    examples:
+        dir_name: examples
+        title: examples
+        scope:
+            - examples/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    infra:
+        dir_name: infra
+        title: infra
+        scope:
+            - infra/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    packages:
+        dir_name: packages
+        title: packages
+        scope:
+            - packages/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    tests_and_fixtures:
+        dir_name: tests_and_fixtures
+        title: tests_and_fixtures
+        scope:
+            - tests/
+            - data/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    workflo_core:
+        dir_name: workflo_core
+        title: workflo_core
+        scope:
+            - workflo/
+        source_files: []
+        children:
+            - workflo_core/cli_entrypoints
+        depends_on: []
+        related_to: []
+    workflo_core/cli_entrypoints:
+        dir_name: cli_entrypoints
+        title: cli_entrypoints
+        scope:
+            - workflo/cli.py
+            - workflo/scaffolding.py
+            - workflo/__main__.py
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

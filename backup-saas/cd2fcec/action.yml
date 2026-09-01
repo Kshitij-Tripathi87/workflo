@@ -1,0 +1,89 @@
+name: "Tenant Shield Isolation Tests"
+description: "Run multi-tenant isolation tests and generate a SOC 2 evidence report. Use this action in your CI to prove tenant data boundaries in every build."
+author: "Tenant Shield"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  config-file:
+    description: "Path to tenant-shield.yaml (reserved for future use; currently informational)"
+    required: false
+    default: "tenant-shield.yaml"
+  results-path:
+    description: "Where to write the JSON results file"
+    required: false
+    default: "reports/tenant-shield-results.json"
+  report-format:
+    description: "Compliance report format (html or pdf)"
+    required: false
+    default: "html"
+  pytest-args:
+    description: "Extra arguments passed to pytest (e.g. '-m security')"
+    required: false
+    default: ""
+  python-version:
+    description: "Python version to set up"
+    required: false
+    default: "3.11"
+  install-playwright:
+    description: "Whether to install Playwright browsers (set to 'false' for API-only tests)"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+
+    - name: Install Tenant Shield
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        else
+          pip install tenant-shield
+        fi
+        if [ "${{ inputs.install-playwright }}" = "true" ]; then
+          python -m playwright install chromium --with-deps || python -m playwright install chromium
+        fi
+
+    - name: Run isolation tests
+      shell: bash
+      env:
+        TEST_ENV: ${{ env.TEST_ENV }}
+        BASE_URL: ${{ env.BASE_URL }}
+        API_BASE_URL: ${{ env.API_BASE_URL }}
+        TENANT_ID: ${{ env.TENANT_ID }}
+        TEST_EMAIL: ${{ env.TEST_EMAIL }}
+        TEST_PASSWORD: ${{ env.TEST_PASSWORD }}
+        API_AUTH_TOKEN: ${{ env.API_AUTH_TOKEN }}
+        COMPANY1_TOKEN: ${{ env.COMPANY1_TOKEN }}
+        COMPANY2_TOKEN: ${{ env.COMPANY2_TOKEN }}
+      run: |
+        mkdir -p "$(dirname "${{ inputs.results-path }}")"
+        tenant-shield run ${{ inputs.pytest-args }} --output-json "${{ inputs.results-path }}"
+
+    - name: Generate SOC 2 evidence report
+      shell: bash
+      run: |
+        tenant-shield report --results "${{ inputs.results-path }}" --format ${{ inputs.report-format }}
+
+    - name: Upload results JSON
+      uses: actions/upload-artifact@v4
+      with:
+        name: tenant-shield-results
+        path: ${{ inputs.results-path }}
+        if-no-files-found: warn
+
+    - name: Upload compliance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: tenant-shield-report
+        path: reports/compliance/
+        if-no-files-found: warn

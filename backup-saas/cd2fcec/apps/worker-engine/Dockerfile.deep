@@ -1,0 +1,126 @@
+# workflo-worker-deep — sandboxed test worker with self-hosted model.
+#
+# This is a SECOND image layered on top of workflo-worker:latest. The plain
+# `workflo-worker:latest` stays small and fast (it doesn't need Ollama). The
+# `--deep-test` / `--aggressive-test` flags auto-select this image via the
+# ContainerRuntime — `--worker-image` is for the base, `--deep-worker-image`
+# is for the model-bearing one.
+#
+# Build context is the repo root (same as Dockerfile). Build at:
+#   docker build -t workflo-worker-deep:latest -f apps/worker-engine/Dockerfile.deep .
+#
+# Image contents:
+#   - Ollama 0.4.x serving layer
+#   - qwen2.5-coder:7b-instruct-q4_K_M baked in at BUILD time (network ON)
+#   - The Python worker engine + dependencies
+#
+# Runtime contract:
+#   - Ollama listens on 127.0.0.1:11434 only (NOT 0.0.0.0) so nothing outside
+#     this container's network namespace can reach it.
+#   - Sandbox runs with --network none, so Ollama is unreachable from the
+#     network. The model is reachable only via the localhost socket inside
+#     this container.
+#   - All model interaction is via HTTP to 127.0.0.1:11434.
+
+# ---- Stage 1: model-bearing base layer ----
+FROM ollama/ollama:latest AS ollama-base
+
+# Pull the model at build time. We need network ON here — this is the ONE
+# stage where egress is permitted, and we explicitly accept that because
+# the build context is the developer's machine, not a customer sandbox.
+#
+# Qwen2.5-Coder 7B Instruct, Q4_K_M quant. ~4.7GB download. We chose this
+# model over a general Llama because:
+#   - Code-specific training makes its structured output (JSON/YAML lists
+#     of test specs) much more reliable
+#   - 7B + Q4_K_M fits in a typical 16GB-RAM CI worker after we trim
+#     Ollama's pre-loaded model cache
+#   - Inexpensive relative to 70B variants
+#
+# We use a healthcheck loop instead of `sleep N` because Ollama's pull
+# time is variable (CI vs developer machine) and we want the model
+# *actually loaded* before the next stage takes a snapshot.
+RUN set -e; \
+    echo "[ollama] starting ollama server in background..."; \
+    ollama serve > /tmp/ollama-build.log 2>&1 & \
+    OLLAMA_PID=$!; \
+    echo "[ollama] waiting for API to come up (max 60s)..."; \
+    for i in $(seq 1 60); do \
+        if curl -sf http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then \
+            echo "[ollama] API up after ${i}s"; break; \
+        fi; \
+        sleep 1; \
+    done; \
+    if ! curl -sf http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then \
+        echo "[ollama] FAILED to start. Tail of build log:"; \
+        tail -50 /tmp/ollama-build.log; \
+        exit 1; \
+    fi; \
+    echo "[ollama] pulling qwen2.5-coder:7b-instruct-q4_K_m..."; \
+    ollama pull qwen2.5-coder:7b-instruct-q4_K_m; \
+    echo "[ollama] verifying model is loaded..."; \
+    ollama list | tee /tmp/ollama-models.txt; \
+    if ! grep -q "qwen2.5-coder" /tmp/ollama-models.txt; then \
+        echo "[ollama] FAILED: model not in list"; exit 1; \
+    fi; \
+    echo "[ollama] killing build-time server (will be restarted at container start)..."; \
+    kill $OLLAMA_PID 2>/dev/null || true; \
+    wait $OLLAMA_PID 2>/dev/null || true; \
+    echo "[ollama] build-time setup complete"
+
+# ---- Stage 2: Python worker + dependencies on top of the ollama image ----
+# We use the ollama image as the base so Ollama's binary is already
+# installed and the model weights are baked in.
+WORKDIR /app
+
+# Install git (for shallow clones) + curl (for in-container healthcheck of
+# the Ollama server at runtime).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy local shared packages first (worker depends on them)
+COPY packages/core-schema/ /app/packages/core-schema/
+COPY packages/common-utils/ /app/packages/common-utils/
+
+# Install the shared packages
+RUN pip install --no-cache-dir /app/packages/core-schema \
+    && pip install --no-cache-dir /app/packages/common-utils
+
+# Copy and install the worker itself
+COPY apps/worker-engine/pyproject.toml /app/worker-engine/pyproject.toml
+COPY apps/worker-engine/src/ /app/worker-engine/src/
+
+RUN pip install --no-cache-dir /app/worker-engine
+
+# Configure Ollama for runtime:
+#   - Listen on 127.0.0.1 only (not 0.0.0.0) so nothing outside this
+#     container's namespace can reach it.
+#   - Set OLLAMA_MODELS to /root/.ollama (default; explicit for clarity).
+#   - Disable debug logging (no per-request logs leaking prompt/completion).
+#   - OLLAMA_NOHISTORY prevents Ollama from saving prompt history files.
+ENV OLLAMA_HOST=127.0.0.1:11434
+ENV OLLAMA_DEBUG=0
+ENV OLLAMA_NOHISTORY=1
+ENV OLLAMA_MODELS=/root/.ollama
+ENV OLLAMA_LOG_LEVEL=warn
+
+# We use PYTHONUNBUFFERED=1 so worker logs go straight to stdout (which
+# the executor parses for WORKFLO_REPORT: / WORKFLO_CANARY: lines).
+ENV PYTHONUNBUFFERED=1
+ENV WORKER_MODE=queue
+
+WORKDIR /app/worker-engine
+
+# Default CMD starts ollama then the worker. The worker is responsible
+# for starting Ollama at the right moment (model_server.py:start()) and
+# killing it during teardown.
+#
+# Note: we don't run ollama serve here directly because the worker
+# engine controls its lifecycle to keep teardown clean. If you want to
+# inspect the model manually, run:
+#   docker run --rm -it workflo-worker-deep:latest bash
+#   ollama serve &
+#   ollama run qwen2.5-coder:7b-instruct-q4_K_m "Hello"
+CMD ["python", "-m", "tenant_shield_worker.main"]

@@ -5,6 +5,9 @@ from app.models.impact import ImpactReport
 from app.models.recommendation import Recommendation
 from app.models.artifact import ArtifactDraft
 from app.models.writeback import WritebackRecord, WritebackStatus
+from app.models.contract import ContractSpec, GeneratedContractTest, ContractExecutionResult, ColumnConstraint
+from app.models.receipt import SignedReceipt, TeardownProof, ReceiptVerificationResponse
+from app.models.compliance import SOC2ControlStatus, ComplianceReport
 
 # Legacy re-exports for backward compatibility
 from pydantic import BaseModel, Field
@@ -53,4 +56,13 @@ __all__ = [
     "AssetSummary",
     "Incident",
     "FixDraft",
+    "ContractSpec",
+    "GeneratedContractTest",
+    "ContractExecutionResult",
+    "ColumnConstraint",
+    "SignedReceipt",
+    "TeardownProof",
+    "ReceiptVerificationResponse",
+    "SOC2ControlStatus",
+    "ComplianceReport",
 ]

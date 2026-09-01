@@ -70,10 +70,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -t cortex-backend:${{ github.sha }} ./backend
+        run: docker build -t workflo-backend:${{ github.sha }} ./backend
 
       - name: Build frontend image
-        run: docker build -t cortex-frontend:${{ github.sha }} ./frontend
+        run: docker build -t workflo-frontend:${{ github.sha }} ./frontend
 
       - name: Smoke test compose
         run: |

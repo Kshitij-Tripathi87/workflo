@@ -64,7 +64,7 @@ export function Toast({ payload, onDismiss }: { payload: ToastPayload; onDismiss
           marginBottom: 6,
         }}
       >
-        <strong style={{ color: cfg.text, fontSize: 14 }}>{payload.title</strong>
+        <strong style={{ color: cfg.text, fontSize: 14 }}>{payload.title}</strong>
         <button
           onClick={onDismiss}
           aria-label="Dismiss"
@@ -79,7 +79,7 @@ export function Toast({ payload, onDismiss }: { payload: ToastPayload; onDismiss
           ×
        </button>
     </div>
-      <div style={{ fontSize: 13, color: "#cbd5e1" }}>{payload.message</div>
+      <div style={{ fontSize: 13, color: "#cbd5e1" }}>{payload.message}</div>
       {payload.hint && (
         <div
           style={{

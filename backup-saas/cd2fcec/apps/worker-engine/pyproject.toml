@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workflo-worker"
+version = "0.1.0"
+description = "The workflo execution engine — pulls specs from the queue, runs pytest/Playwright, streams results."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "workflo" }]
+dependencies = [
+    "tenacity>=8.2.0",
+    "redis>=5.0.0",
+    "httpx>=0.26.0",
+    "requests>=2.31.0",
+    "playwright>=1.61.0",
+    "pytest>=7.4.0",
+    "pytest-json-report>=1.5.0",
+    "pyyaml>=6.0",
+    "workflo-schema",
+    "workflo-utils",
+    "workflo-probe-engine",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "pytest-cov>=4.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Ignore the fixture repo which has its own pytest config and won't
+# import correctly from the parent test directory.
+norecursedirs = ["tests/fixtures", ".git", "__pycache__", ".pytest_cache"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

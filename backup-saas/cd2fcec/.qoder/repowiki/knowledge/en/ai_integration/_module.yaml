@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: ai_integration
+title: ai_integration
+scope:
+    - workflo-ai-integration/
+source_files: []
+depends_on: []
+related_to: []

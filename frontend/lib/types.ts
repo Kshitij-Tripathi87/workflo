@@ -125,4 +125,85 @@ export interface FuturePlan {
   rationale: string;
   explanation: string[];
   created_at: string;
+  receipt?: SignedReceipt;
+}
+
+export interface GeneratedContractTest {
+  test_id: string;
+  dataset_urn: string;
+  dataset_name: string;
+  test_code: string;
+  test_type: string;
+  soc2_controls: string[];
+  integrity_score: number;
+  created_at: string;
+}
+
+export interface ContractExecutionResult {
+  dataset_urn: string;
+  total_tests: number;
+  passed_tests: number;
+  failed_tests: number;
+  skipped_tests: number;
+  duration_seconds: number;
+  status: "passed" | "failed" | "warning";
+  findings: Array<{ test: string; status: string; detail: string }>;
+  receipt_id?: string;
+  soc2_compliance_met: boolean;
+}
+
+export interface TeardownProof {
+  sandbox_id: string;
+  filesystem_wipe_method: string;
+  container_removed: boolean;
+  filesystem_removed: boolean;
+  no_snapshot_retained: boolean;
+  destroyed_at: string;
+  session_duration_seconds: number;
+  peak_memory_mb: number;
+}
+
+export interface SignedReceipt {
+  receipt_id: string;
+  action_type: string;
+  asset_urn: string;
+  timestamp: string;
+  parameters_hash: string;
+  result_summary: Record<string, any>;
+  soc2_controls: string[];
+  teardown_proof?: TeardownProof;
+  public_key_fingerprint?: string;
+  signature?: string;
+}
+
+export interface ReceiptVerificationResponse {
+  receipt_id: string;
+  is_valid: boolean;
+  signer_fingerprint: string;
+  verified_at: string;
+  tamper_detected: boolean;
+  message: string;
+}
+
+export interface SOC2ControlStatus {
+  control_id: string;
+  name: string;
+  description: string;
+  status: "compliant" | "warning" | "non_compliant";
+  score: number;
+  audited_assets_count: number;
+  violating_assets: string[];
+  recommendations: string[];
+}
+
+export interface ComplianceReport {
+  report_id: string;
+  generated_at: string;
+  overall_compliance_score: number;
+  status: "passing" | "needs_review" | "failing";
+  controls: Record<string, SOC2ControlStatus>;
+  total_assets: number;
+  unowned_critical_assets: string[];
+  schema_drift_count: number;
+  cryptographic_receipt_coverage_pct: number;
 }
