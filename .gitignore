@@ -122,3 +122,16 @@ temp/
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json
+
+# Internal planning, scratchpad, backups & repros
+backup-saas/
+files/
+.kilo/
+*.plan
+todo.md
+test_plan.md
+testing_approach.md
+validation-notes.md
+ideas.md
+receipt_test.json
+template.json
