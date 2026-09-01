@@ -4,7 +4,7 @@
 
 ---
 
-## ⚡ CLI Installation Methods
+## CLI Installation Methods
 
 You can install and run the `workflo` CLI using any of the following methods:
 
@@ -123,7 +123,7 @@ workflo verify wf://receipts/0ec7-9b20
 
 ---
 
-## 🚩 CLI Flags Reference
+##  CLI Flags Reference
 
 | Command / Flag | Description |
 |---|---|
@@ -138,23 +138,6 @@ workflo verify wf://receipts/0ec7-9b20
 | `verify <receipt-uri>` | Validate cryptographic signatures and inspect teardown proof |
 
 ---
-
-## 🏗️ Repository Architecture
-
-- **`apps/workflo-cli/`** — Click-based CLI entrypoint (`workflo run`, `workflo auth`, `workflo verify`)
-- **`apps/control-plane/`** — FastAPI SaaS control plane with OAuth 2.0 device flow and worker fleet management
-- **`apps/sandbox-executor/`** — Docker + tmpfs container isolation and outbound canary network verification
-- **`apps/worker-engine/`** — Isolated Pytest runner, Playwright web probes, and AI tool-calling agent
-- **`packages/workflo-schema/`** — Shared Pydantic v2 models (`RunSpec`, `TestResult`, `SignedReceipt`)
-- **`packages/sandbox-isolation/`** — Ephemeral tmpfs lifecycle, network isolation policies, and receipt signer
-- **`packages/probe-engine/`** — Security probes, contract test generator, and web probe runner
-- **`packages/workflo-datahub/`** — DataHub metadata integration (GraphQL + MCP client)
-- **`packages/npm-workflo/`** — Global npm shim package (`@workflo/qa`)
-- **`client/`** — Interactive 3D WebGL (Three.js + React 19) sandbox dashboard and console
-- **`backend/`** — Full FastAPI backend with impact scoring, policy engine, and RAG context store
-
----
-
 ## 🔒 Privacy & Verifiable Teardown
 
 Workflo operates on a zero-retention guarantee:
