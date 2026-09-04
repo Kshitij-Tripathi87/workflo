@@ -1,22 +1,45 @@
 {
-  "name": "@workflo/qa",
-  "version": "0.2.0",
-  "description": "workflo — sandboxed code-testing agent with signed receipts. npm distribution shim; the engine ships as prebuilt Python wheels in a package-local venv.",
-  "license": "Proprietary",
+  "name": "@cortexstudio/workflo",
+  "version": "1.0.1",
+  "description": "workflo — sandboxed code-testing agent with Ed25519-signed receipts. Privacy-first QA in isolated Docker sandboxes.",
+  "license": "MIT",
+  "keywords": [
+    "sandbox",
+    "testing",
+    "ed25519",
+    "receipt",
+    "isolation",
+    "qa",
+    "docker",
+    "pytest"
+  ],
   "bin": {
     "workflo": "bin/workflo.js"
   },
   "files": [
     "bin",
-    "scripts",
-    "vendor"
+    "vendor",
+    "scripts/postinstall.js"
   ],
   "engines": {
     "node": ">=18"
   },
+  "os": ["linux", "darwin", "win32"],
+  "cpu": ["x64", "arm64"],
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
     "pack:build": "python scripts/build-wheels.py && npm pack --pack-destination dist",
     "test": "node scripts/smoke-test.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cortexstudio/workflo.git",
+    "directory": "packages/npm-workflo"
+  },
+  "bugs": {
+    "url": "https://github.com/cortexstudio/workflo/issues"
   }
 }

@@ -1,11 +1,15 @@
-# @workflo/qa
+# @cortexstudio/workflo
+
+[![npm version](https://img.shields.io/npm/v/@cortexstudio/workflo.svg)](https://www.npmjs.com/package/@cortexstudio/workflo)
+[![node](https://img.shields.io/node/v/@cortexstudio/workflo.svg)](https://www.npmjs.com/package/@cortexstudio/workflo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 `workflo` — sandboxed code-testing agent that verifies specific claims about
 a repository and produces an Ed25519-signed receipt for every run.
 
-This package is a thin **distribution shim** (Option C): the Python engine
-ships as prebuilt wheels inside `vendor/` and is installed into a
-package-local venv by `postinstall`. No TypeScript rewrite of the engine.
+This package is a **distribution shim**: the Python engine ships as prebuilt
+wheels inside `vendor/` and is installed into a package-local venv by
+`postinstall`. No TypeScript rewrite of the engine.
 
 ## Requirements
 
@@ -17,23 +21,16 @@ package-local venv by `postinstall`. No TypeScript rewrite of the engine.
 ## Install
 
 ```bash
-npm install -g --allow-scripts=@workflo/qa ./cortex-workflo-<version>.tgz
+npm install -g --allow-scripts=@cortexstudio/workflo @cortexstudio/workflo
 ```
 
-Notes:
-
-- The `./` prefix matters: without it npm parses the tarball path as a
-  GitHub `owner/repo` shortcut and tries SSH.
-- `--allow-scripts=@workflo/qa` is required on npm >= 11.17, which
-  blocks lifecycle scripts for packages not yet on your allowlist. To
-  allow it permanently:
-
-  ```bash
-  npm config set allow-scripts=@workflo/qa --location=user
-  ```
-
-- The `@cortex` scope is not yet published to the npm registry; installing
-  from the dist tarball is the supported path until the org exists.
+> **Note:** `--allow-scripts=@cortexstudio/workflo` is required on npm >= 11.17,
+> which blocks lifecycle scripts for packages not yet on your allowlist. To
+> allow it permanently:
+>
+> ```bash
+> npm config set allow-scripts=@cortexstudio/workflo --location=user
+> ```
 
 Verify:
 
@@ -58,30 +55,69 @@ workflo verify --receipt receipt.json --pubkey receipt.json.pubkey.pem
 Probe groups are composable: `--test`, `--deep-test`, `--aggressive-test`
 (pick one) plus independent `--security` and `--web`.
 
-## Rebuilding the vendored wheels
-
-From this directory:
-
-```bash
-npm run pack:build     # python scripts/build-wheels.py && npm pack
-```
-
-Builds the six internal wheels in dependency order — `workflo-schema`,
-`sandbox-isolation`, `workflo-probe-engine`, `workflo-executor`,
-`cortex-auth`, `workflo-cli` — wipes stale artifacts first, and drops the
-tarball into `dist/`.
-
-Requires the Python `build` package: `pip install build`.
-
-## Package smoke test
+For `--deep-test` and `--aggressive-test`, configure a hosted LLM endpoint
+(tested with qwen3-4b-4bit):
 
 ```bash
-npm test    # structural checks: shim parses, exactly 6 expected wheels, no strays
+workflo config set-llm --base-url https://inference.example.com/v1 --api-key sk-...
+workflo config test-llm
 ```
 
-## How install idempotency works
+## CI/CD (GitHub Actions etc.)
 
-`postinstall` writes `.workflo-install.json` capturing the package version,
-Python version, and SHA-256 fingerprints of all six wheels. If the marker
-matches on a re-install, setup is skipped (~1s). Any change — new wheels,
-new Python — triggers a clean venv rebuild rather than an in-place mix.
+Non-interactive auth uses a workspace-scoped **service token**:
+
+```bash
+workflo auth login \
+  --service-token "$WORKFLO_SERVICE_TOKEN" \
+  --workspace-id "$WORKFLO_WORKSPACE_ID"
+```
+
+GitHub Actions example (dry-run validation — no Docker, no secrets needed
+since auth is only required for `--publish`):
+
+```yaml
+- uses: actions/setup-node@v4
+  with: { node-version: "20" }
+- uses: actions/setup-python@v5
+  with: { python-version: "3.11" }
+- run: npm install -g @cortexstudio/workflo
+- run: workflo run --dry-run --repo . --test
+```
+
+To publish results to the cloud, add the two secrets
+(`WORKFLO_SERVICE_TOKEN`, `WORKFLO_WORKSPACE_ID`) in the repo settings, then:
+
+```yaml
+- env:
+    WORKFLO_SERVICE_TOKEN: ${{ secrets.WORKFLO_SERVICE_TOKEN }}
+    WORKFLO_WORKSPACE_ID: ${{ secrets.WORKFLO_WORKSPACE_ID }}
+  run: |
+    workflo auth login \
+      --service-token "$WORKFLO_SERVICE_TOKEN" \
+      --workspace-id "$WORKFLO_WORKSPACE_ID"
+    workflo run --repo . --test --publish
+```
+
+## What it does
+
+Every `workflo run` executes inside an **ephemeral Docker sandbox**:
+
+1. **tmpfs mount** — the repo's working tree lives on a RAM disk, never on host
+2. **Network: none** — `--network none` blocks all egress (spoken: sealed)
+3. **Canary check** — a forced outbound probe that MUST fail; if it succeeds,
+   the run aborts and the receipt shows broken isolation
+4. **Teardown proof** — container + tmpfs must be gone after the run, verified
+   by outside-process checks (`docker inspect`, mount lookup)
+5. **Signed receipt** — Ed25519-signed JSON with lifecycle events, teardown
+   proof, canary results, and hash of what ran. `workflo verify` checks
+   signature + teardown + canary offline or against the Cortex key directory.
+
+## Versioning & provenance
+
+Published with `--provenance` to npm. The receipt of every run can be verified
+with the published public key.
+
+## License
+
+MIT
