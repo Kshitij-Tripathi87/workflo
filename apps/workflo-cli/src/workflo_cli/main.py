@@ -358,7 +358,7 @@ def _read_cli_workflo_yaml(repo_url: str) -> tuple[Optional[str], Optional[int]]
 
 
 @click.group()
-@click.version_option(version="1.1.0", prog_name="workflo")
+@click.version_option(version="1.1.1", prog_name="workflo")
 def cli():
     """workflo - sandboxed code-testing agent that verifies specific claims.
 

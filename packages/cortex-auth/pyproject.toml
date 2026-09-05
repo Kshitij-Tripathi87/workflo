@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortex-auth"
-version = "1.1.0"
+version = "1.1.1"
 description = "Workflo CLI authentication — OAuth 2.0 Device Authorization Grant (RFC 8628), credential storage, and profile management."
 requires-python = ">=3.11"
 license = { text = "Proprietary" }

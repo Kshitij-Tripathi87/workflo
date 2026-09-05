@@ -28,12 +28,12 @@ const markerPath = path.join(pkgRoot, ".workflo-install.json");
 // The six internal wheels, in dependency install order. Keep in sync with
 // scripts/build-wheels.py (same list, same order).
 const WHEELS = [
-  "vendor/workflo_schema-1.1.0-py3-none-any.whl",
-  "vendor/sandbox_isolation-1.1.0-py3-none-any.whl",
-  "vendor/workflo_probe_engine-1.1.0-py3-none-any.whl",
-  "vendor/workflo_executor-1.1.0-py3-none-any.whl",
-  "vendor/cortex_auth-1.1.0-py3-none-any.whl",
-  "vendor/workflo_cli-1.1.0-py3-none-any.whl",
+  "vendor/workflo_schema-1.1.1-py3-none-any.whl",
+  "vendor/sandbox_isolation-1.1.1-py3-none-any.whl",
+  "vendor/workflo_probe_engine-1.1.1-py3-none-any.whl",
+  "vendor/workflo_executor-1.1.1-py3-none-any.whl",
+  "vendor/cortex_auth-1.1.1-py3-none-any.whl",
+  "vendor/workflo_cli-1.1.1-py3-none-any.whl",
 ];
 
 function fail(msg) {

@@ -33,12 +33,12 @@ new Function(strip(fs.readFileSync(path.join(pkgRoot, "scripts", "postinstall.js
 
 // exactly the six expected wheels vendored — no pre-rename strays
 const WHEELS = [
-  "workflo_schema-1.1.0-py3-none-any.whl",
-  "sandbox_isolation-1.1.0-py3-none-any.whl",
-  "workflo_probe_engine-1.1.0-py3-none-any.whl",
-  "workflo_executor-1.1.0-py3-none-any.whl",
-  "cortex_auth-1.1.0-py3-none-any.whl",
-  "workflo_cli-1.1.0-py3-none-any.whl",
+  "workflo_schema-1.1.1-py3-none-any.whl",
+  "sandbox_isolation-1.1.1-py3-none-any.whl",
+  "workflo_probe_engine-1.1.1-py3-none-any.whl",
+  "workflo_executor-1.1.1-py3-none-any.whl",
+  "cortex_auth-1.1.1-py3-none-any.whl",
+  "workflo_cli-1.1.1-py3-none-any.whl",
 ];
 const vendor = path.join(pkgRoot, "vendor");
 const actual = fs.existsSync(vendor) ? fs.readdirSync(vendor) : [];
