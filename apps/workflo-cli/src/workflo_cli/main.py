@@ -274,6 +274,31 @@ def _load_ed25519_pubkey_from_string(pem: str) -> Ed25519PublicKey:
     return key
 
 
+def _persist_signing_pubkey(signer) -> None:
+    """Persist the run's ephemeral signing public key so `workflo verify`
+    can find it after the run via the local-key fallback path.
+
+    Verify looks under ~/.config/workflo/keys/<fingerprint>.pub.pem (see the
+    `verify` command). Without this, receipts produced by a local run cannot
+    be verified because the executor's signing key is ephemeral per-run.
+
+    This is strictly best-effort: any failure (bad key, unwritable dir, etc.)
+    must never block the run itself.
+    """
+    try:
+        fingerprint = signer.public_key_fingerprint
+        pub_pem = signer.public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ).decode("utf-8")
+
+        key_dir = Path.home() / ".config" / "workflo" / "keys"
+        key_dir.mkdir(parents=True, exist_ok=True)
+        (key_dir / f"{fingerprint}.pub.pem").write_text(pub_pem, encoding="utf-8")
+    except Exception as e:  # noqa: BLE001 — best-effort, never block a run
+        click.echo(f"warning: could not persist signing pubkey: {e}", err=True)
+
+
 def _confirm_overwrite(path: Path) -> None:
     """Confirm before overwriting an existing file."""
     if path.exists():
@@ -866,6 +891,7 @@ def run(
 
     # --- 7. Real run ---
     signer = generate_keypair()
+    _persist_signing_pubkey(signer)
 
     click.echo(f"Sandbox ID: {sandbox_id}", err=True)
     if repo:

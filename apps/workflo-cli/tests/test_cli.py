@@ -1471,3 +1471,33 @@ class TestCLIKeygen:
         result = runner.invoke(cli, ["keygen", "--provision", "--device-id", "test-device"])
         assert result.exit_code == 0
         assert "Key provisioned" in result.output
+
+
+class TestCLIPersistPubkey:
+    """The run persists its ephemeral signing pubkey so `verify` can find it."""
+
+    def test_persist_writes_loadable_pubkey(self, tmp_path, monkeypatch):
+        from workflo_cli.main import _persist_signing_pubkey
+        from sandbox_isolation import generate_keypair
+
+        monkeypatch.setattr(
+            "pathlib.Path.home",
+            lambda *a, **k: tmp_path,
+        )
+        signer = generate_keypair()
+
+        _persist_signing_pubkey(signer)
+
+        key_file = tmp_path / ".config" / "workflo" / "keys" / f"{signer.public_key_fingerprint}.pub.pem"
+        assert key_file.exists()
+        loaded = serialization.load_pem_public_key(key_file.read_bytes())
+        assert loaded == signer.public_key
+
+    def test_persist_is_nonfatal_on_bad_signer(self, tmp_path, monkeypatch, capsys):
+        from workflo_cli.main import _persist_signing_pubkey
+
+        monkeypatch.setattr("pathlib.Path.home", lambda *a, **k: tmp_path)
+
+        _persist_signing_pubkey(MagicMock())  # must not raise
+
+        assert "warning: could not persist signing pubkey" in capsys.readouterr().err

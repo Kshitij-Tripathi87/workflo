@@ -9,13 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy local shared packages first (worker depends on them)
-COPY packages/core-schema/ /app/packages/core-schema/
-COPY packages/common-utils/ /app/packages/common-utils/
+COPY packages/workflo-schema/ /app/packages/workflo-schema/
+COPY packages/workflo-utils/ /app/packages/workflo-utils/
 COPY packages/probe-engine/ /app/packages/probe-engine/
 
 # Install the shared packages
-RUN pip install --no-cache-dir /app/packages/core-schema \
-    && pip install --no-cache-dir /app/packages/common-utils \
+RUN pip install --no-cache-dir /app/packages/workflo-schema \
+    && pip install --no-cache-dir /app/packages/workflo-utils \
     && pip install --no-cache-dir /app/packages/probe-engine
 
 # Common PEP 517 build backends so the offline repo install
