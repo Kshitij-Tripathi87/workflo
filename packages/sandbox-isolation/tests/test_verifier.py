@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,7 +28,7 @@ def _make_signed_receipt(*, canary_succeeded=False, container_removed=True, fs_r
 
     receipt = SignedReceipt(
         sandbox_id="verifier-test-001",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(UTC),
         run_report=RunReport(
             sandbox_id="verifier-test-001",
             total=5,
@@ -44,11 +44,11 @@ def _make_signed_receipt(*, canary_succeeded=False, container_removed=True, fs_r
             container_removed=container_removed,
             filesystem_removed=fs_removed,
             no_snapshot_retained=True,
-            destroyed_at=datetime.utcnow(),
+            destroyed_at=datetime.now(UTC),
         ),
         canary_check=CanaryCheckResult(
             sandbox_id="verifier-test-001",
-            attempted_at=datetime.utcnow(),
+            attempted_at=datetime.now(UTC),
             target_host="https://example.com",
             request_succeeded=canary_succeeded,
             error=None if canary_succeeded else "blocked",
@@ -57,17 +57,17 @@ def _make_signed_receipt(*, canary_succeeded=False, container_removed=True, fs_r
             SandboxLifecycleEvent(
                 sandbox_id="verifier-test-001",
                 event="created",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
             ),
             SandboxLifecycleEvent(
                 sandbox_id="verifier-test-001",
                 event="destroyed",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
             ),
             SandboxLifecycleEvent(
                 sandbox_id="verifier-test-001",
                 event="receipt_signed",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
             ),
         ],
     )

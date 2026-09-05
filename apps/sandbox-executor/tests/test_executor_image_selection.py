@@ -29,7 +29,7 @@ Contract being tested:
 from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -263,7 +263,7 @@ class TestRunImageSelectionEndToEnd:
         # so the executor doesn rollover into the "not checked" canary path.
         container_stdout = (
             'WORKFLO_REPORT: {"total":5,"passed":5,"failed":0,"skipped":0}\n'
-            f'WORKFLO_CANARY: {{"attempted_at":"{datetime.utcnow().isoformat()}",'
+            f'WORKFLO_CANARY: {{"attempted_at":"{datetime.now(UTC).isoformat()}",'
             f'"target_host":"https://example.com","request_succeeded":false,"error":"blocked"}}'
         )
 
@@ -291,7 +291,7 @@ class TestRunImageSelectionEndToEnd:
                 container_removed=True,
                 filesystem_removed=True,
                 no_snapshot_retained=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             )
 
         # Enter all patches via ExitStack, then yield the executor+runtime.
@@ -487,7 +487,7 @@ class TestRunWebImageSelectionEndToEnd:
 
         container_stdout = (
             'WORKFLO_REPORT: {"total":5,"passed":5,"failed":0,"skipped":0}\n'
-            f'WORKFLO_CANARY: {{"attempted_at":"{datetime.utcnow().isoformat()}",'
+            f'WORKFLO_CANARY: {{"attempted_at":"{datetime.now(UTC).isoformat()}",'
             f'"target_host":"https://example.com","request_succeeded":false,"error":"blocked"}}'
         )
 
@@ -515,7 +515,7 @@ class TestRunWebImageSelectionEndToEnd:
                 container_removed=True,
                 filesystem_removed=True,
                 no_snapshot_retained=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             )
 
         with ExitStack() as stack:

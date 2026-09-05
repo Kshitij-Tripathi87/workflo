@@ -181,6 +181,99 @@ class ProbeGenerator:
         )
 
     @classmethod
+    def generate_probes_from_schema(cls, schema: object, base_url: str = "/api/v1") -> ProbeConfig:
+        """Automatically generate HTTP contract verification probes for endpoints backed by a schema.
+
+        Args:
+            schema: DatasetSchema or any object with name (and optionally columns) attributes.
+            base_url: Base API route prefix (default: "/api/v1").
+        """
+        name = getattr(schema, "name", "resource")
+        slug = "".join(c if c.isalnum() or c == "_" else "_" for c in name.lower()).strip("_") or "resource"
+        endpoint = f"{base_url.rstrip('/')}/{slug}"
+
+        probes = [
+            ProbeSpec(
+                name=f"{slug}_cross_tenant_read_denied",
+                pattern="api_read",
+                path=endpoint,
+                method="GET",
+                expected_status=[403, 404],
+                soc2_controls=["CC6.1", "CC6.6"],
+                description=f"Cross-tenant read denied on schema-backed {name} endpoint",
+            ),
+            ProbeSpec(
+                name=f"{slug}_cross_tenant_list_excluded",
+                pattern="api_list",
+                path=endpoint,
+                method="GET",
+                list_key=slug,
+                expect_resource_absent=True,
+                expected_status=200,
+                soc2_controls=["CC6.1", "CC6.6"],
+                description=f"Cross-tenant records excluded in {name} list responses",
+            ),
+            ProbeSpec(
+                name=f"{slug}_cross_tenant_modify_denied",
+                pattern="api_modify",
+                path=endpoint,
+                method="PUT",
+                expected_status=[403, 404],
+                soc2_controls=["CC6.1", "CC6.6"],
+                description=f"Cross-tenant updates rejected on {name} resource",
+            ),
+            ProbeSpec(
+                name=f"{slug}_positive_control",
+                pattern="positive_control",
+                path=endpoint,
+                method="GET",
+                expected_status=200,
+                soc2_controls=["CC6.1"],
+                description=f"Same-tenant access allowed on {name} resource",
+            ),
+        ]
+        return ProbeConfig(
+            name=f"schema-probes-{slug}",
+            version="1.0",
+            probes=probes,
+            metadata={"schema_name": name, "endpoint": endpoint},
+        )
+
+    @classmethod
+    def generate_canary_probes(cls, target_url: str = "http://169.254.169.254") -> ProbeConfig:
+        """Generate outbound egress canary probes to verify sandbox network isolation.
+
+        Args:
+            target_url: Outbound metadata or canary URL that MUST be blocked inside isolated sandbox.
+        """
+        probes = [
+            ProbeSpec(
+                name="egress_canary_imds_blocked",
+                pattern="api_read",
+                path=target_url if target_url.startswith("/") else "/latest/meta-data",
+                method="GET",
+                expected_status=[403, 404, 500, 502, 504],
+                soc2_controls=["CC6.6", "CC6.7"],
+                description="Sandbox network barrier blocks IMDS metadata egress",
+            ),
+            ProbeSpec(
+                name="egress_canary_external_blocked",
+                pattern="api_read",
+                path="/_canary_egress_test",
+                method="GET",
+                expected_status=[403, 404, 500, 502, 504],
+                soc2_controls=["CC6.6", "CC6.7"],
+                description="Sandbox network barrier blocks arbitrary egress connections",
+            ),
+        ]
+        return ProbeConfig(
+            name="canary-egress-probes",
+            version="1.0",
+            probes=probes,
+            metadata={"canary_target": target_url},
+        )
+
+    @classmethod
     def to_yaml_str(cls, config: ProbeConfig) -> str:
         """Serialize a ProbeConfig to YAML."""
         import yaml

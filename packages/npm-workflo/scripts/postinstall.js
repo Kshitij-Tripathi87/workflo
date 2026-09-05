@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @workflo/qa postinstall — set up the Python sidecar venv.
+ * @cortex/workflo postinstall — set up the Python sidecar venv.
  *
  * What it does:
  *   1. Detect a Python >= 3.11 interpreter (python3 / python / py -3).
@@ -28,12 +28,12 @@ const markerPath = path.join(pkgRoot, ".workflo-install.json");
 // The six internal wheels, in dependency install order. Keep in sync with
 // scripts/build-wheels.py (same list, same order).
 const WHEELS = [
-  "vendor/workflo_schema-0.1.0-py3-none-any.whl",
-  "vendor/sandbox_isolation-0.1.0-py3-none-any.whl",
-  "vendor/workflo_probe_engine-0.1.0-py3-none-any.whl",
-  "vendor/workflo_executor-0.1.0-py3-none-any.whl",
-  "vendor/cortex_auth-0.1.0-py3-none-any.whl",
-  "vendor/workflo_cli-0.1.0-py3-none-any.whl",
+  "vendor/workflo_schema-1.1.0-py3-none-any.whl",
+  "vendor/sandbox_isolation-1.1.0-py3-none-any.whl",
+  "vendor/workflo_probe_engine-1.1.0-py3-none-any.whl",
+  "vendor/workflo_executor-1.1.0-py3-none-any.whl",
+  "vendor/cortex_auth-1.1.0-py3-none-any.whl",
+  "vendor/workflo_cli-1.1.0-py3-none-any.whl",
 ];
 
 function fail(msg) {
@@ -134,7 +134,7 @@ function venvPaths(pythonCmd, pythonPrefix) {
 }
 
 function main() {
-  console.log("@workflo/qa postinstall: setting up Python engine...");
+  console.log("@cortexstudio/workflo postinstall: setting up Python engine...");
 
   // Fast path: everything already installed and unchanged?
   let pyVersion = null;
@@ -179,7 +179,7 @@ function main() {
       fail(
         `pip install failed for ${rel}: ${e.message}\n`
         + "  Transitive dependencies are fetched from PyPI at install time;\n"
-        + "  check network/proxy access and retry: npm rebuild @workflo/qa"
+        + "  check network/proxy access and retry: npm rebuild @cortexstudio/workflo"
       );
     }
   }

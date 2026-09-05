@@ -265,3 +265,19 @@ class TestProbeGenerator:
         names = [p.name for p in ProbeGenerator.DEFAULT_SECURITY_PROBES]
         assert "cross_tenant_read_denied" in names
         assert "positive_control_same_tenant" in names
+
+    def test_generate_probes_from_schema(self):
+        schema = MagicMock()
+        schema.name = "organizations"
+        config = ProbeGenerator.generate_probes_from_schema(schema, base_url="/api/v2")
+        assert config.name == "schema-probes-organizations"
+        assert len(config.probes) == 4
+        assert any("cross_tenant_read_denied" in p.name for p in config.probes)
+        assert any(p.path == "/api/v2/organizations" for p in config.probes)
+
+    def test_generate_canary_probes(self):
+        config = ProbeGenerator.generate_canary_probes("http://169.254.169.254")
+        assert config.name == "canary-egress-probes"
+        assert len(config.probes) == 2
+        assert "CC6.6" in config.probes[0].soc2_controls
+        assert any("imds" in p.name for p in config.probes)

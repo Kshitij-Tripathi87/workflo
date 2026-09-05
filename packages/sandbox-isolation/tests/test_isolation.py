@@ -10,7 +10,7 @@ These tests back the Phase 1 exit gate. Specifically:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, UTC
 
 import pytest
 
@@ -182,7 +182,7 @@ def test_receipt_signature_round_trip():
 
     receipt = SignedReceipt(
         sandbox_id="test-004",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(UTC),
         run_report=RunReport(
             sandbox_id="test-004",
             total=10,
@@ -196,11 +196,11 @@ def test_receipt_signature_round_trip():
             container_removed=True,
             filesystem_removed=True,
             no_snapshot_retained=True,
-            destroyed_at=datetime.utcnow(),
+            destroyed_at=datetime.now(UTC),
         ),
         canary_check=CanaryCheckResult(
             sandbox_id="test-004",
-            attempted_at=datetime.utcnow(),
+            attempted_at=datetime.now(UTC),
             target_host="https://example.com",
             request_succeeded=False,
             error="Network is unreachable",
@@ -209,7 +209,7 @@ def test_receipt_signature_round_trip():
             SandboxLifecycleEvent(
                 sandbox_id="test-004",
                 event="created",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
             ),
         ],
     )
@@ -230,7 +230,7 @@ def test_receipt_signature_fails_when_tampered():
 
     receipt = SignedReceipt(
         sandbox_id="test-005",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(UTC),
         run_report=RunReport(sandbox_id="test-005", total=5, passed=5),
         teardown_proof=TeardownProof(
             sandbox_id="test-005",
@@ -238,11 +238,11 @@ def test_receipt_signature_fails_when_tampered():
             container_removed=True,
             filesystem_removed=True,
             no_snapshot_retained=True,
-            destroyed_at=datetime.utcnow(),
+            destroyed_at=datetime.now(UTC),
         ),
         canary_check=CanaryCheckResult(
             sandbox_id="test-005",
-            attempted_at=datetime.utcnow(),
+            attempted_at=datetime.now(UTC),
             target_host="https://example.com",
             request_succeeded=False,
             error="blocked",

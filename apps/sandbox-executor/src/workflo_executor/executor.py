@@ -60,6 +60,7 @@ import uuid
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 from workflo_schema.sandbox import (
     CanaryCheckResult,
@@ -415,7 +416,7 @@ class SandboxExecutor:
                             "because Stage 2's isolation guarantee depends on Stage 1 being gone"
                         )
 
-# 3. Build container config with network isolation.
+            # 3. Build container config with network isolation.
             # We bind-mount the host tmpfs (which holds the cloned repo) into the
             # container at /workspace. The container cannot escape that mount,
             # and when we unmount the host tmpfs, both the container's view and
@@ -444,15 +445,36 @@ class SandboxExecutor:
             selected_image = self.select_worker_image(spec)
             emit("worker_image_selected", {"worker_image": selected_image})
 
+            # Network policy. Default is sealed (--network none). A hosted
+            # LLM endpoint (WORKFLO_LLM_BASE_URL injected by the CLI from
+            # `workflo config set-llm`) requires egress to that endpoint for
+            # deep-tier runs — the executor opens the bridge and records it
+            # explicitly so the receipt's lifecycle events tell the truth
+            # about the sandbox's network scope. The worker-side canary
+            # detects the same env var and skips its sealed-isolation probe
+            # with a matching reason, so the two sides never disagree.
+            spec_env = spec.run_spec.get("env", {}) if isinstance(spec.run_spec, dict) else {}
+            llm_base_url = (spec_env.get("WORKFLO_LLM_BASE_URL") or "").strip()
+            probe_groups_for_net = _probe_groups_from_spec(spec)
+            deep_tier_requested = any(g in _DEEP_PROBE_GROUPS for g in probe_groups_for_net)
+            network_mode = "none"
+            if deep_tier_requested and llm_base_url:
+                network_mode = "bridge"
+                emit("network_policy", {
+                    "mode": "bridge",
+                    "reason": "hosted_llm_endpoint_configured",
+                    "egress_scope": urlsplit(llm_base_url).netloc,
+                })
+
             container_config = ContainerConfig(
                 image=selected_image,
                 command=self._build_worker_command(spec, repo_path_in_container),
-                network_mode="none",
+                network_mode=network_mode,
                 memory_mb=spec.memory_mb,
                 cpu_cores=spec.cpu_cores,
                 timeout_seconds=spec.timeout_seconds,
                 env={
-                    **(spec.run_spec.get("env", {}) if isinstance(spec.run_spec, dict) else {}),
+                    **spec_env,
                     "PROBE_GROUPS": json.dumps(spec.run_spec.get("probe_groups", ["surface", "security"])),
                 },
                 workdir="/workspace",

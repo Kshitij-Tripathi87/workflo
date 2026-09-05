@@ -17,7 +17,7 @@ import pytest
 
 from sandbox_isolation.spike_network_isolation import SpikeResult, run_spike
 from sandbox_isolation.network_policy import CanaryResult
-from datetime import datetime
+from datetime import datetime, UTC
 
 
 def _mock_docker_failure(*args, **kwargs):
@@ -68,7 +68,7 @@ class TestNetworkIsolationSpike:
         with patch("subprocess.run", side_effect=FileNotFoundError()), \
              patch("sandbox_isolation.spike_network_isolation.attempt_canary_request",
                    return_value=CanaryResult(
-                       attempted_at=datetime.utcnow(),
+                       attempted_at=datetime.now(UTC),
                        target_host="https://example.com",
                        request_succeeded=False,
                        error="simulated fail",

@@ -1,6 +1,6 @@
 {
   "name": "@cortexstudio/workflo",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "workflo — sandboxed code-testing agent with Ed25519-signed receipts. Privacy-first QA in isolated Docker sandboxes.",
   "license": "MIT",
   "keywords": [

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -47,7 +47,7 @@ def _fake_git_clone_success(*args, **kwargs):
 def _fake_canary_failure(target_host="https://example.com", timeout_seconds=3.0):
     from sandbox_isolation.network_policy import CanaryResult
     return CanaryResult(
-        attempted_at=datetime.utcnow(),
+        attempted_at=datetime.now(UTC),
         target_host=target_host,
         request_succeeded=False,
         error="Network is unreachable",
@@ -57,7 +57,7 @@ def _fake_canary_failure(target_host="https://example.com", timeout_seconds=3.0)
 def _fake_canary_success(target_host="https://example.com", timeout_seconds=3.0):
     from sandbox_isolation.network_policy import CanaryResult
     return CanaryResult(
-        attempted_at=datetime.utcnow(),
+        attempted_at=datetime.now(UTC),
         target_host=target_host,
         request_succeeded=True,
         error=None,
@@ -106,7 +106,7 @@ def _patched_orchestration(
     # based on the canary_side_effect callable (still CanaryResult-shaped).
     canary_result = canary_side_effect()
     canary_line = (
-        f'WORKFLO_CANARY: {{"attempted_at": "{datetime.utcnow().isoformat()}", '
+        f'WORKFLO_CANARY: {{"attempted_at": "{datetime.now(UTC).isoformat()}", '
         f'"target_host": "{canary_result.target_host}", '
         f'"request_succeeded": {str(canary_result.request_succeeded).lower()}, '
         f'"error": {json.dumps(canary_result.error)}}}'
@@ -133,7 +133,7 @@ def _patched_orchestration(
             container_removed=container_removed,
             filesystem_removed=fs_gone,
             no_snapshot_retained=True,
-            destroyed_at=datetime.utcnow(),
+            destroyed_at=datetime.now(UTC),
         )
 
     # Build a mock ContainerRuntime with all five methods

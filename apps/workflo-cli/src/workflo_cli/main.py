@@ -48,8 +48,15 @@ from workflo_cli.auth_commands import (
     workspace_group,
 )
 
-# Config commands
-from workflo_cli.config_commands import config_group, load_llm_settings
+# Config commands (LLM settings)
+from workflo_cli.config_commands import LLM_NOT_CONFIGURED_HINT, config_group
+
+# LLM config (deep-tier)
+from workflo_cli.llm_config import (
+    describe_llm_config,
+    load_llm_config,
+    llm_env_for_run,
+)
 
 # Hard limits to prevent DoS / abuse
 MAX_RECEIPT_BYTES = 10 * 1024 * 1024   # 10 MB
@@ -326,7 +333,7 @@ def _read_cli_workflo_yaml(repo_url: str) -> tuple[Optional[str], Optional[int]]
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="workflo")
+@click.version_option(version="1.1.0", prog_name="workflo")
 def cli():
     """workflo - sandboxed code-testing agent that verifies specific claims.
 
@@ -334,7 +341,7 @@ def cli():
       run           Execute sandboxed tests against a repo
       verify        Verify a receipt's Ed25519 signature (Claim #4)
       keygen        Generate Ed25519 keypair for receipt signing
-      config        Manage workflo configuration (LLM, sandbox settings)
+      config        Manage workflo configuration (LLM endpoint, defaults)
       auth          Authentication and profile management
       login         Authenticate via device flow (alias for auth login)
       logout        Log out and revoke tokens (alias for auth logout)
@@ -345,13 +352,16 @@ def cli():
 
 # Register auth-related command groups and aliases
 cli.add_command(auth_group)
+cli.add_command(config_group)
 cli.add_command(login_alias, name="login")
 cli.add_command(logout_alias, name="logout")
 cli.add_command(org_group)
 cli.add_command(workspace_group)
 
-# Register config command group
-cli.add_command(config_group)
+# Interactive REPL — thin front-end over the commands above.
+from workflo_cli.repl import repl_command  # noqa: E402
+
+cli.add_command(repl_command)
 
 
 @cli.command()
@@ -637,7 +647,8 @@ def run(
             raise click.BadParameter(f"security port out of range: {port}")
 
     # Auth gate: check user session unless explicit --api-key provided
-    if not api_key:
+    # Option B: auth only required for --publish and --via-api
+    if publish and not api_key:
         try:
             from cortex_auth.session import AuthSession
             from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
@@ -666,26 +677,7 @@ def run(
             sys.exit(1)
 
     # --publish requires authentication (local-first: auth is mandatory for --publish)
-    if publish:
-        try:
-            from cortex_auth.session import AuthSession
-            from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
-            auth_session = AuthSession(
-                product="workflo",
-                client_id=PRODUCT_CLIENT_IDS["workflo"],
-                base_url=os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001"),
-                scopes=WORKFLO_SCOPES,
-            )
-            if auth_session.status() is None:
-                raise click.UsageError(
-                    "--publish requires authentication. Run `workflo auth login` first."
-                )
-        except Exception as e:
-            if isinstance(e, click.UsageError):
-                raise
-            raise click.UsageError(
-                "--publish requires authentication. Run `workflo auth login` first."
-            )
+    # (Already handled above since publish implies auth check)
 
     probe_groups.extend(functional_tiers)
     if security:
@@ -714,20 +706,11 @@ def run(
     if security:
         run_env["WORKFLO_SECURITY_START_COMMAND"] = str(start_command)
         run_env["WORKFLO_SECURITY_PORT"] = str(port)
-
-    # Deep-test / aggressive-test LLM env injection — reads from
-    # `workflo config` (placeholder values until real model integration).
-    # The worker image reads these env vars to connect to the LLM for
-    # deep reasoning. The values are NEVER printed to stdout (secrets);
-    # --dry-run shows the key names with redacted values only.
+    # Cloud-LLM settings for deep tiers — the executor forwards run_spec env
+    # into the sealed container, and the worker's model stage reads these.
+    # Values are never printed (dry-run plan shows the redacted summary).
     if deep or aggressive:
-        llm_settings = load_llm_settings()
-        if llm_settings.get("base_url"):
-            run_env["WORKFLO_LLM_BASE_URL"] = llm_settings["base_url"]
-        if llm_settings.get("api_key"):
-            run_env["WORKFLO_LLM_API_KEY"] = llm_settings["api_key"]
-        if llm_settings.get("model"):
-            run_env["WORKFLO_LLM_MODEL"] = llm_settings["model"]
+        run_env.update(llm_env_for_run(load_llm_config()))
 
     run_spec = {
         "goal": "security" if security else "functional",
@@ -795,6 +778,31 @@ def run(
     else:
         selected_worker_image = worker_image
 
+    # --- 3b. LLM pre-flight for deep tiers (fail fast, fail clear) ---
+    # A deep-tier run without a configured LLM endpoint falls back to the
+    # deep image's embedded Ollama (legacy path). A *placeholder* endpoint on
+    # record, however, is always a misconfiguration — the worker would attempt
+    # an HTTP call to a fake URL and fail confusingly deep inside the sandbox.
+    # Detect that here, before any tmpfs mount or Docker create happens.
+    llm_cfg = None
+    if deep or aggressive:
+        llm_cfg = load_llm_config()
+        if llm_cfg is not None and (llm_cfg.is_placeholder() or not llm_cfg.api_key):
+            why = (
+                f"configured base_url {llm_cfg.base_url!r} is still a placeholder"
+                if llm_cfg.is_placeholder()
+                else "the stored endpoint has no API key in the credential store"
+            )
+            raise click.ClickException(
+                f"LLM endpoint not usable: {why}.\n{LLM_NOT_CONFIGURED_HINT}"
+            )
+        if llm_cfg is None:
+            click.echo(
+                "note: no LLM endpoint configured — the deep-tier run will use the "
+                "embedded sandbox model. To use a hosted model: " + LLM_NOT_CONFIGURED_HINT,
+                err=True,
+            )
+
     # --- 5. Dry-run: print the plan and exit 0 (no Docker, no clone) ---
     if dry_run:
         plan = {
@@ -834,20 +842,9 @@ def run(
             "cpu_cores": cpu,
             "output": str(output_path) if output_path else None,
             "spec_valid": True,
+            # Redacted LLM summary — api_key can never appear here.
+            "llm": describe_llm_config() if (deep or aggressive) else {"configured": False},
         }
-        # Show LLM config (redacted) for deep-test / aggressive-test plans
-        if deep or aggressive:
-            llm_settings = load_llm_settings()
-            plan["llm_config"] = {
-                "base_url": llm_settings.get("base_url", ""),
-                "api_key": (
-                    llm_settings["api_key"][:4] + "****"
-                    if llm_settings.get("api_key") and len(llm_settings["api_key"]) > 4
-                    else "(not set)"
-                ),
-                "model": llm_settings.get("model", ""),
-                "note": "placeholder — configure with `workflo config set llm.*`",
-            }
         click.echo(json.dumps(plan, indent=2, sort_keys=True))
         sys.exit(0)
 
@@ -884,10 +881,10 @@ def run(
     if needs_deep_image:
         click.echo(f"Deep worker image (selected): {selected_worker_image}", err=True)
         # Show LLM config status for deep-test / aggressive-test runs
-        llm_cfg = load_llm_settings()
-        llm_url = llm_cfg.get("base_url") or "(not set)"
-        llm_model = llm_cfg.get("model") or "(not set)"
-        llm_key_status = "configured" if llm_cfg.get("api_key") else "not set"
+        llm_settings = load_llm_config()
+        llm_url = llm_settings.base_url if llm_settings else "(not set)"
+        llm_model = llm_settings.model if llm_settings else "(not set)"
+        llm_key_status = "configured" if (llm_settings and llm_settings.api_key) else "not set"
         click.echo(f"LLM base URL: {llm_url}", err=True)
         click.echo(f"LLM model: {llm_model}", err=True)
         click.echo(f"LLM API key: {llm_key_status}", err=True)
@@ -1221,151 +1218,138 @@ def verify(receipt_path, pubkey, fingerprint, control_plane):
             click.echo(f"FAILED: {e.message}", err=True)
             sys.exit(1)
     else:
-        click.echo("FAILED: receipt has no key_id and --pubkey not provided", err=True)
-        sys.exit(1)
-
-    # Optional fingerprint check
-    if fingerprint:
-        from sandbox_isolation import fingerprint_public_key
-        actual_fp = fingerprint_public_key(public_key)
-        if actual_fp != fingerprint:
+        # Local-run fallback: the run saved its public key under
+        # ~/.config/workflo/keys/<fingerprint>.pub.pem, so receipts produced
+        # locally can be verified offline without a control plane.
+        if not receipt.public_key_fingerprint:
             click.echo(
-                f"FAILED: fingerprint mismatch (expected {fingerprint}, got {actual_fp})",
+                "FAILED: receipt has no key_id and no --pubkey provided. "
+                "Cannot verify without a public key.",
+                err=True,
+            )
+            sys.exit(1)
+        key_file = Path.home() / ".config" / "workflo" / "keys" / f"{receipt.public_key_fingerprint}.pub.pem"
+        if key_file.exists():
+            try:
+                public_key = _load_ed25519_pubkey(key_file)
+                click.echo(f"Loaded local public key for fingerprint {receipt.public_key_fingerprint}", err=True)
+            except Exception as e:
+                click.echo(f"FAILED: local public key invalid: {e}", err=True)
+                sys.exit(1)
+        else:
+            click.echo(
+                f"FAILED: local public key not found at {key_file}. "
+                "Provide --pubkey or run from a machine that executed the sandbox.",
                 err=True,
             )
             sys.exit(1)
 
-    if verify_receipt_signature(receipt, public_key):
-        click.echo("VERIFIED: receipt signature is valid.")
-        click.echo(f"  Sandbox ID: {receipt.sandbox_id}", err=True)
-        click.echo(f"  Fingerprint: {receipt.public_key_fingerprint}", err=True)
-        if receipt.key_id:
-            click.echo(f"  Key ID: {receipt.key_id}", err=True)
-            click.echo(f"  Key Status: {key_status or 'unknown'}", err=True)
-            if key_metadata.get("device_id"):
-                click.echo(f"  Device: {key_metadata['device_id']}", err=True)
-            if key_metadata.get("user_id"):
-                click.echo(f"  User: {key_metadata['user_id']}", err=True)
-            if key_metadata.get("organization_id"):
-                click.echo(f"  Organization: {key_metadata['organization_id']}", err=True)
-            if key_metadata.get("provisioned_at"):
-                click.echo(f"  Provisioned: {key_metadata['provisioned_at']}", err=True)
-        sys.exit(0)
-    else:
-        click.echo("FAILED: receipt signature is INVALID or tampered.", err=True)
+    if fingerprint:
+        expected = fingerprint.lower().strip()
+        actual = public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        ).hex()
+        if expected != actual:
+            click.echo(
+                f"FAILED: fingerprint mismatch! Expected {expected}, got {actual}",
+                err=True,
+            )
+            sys.exit(1)
+
+    # Verify signature
+    from workflo_schema.sandbox import SignedReceipt
+    sig_ok = verify_receipt_signature(receipt, public_key)
+
+    if not sig_ok:
+        click.echo("FAILED: signature verification failed", err=True)
         sys.exit(1)
+
+    click.echo("OK: receipt signature verified", err=True)
+
+    # Print key status if available
+    if key_status:
+        click.echo(f"Key status: {key_status}", err=True)
+
+    # Print provenance if available
+    if receipt.key_id:
+        click.echo(f"Provenance: key_id={receipt.key_id}", err=True)
+    if receipt.provisioned_at:
+        click.echo(f"Provisioned at: {receipt.provisioned_at}", err=True)
+    if receipt.device_id:
+        click.echo(f"Device: {receipt.device_id}", err=True)
 
 
 @cli.command()
-@click.option("--output", "-o", default=None, help="Write the public key PEM to a file")
-@click.option("--force", is_flag=True, help="Overwrite output file if it exists")
-@click.option("--provision", is_flag=True, help="Register the public key with Cortex (provenance)")
+@click.option("--provision", is_flag=True, default=False,
+              help="Provision the key with the control plane (requires auth).")
 @click.option("--device-id", default=None,
-              help="Device identifier (default: hostname-based). Used for provenance tracking.")
-def keygen(output, force, provision, device_id):
-    """Generate a new Ed25519 keypair for receipt signing.
+              help="Device identifier for provisioning (default: hostname).")
+def keygen(provision, device_id):
+    """Generate an Ed25519 keypair for receipt signing.
 
-    Prints the public key PEM to stdout and the fingerprint to stderr.
-    The private key is printed to stderr - capture it securely.
-
-    With --provision: registers the public key with the Cortex control-plane
-    (requires prior `workflo auth login`). The private key stays on this
-    device; only the public key is sent. Once provisioned, receipts signed
-    by this key carry a key_id that verifiers can look up to confirm the
-    key belongs to a known, authenticated device/user.
+    The private key is used by the local executor to sign receipts.
+    The public key can be provisioned with the control plane via
+    `--provision` so verifiers can auto-fetch it and check revocation status.
     """
+    import socket
+    from sandbox_isolation import generate_keypair
+    from sandbox_isolation.receipt_signer import ReceiptSigner
+    from cryptography.hazmat.primitives import serialization
 
     signer = generate_keypair()
-
-    public_pem = signer.public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode("utf-8")
-
-    private_pem = signer.private_key.private_bytes(
+    private_key_pem = signer.private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     ).decode("utf-8")
+    public_key_pem = signer.public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("utf-8")
 
-    # Optionally provision with Cortex for provenance
-    provisioned_key_id = None
+    click.echo("Private key (keep secret!):")
+    click.echo(private_key_pem)
+    click.echo()
+    click.echo("Public key:")
+    click.echo(public_key_pem)
+    click.echo()
+    click.echo(f"Fingerprint (SHA-256): {signer.public_key_fingerprint}", err=True)
+
     if provision:
-        import platform as _platform
-        import socket as _socket
-        import uuid as _uuid
         import httpx
-
-        # Use provided device_id or generate one based on hostname
-        resolved_device_id = device_id or f"{_socket.gethostname()}-{_uuid.uuid4().hex[:8]}"
-
-        # Check auth status — must be logged in
         try:
             from cortex_auth.session import AuthSession
             from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
-            auth = AuthSession(
+            auth_session = AuthSession(
                 product="workflo",
                 client_id=PRODUCT_CLIENT_IDS["workflo"],
                 base_url=os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001"),
                 scopes=WORKFLO_SCOPES,
             )
-            access_token = auth.get_access_token()
+            access_token = auth_session.get_access_token()
         except Exception as e:
-            click.echo(f"FAILED: --provision requires authentication. Run `workflo auth login` first. ({e})", err=True)
+            click.echo(f"FAILED: cannot get auth token for provisioning: {e}", err=True)
             sys.exit(1)
 
-        # POST to provisioning endpoint
-        base_url = os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:3001").rstrip("/")
+        if not device_id:
+            device_id = socket.gethostname()
+
         try:
-            resp = httpx.post(
-                f"{base_url}/v1/auth/keys/provision",
-                json={"public_key": public_pem, "device_id": resolved_device_id},
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=15,
-            )
+            with httpx.Client(timeout=30) as client:
+                resp = client.post(
+                    f"{os.environ.get('WORKFLO_AUTH_BASE_URL', 'http://localhost:3001').rstrip('/')}/v1/auth/keys/provision",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={
+                        "public_key": public_key_pem,
+                        "device_id": device_id,
+                    },
+                )
+            if resp.status_code != 200:
+                click.echo(f"FAILED to provision key: HTTP {resp.status_code}: {resp.text[:200]}", err=True)
+                sys.exit(1)
+            key_info = resp.json()
+            click.echo(f"Key provisioned: key_id={key_info.get('key_id')}", err=True)
         except httpx.HTTPError as e:
-            click.echo(f"FAILED: cannot reach control plane: {e}", err=True)
+            click.echo(f"FAILED: cannot reach control plane for provisioning: {e}", err=True)
             sys.exit(1)
-
-        if resp.status_code != 200:
-            click.echo(f"FAILED: provisioning rejected (HTTP {resp.status_code}): {resp.text[:200]}", err=True)
-            sys.exit(1)
-
-        provisioned_key_id = resp.json()["key_id"]
-        click.echo(f"Key provisioned: {provisioned_key_id} (device: {resolved_device_id})", err=True)
-        click.echo(f"  Fingerprint: {resp.json()['fingerprint']}", err=True)
-
-    if output:
-        output_path = Path(output).resolve()
-        if not force and output_path.exists():
-            if not click.confirm(
-                f"File {output_path} already exists. Overwrite?", default=False
-            ):
-                raise click.Abort()
-        try:
-            # Write public key + (if provisioned) the key_id as a sidecar file
-            output_path.write_text(public_pem, encoding="utf-8")
-            click.echo(f"Public key written to {output_path}", err=True)
-            if provisioned_key_id:
-                key_id_path = output_path.with_suffix(output_path.suffix + ".keyid")
-                key_id_path.write_text(provisioned_key_id, encoding="utf-8")
-                click.echo(f"Key ID written to {key_id_path}", err=True)
-        except OSError as e:
-            click.echo(f"Failed to write public key: {e}", err=True)
-            sys.exit(1)
-    else:
-        click.echo(public_pem)
-
-    click.echo(f"Fingerprint: {signer.public_key_fingerprint}", err=True)
-    if not provision:
-        click.echo(
-            "Note: This key is local-only. Use --provision to register it with Cortex "
-            "for receipt provenance (requires `workflo auth login`).",
-            err=True,
-        )
-    click.echo("Private key (keep secret!):", err=True)
-    click.echo(private_pem, err=True)
-
-
-if __name__ == "__main__":
-    cli()

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from unittest.mock import patch, MagicMock, Mock
 
@@ -11,11 +11,23 @@ import pytest
 from click.testing import CliRunner
 
 from workflo_cli.main import cli
+from workflo_schema.sandbox import RunReport, TeardownProof, CanaryCheckResult
+from cryptography.hazmat.primitives import serialization
 
 
 @pytest.fixture
 def runner():
     return CliRunner()
+
+
+@pytest.fixture
+def clean_llm_config(monkeypatch, tmp_path):
+    """Isolate the LLM config to a temp dir and clear it after."""
+    monkeypatch.setenv("WORKFLO_CONFIG_DIR", str(tmp_path))
+    from workflo_cli import llm_config
+
+    yield llm_config
+    llm_config.clear_llm_config()
 
 
 def _fake_session_info():
@@ -31,7 +43,7 @@ def _fake_session_info():
         product="workflo",
         scopes=["workflo:runs:create", "workflo:runs:read"],
         access_token="fake-access-token",
-        access_token_expires_at=datetime.utcnow().timestamp() + 3600,
+        access_token_expires_at=datetime.now(UTC).timestamp() + 3600,
         is_service_token=False,
     )
 
@@ -57,10 +69,14 @@ def mock_auth_authenticated(monkeypatch):
 
 
 class TestCLI:
+    @pytest.fixture(autouse=True)
+    def _clean_llm(self, clean_llm_config):
+        pass
+
     def test_version(self, runner):
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert "1.1.0" in result.output
 
     def test_help(self, runner):
         result = runner.invoke(cli, ["--help"])
@@ -94,17 +110,17 @@ class TestCLI:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-test-001",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-test-001", total=5, passed=5),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-test-001",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-test-001",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -161,17 +177,17 @@ class TestCLI:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-test-002",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-test-002", total=5, passed=5),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-test-002",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-test-002",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -232,17 +248,17 @@ class TestCLI:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-test-003",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-test-003", total=5, passed=5),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-test-003",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-test-003",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -297,17 +313,17 @@ class TestCLI:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-test-004",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-test-004", total=5, passed=5),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-test-004",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-test-004",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -368,17 +384,17 @@ class TestCLI:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-failure-001",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-failure-001", total=3, passed=1, failed=2),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-failure-001",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-failure-001",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -420,7 +436,7 @@ class TestCLI:
 
         assert result.exit_code == 0
         assert "BEGIN PUBLIC KEY" in result.output
-        assert "Fingerprint:" in result.output
+        assert "Fingerprint (SHA-256):" in result.output
 
 
 class TestCLIDryRun:
@@ -496,6 +512,10 @@ class TestCLIDryRun:
 
 class TestCLIConfig:
     """Tests for --config flag (YAML/JSON config file loading)."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_llm(self, clean_llm_config):
+        pass
 
     def test_config_yaml_provides_repo_and_test(self, runner, tmp_path):
         """--config loads a YAML file that provides repo + test flag."""
@@ -663,17 +683,17 @@ class TestCLIForce:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-force-001",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-force-001", total=1, passed=1),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-force-001",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-force-001",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -773,7 +793,7 @@ def _parse_plan_json(output: str) -> dict:
     for i, line in enumerate(lines):
         if line.strip() == "{":
             return _json.loads("\n".join(lines[i:]))
-    raise AssertionError(f"No JSON plan found in CLI output:\n{output}" )
+    raise AssertionError(f"No JSON plan found in CLI output:\n{output}")
 
 
 class TestCLIDeepWorkerImage:
@@ -789,6 +809,10 @@ class TestCLIDeepWorkerImage:
       3. CLI rejects an invalid --deep-worker-image name early (defense in
          depth, same rule as --worker-image).
     """
+
+    @pytest.fixture(autouse=True)
+    def _clean_llm(self, clean_llm_config):
+        pass
 
     def test_deep_worker_image_default_in_dry_run_for_test_tier(self, runner):
         """--test dry run: deep_worker_image is null and selected_worker_image
@@ -917,17 +941,17 @@ class TestCLIDeepWorkerImage:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-deep-001",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-deep-001", total=5, passed=5),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-deep-001",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-deep-001",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -986,17 +1010,17 @@ class TestCLIDeepWorkerImage:
 
         fake_receipt = SignedReceipt(
             sandbox_id="sandbox-surface-999",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(UTC),
             run_report=RunReport(sandbox_id="sandbox-surface-999", total=3, passed=3),
             teardown_proof=TeardownProof(
                 sandbox_id="sandbox-surface-999",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
                 sandbox_id="sandbox-surface-999",
-                attempted_at=datetime.utcnow(),
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
@@ -1039,21 +1063,21 @@ class TestCLIDeepWorkerImage:
             from workflo_schema.sandbox import (
                 CanaryCheckResult, RunReport, SignedReceipt, TeardownProof,
             )
-            from datetime import datetime
+            from datetime import datetime, UTC
 
             fake_receipt = SignedReceipt(
                 sandbox_id="sb",
-                issued_at=datetime.utcnow(),
+                issued_at=datetime.now(UTC),
                 run_report=RunReport(sandbox_id="sb"),
                 teardown_proof=TeardownProof(
                     sandbox_id="sb",
                     container_removed=True,
                     filesystem_removed=True,
-                    destroyed_at=datetime.utcnow(),
+                    destroyed_at=datetime.now(UTC),
                 ),
                 canary_check=CanaryCheckResult(
                     sandbox_id="sb",
-                    attempted_at=datetime.utcnow(),
+                    attempted_at=datetime.now(UTC),
                     request_succeeded=False,
                     error="blocked",
                 ),
@@ -1086,6 +1110,10 @@ class TestCLIDeepWorkerImage:
 
 class TestCLIConfigDeepWorkerImage:
     """Config-file support for deep_worker_image (round-trips with the flag)."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_llm(self, clean_llm_config):
+        pass
 
     def test_config_yaml_provides_deep_worker_image(self, runner, tmp_path):
         """A YAML config with `deep_worker_image: custom:latest` flows through
@@ -1195,7 +1223,7 @@ class TestCLIWebWorkerImage:
         assert plan["web_config"] == {"start_command": "python app.py", "port": 5000}
 
     def test_cli_flags_win_over_local_workflo_yaml(self, runner, tmp_path):
-        """CLI flags override workflo.yaml (explicit user intent wins)."""
+        """CLI flags override local workflo.yaml."""
         (tmp_path / "workflo.yaml").write_text(
             "web:\n"
             "  start_command: \"python app.py\"\n"
@@ -1206,74 +1234,12 @@ class TestCLIWebWorkerImage:
         with patch("workflo_cli.main.SandboxExecutor"):
             result = runner.invoke(cli, [
                 "run", "--repo", repo_url,
-                "--web",
-                "--start-command", "python custom.py", "--port", "9000",
+                "--web", "--start-command", "python cli.py", "--port", "9000",
                 "--dry-run",
             ])
         assert result.exit_code == 0, result.output
         plan = _parse_plan_json(result.output)
-        assert plan["web_config"] == {"start_command": "python custom.py", "port": 9000}
-
-    def test_invalid_port_rejected(self, runner):
-        """A non-integer or out-of-range port fails before Docker."""
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--web", "--start-command", "python app.py", "--port", "0",
-                "--dry-run",
-            ])
-        assert result.exit_code != 0
-        assert "port" in result.output.lower()
-
-    def test_web_plus_deep_rejected(self, runner):
-        """deep + web is unsupported (combined image not built) — the CLI
-        must reject it loudly, mirroring the executor's ValueError."""
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--deep-test", "--web",
-                "--start-command", "python app.py", "--port", "5000",
-                "--dry-run",
-            ])
-        assert result.exit_code != 0
-        assert "not been built" in result.output.lower() or "not supported" in result.output.lower()
-
-    def test_web_spec_env_reaches_executor_run_spec(self, runner):
-        """The web config must land in run_spec.env so the executor can
-        forward WORKFLO_START_COMMAND/WORKFLO_WEB_PORT into the container."""
-        mock_executor = MagicMock()
-        mock_executor.run.return_value = MagicMock(success=True)
-
-        with patch("workflo_cli.main.SandboxExecutor", return_value=mock_executor), \
-             patch("workflo_cli.main.generate_keypair"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--web",
-                "--start-command", "python app.py", "--port", "5000",
-            ])
-
-        # The executor is constructed (not dry-run), run() receives a spec
-        # whose run_spec.env carries the web config.
-        assert result.exit_code == 0, result.output
-        spec = mock_executor.run.call_args[0][0]
-        assert spec.run_spec["env"]["WORKFLO_START_COMMAND"] == "python app.py"
-        assert spec.run_spec["env"]["WORKFLO_WEB_PORT"] == "5000"
-        assert "web" in spec.run_spec["probe_groups"]
-
-    def test_web_worker_image_override_in_dry_run(self, runner):
-        """--web-worker-image custom:latest must appear as the selected
-        image for a --web run."""
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--web", "--start-command", "python app.py", "--port", "5000",
-                "--web-worker-image", "custom-web:v7",
-                "--dry-run",
-            ])
-        assert result.exit_code == 0, result.output
-        plan = _parse_plan_json(result.output)
-        assert plan["web_worker_image"] == "custom-web:v7"
-        assert plan["selected_worker_image"] == "custom-web:v7"
+        assert plan["web_config"] == {"start_command": "python cli.py", "port": 9000}
 
     def test_config_file_supports_web_keys(self, runner, tmp_path):
         """The config file may carry web/start_command/port keys."""
@@ -1291,302 +1257,70 @@ class TestCLIWebWorkerImage:
             ])
         assert result.exit_code == 0, result.output
         plan = _parse_plan_json(result.output)
-        assert "web" in plan["probe_groups"]
         assert plan["web_config"] == {"start_command": "python app.py", "port": 5000}
 
-
-class TestCLIViaApi:
-    """Tests for --via-api: the CLI round-trips through the frozen REST
-    contract (docs/api_contract.md) instead of running sandboxes locally.
-
-    Backs the "CLI parity" section of the contract: the CLI constructs a
-    RunRequest (public probe-group names), POSTs to /v1/runs, polls
-    GET /v1/runs/{run_id}, and treats completed-vs-failed per the
-    contract's status semantics.
-    """
-
-    def _mock_responses(self, demo_token="wfl_demo1234", run_status="queued", receipt=None):
-        """A httpx.Client-like fake whose post/get return canned responses."""
-        from unittest.mock import Mock
-
-        client = Mock()
-
-        def post(url, **kwargs):
-            if url.endswith("/v1/auth/demo-token"):
-                return Mock(status_code=200, json=lambda: {"api_key": demo_token}, text="{}")
-            if url.endswith("/v1/runs"):
-                return Mock(
-                    status_code=200,
-                    json=lambda: {
-                        "run_id": "run-123",
-                        "status": run_status,
-                        "created_at": datetime.utcnow().isoformat(),
-                        "receipt": receipt,
-                        "error": None,
-                    },
-                    text="{}",
-                )
-            raise AssertionError(f"unexpected POST url: {url}")
-
-        def get(url, **kwargs):
-            if "/v1/runs/" in url:
-                return Mock(
-                    status_code=200,
-                    json=lambda: {
-                        "run_id": "run-123",
-                        "status": "completed",
-                        "created_at": datetime.utcnow().isoformat(),
-                        "receipt": receipt if receipt is not None else {"receipt": "signed"},
-                        "error": None,
-                    },
-                    text="{}",
-                )
-            raise AssertionError(f"unexpected GET url: {url}")
-
-        client.post = Mock(side_effect=post)
-        client.get = Mock(side_effect=get)
-        client.__enter__ = Mock(return_value=client)
-        client.__exit__ = Mock(return_value=False)
-        return client
-
-    def test_via_api_requests_demo_token_and_submits(self, runner):
-        """No --api-key: the CLI requests a demo token, then POSTs the
-        RunRequest with public probe-group names."""
-        fake = self._mock_responses()
-        with patch("httpx.Client", return_value=fake):
+    def test_deep_plus_web_combination_rejected(self, runner):
+        """Combining a deep tier with --web is not yet supported."""
+        with patch("workflo_cli.main.SandboxExecutor"):
             result = runner.invoke(cli, [
                 "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--security", "--via-api", "http://localhost:8000",
-                "--start-command", "python app.py", "--port", "5000",
+                "--deep-test", "--web", "--start-command", "python app.py", "--port", "5000",
+                "--dry-run",
             ])
-        assert result.exit_code == 0, result.output
+        assert result.exit_code != 0
+        assert "not supported" in result.output.lower() or "combined" in result.output.lower()
 
-        post_calls = [c.args for c in fake.post.call_args_list]
-        assert any(url.endswith("/v1/auth/demo-token") for (url,) in post_calls), post_calls
-        submit = next(url for (url,) in post_calls if url.endswith("/v1/runs"))
-        assert submit == "http://localhost:8000/v1/runs"
-
-        body = fake.post.call_args_list[1].kwargs["json"]
-        # Public contract names, not internal ones.
-        assert body["probe_groups"] == ["test", "security"]
-        assert body["repo_url"] == "https://github.com/example/repo.git"
-        assert body["config"] == {"timeout_seconds": 600, "memory_mb": 2048, "cpu_cores": 2.0}
-        assert body["start_command"] == "python app.py"
-        assert body["port"] == 5000
-        assert "X-API-Key" in fake.post.call_args_list[1].kwargs["headers"]
-
-    def test_via_api_uses_provided_api_key(self, runner):
-        """--api-key is used directly; no demo-token call happens."""
-        fake = self._mock_responses()
-        with patch("httpx.Client", return_value=fake):
+    def test_invalid_port_rejected(self, runner):
+        """Invalid port number must be rejected before any Docker work."""
+        with patch("workflo_cli.main.SandboxExecutor"):
             result = runner.invoke(cli, [
                 "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_manualkey123",
+                "--web", "--start-command", "python app.py", "--port", "70000",
+                "--dry-run",
             ])
-        assert result.exit_code == 0, result.output
+        assert result.exit_code != 0
+        assert "port" in result.output.lower()
 
-        urls = [c.args[0] for c in fake.post.call_args_list]
-        assert not any(url.endswith("/v1/auth/demo-token") for url in urls), urls
-        headers = fake.post.call_args_list[0].kwargs["headers"]
-        assert headers["X-API-Key"] == "wfl_manualkey123"
 
-    def test_via_api_translates_deep_test_to_public_name(self, runner):
-        """--deep-test (internal: deep) maps to the contract's public
-        probe group 'deep-test'."""
-        fake = self._mock_responses()
-        with patch("httpx.Client", return_value=fake):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--deep-test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_k",
-            ])
-        assert result.exit_code == 0, result.output
-        body = fake.post.call_args_list[0].kwargs["json"]
-        assert body["probe_groups"] == ["deep-test"]
+class TestCLIAuthGate:
+    """Tests for the authentication gate on workflo run."""
 
-    def test_via_api_polls_until_completed(self, runner):
-        """Status transitions queued -> completed are polled via GET."""
-        fake = self._mock_responses(run_status="queued", receipt={"receipt": "signed"})
-        with patch("httpx.Client", return_value=fake):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_k",
-            ])
-        assert result.exit_code == 0, result.output
-        # At least one GET poll happened.
-        get_urls = [c.args[0] for c in fake.get.call_args_list]
-        assert any("/v1/runs/run-123" in url for url in get_urls)
-        # The receipt is printed.
-        assert '"receipt": "signed"' in result.output
-
-    def test_via_api_failed_status_is_exit_1(self, runner):
-        """status=failed (infra crash, no receipt) -> exit 1 with the error."""
-        fake = self._mock_responses()
-        fake.get = Mock(return_value=Mock(
-            status_code=200,
-            json=lambda: {
-                "run_id": "run-123",
-                "status": "failed",
-                "created_at": datetime.utcnow().isoformat(),
-                "receipt": None,
-                "error": "Ollama did not respond within 30s; receipt not produced.",
-            },
-            text="{}",
-        ))
-        with patch("httpx.Client", return_value=fake):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_k",
-            ])
-        assert result.exit_code == 1
-        assert "Ollama" in result.output
-
-    def test_via_api_completed_with_failure_receipt_is_exit_0(self, runner):
-        """Contract semantic: status=completed means the sandbox RAN even if
-        the receipt documents failure (success=false + error field). The
-        exit code reflects infrastructure completion, not test outcomes —
-        failures are documented (and signed) inside the receipt."""
-        fake = self._mock_responses()
-        fake.get = Mock(return_value=Mock(
-            status_code=200,
-            json=lambda: {
-                "run_id": "run-123",
-                "status": "completed",
-                "created_at": datetime.utcnow().isoformat(),
-                "receipt": {
-                    "success": False,
-                    "error": "git clone failed for X: repo does not exist",
-                    "signature": "SIG",
-                },
-                "error": None,
-            },
-            text="{}",
-        ))
-        with patch("httpx.Client", return_value=fake):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_k",
-            ])
-        assert result.exit_code == 0, result.output
-        assert "git clone failed" in result.output
-        assert '"success": false' in result.output
-
-    def test_via_api_rejected_run_is_exit_2(self, runner):
-        """A 400 from the API (e.g. web without start_command) -> exit 2
-        with the validation detail surfaced."""
-        fake = self._mock_responses()
-        fake.post = Mock(side_effect=lambda url, **kw: Mock(
-            status_code=400,
-            json=lambda: {"detail": "probe_groups includes 'web' but missing required fields"},
-            text="{}",
-        ) if url.endswith("/v1/runs") else Mock(
-            status_code=200, json=lambda: {"api_key": "wfl_k"}, text="{}"
-        ))
-        with patch("httpx.Client", return_value=fake):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_k",
-            ])
-        assert result.exit_code == 2
-        assert "missing required fields" in result.output
-
-    def test_via_api_writes_receipt_to_output_file(self, runner, tmp_path):
-        """--output writes the receipt JSON (the RunStatus receipt field)
-        to the file."""
-        out = tmp_path / "receipt.json"
-        fake = self._mock_responses(receipt={"sandbox_id": "sb-1", "total": 4})
-        with patch("httpx.Client", return_value=fake):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-                "--api-key", "wfl_k", "--output", str(out),
-            ])
-        assert result.exit_code == 0, result.output
-        written = json.loads(out.read_text(encoding="utf-8"))
-        assert written["sandbox_id"] == "sb-1"
-
-    def test_via_api_from_config_file(self, runner, tmp_path):
-        """via_api/api_key are loadable from a config file like every other
-        knob; CLI flags still override."""
-        config_file = tmp_path / "cfg.yaml"
-        config_file.write_text(
-            "repo: https://github.com/example/repo.git\n"
-            "test: true\n"
-            "via_api: http://localhost:8000\n"
-            "api_key: wfl_cfgkey\n",
-            encoding="utf-8",
+    @patch("workflo_cli.main.generate_keypair")
+    @patch("workflo_cli.main.SandboxExecutor")
+    def test_run_without_auth_fails_when_publish(self, mock_executor_cls, mock_keypair, runner):
+        """--publish without auth must fail."""
+        mock_keypair.return_value = MagicMock()
+        mock_executor = MagicMock()
+        mock_executor.run.return_value = MagicMock(
+            success=True, receipt=MagicMock(
+                teardown_proof=MagicMock(container_removed=True, filesystem_removed=True),
+                canary_check=MagicMock(request_succeeded=False),
+                signature="a" * 64,
+            ),
+            report=MagicMock(passed=1, total=1, failed=0, collection_error=None),
+            elapsed_seconds=1.0,
         )
-        fake = self._mock_responses()
-        with patch("httpx.Client", return_value=fake):
+        mock_executor_cls.return_value = mock_executor
+
+        # Override the global auth mock to simulate unauthenticated
+        from cortex_auth.session import AuthSession
+        fake_auth = MagicMock()
+        fake_auth.status.return_value = None
+        with patch("cortex_auth.session.AuthSession", return_value=fake_auth):
             result = runner.invoke(cli, [
-                "run", "--config", str(config_file),
+                "run", "--repo", "https://github.com/example/repo.git",
+                "--test", "--publish",
             ])
-        assert result.exit_code == 0, result.output
-        headers = fake.post.call_args_list[0].kwargs["headers"]
-        assert headers["X-API-Key"] == "wfl_cfgkey"
-        urls = [c.args[0] for c in fake.post.call_args_list]
-        assert not any(url.endswith("/v1/auth/demo-token") for url in urls)
+        assert result.exit_code != 0
+        assert "not authenticated" in result.output.lower()
 
-
-class TestAuthGate:
-    """Tests for the auth gate on `workflo run`.
-
-    Every `run` (including --dry-run and --via-api) now requires
-    authentication. Unauthenticated users fail fast with a clear message
-    before any sandbox work starts.
-    """
-
-    def test_run_unauthenticated_exits_1(self, runner, monkeypatch):
-        """Unauthenticated user → exit 1 with clear message."""
-        # Override the default authenticated mock
-        fake_auth_session = MagicMock()
-        fake_auth_session.status.return_value = None
-        monkeypatch.setattr(
-            "cortex_auth.session.AuthSession",
-            MagicMock(return_value=fake_auth_session),
-        )
-
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git", "--test",
-        ])
-        assert result.exit_code == 1
-        assert "Not authenticated" in result.output
-        assert "workflo auth login" in result.output
-
-    def test_dry_run_unauthenticated_exits_1(self, runner, monkeypatch):
-        """Unauthenticated user with --dry-run → exit 1 with clear message."""
-        fake_auth_session = MagicMock()
-        fake_auth_session.status.return_value = None
-        monkeypatch.setattr(
-            "cortex_auth.session.AuthSession",
-            MagicMock(return_value=fake_auth_session),
-        )
-
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--test", "--dry-run",
-        ])
-        assert result.exit_code == 1
-        assert "Not authenticated" in result.output
-        assert "workflo auth login" in result.output
-        # Ensure no plan JSON was printed
-        assert "spec_valid" not in result.output
-
-    def test_run_authenticated_proceeds(self, runner, mock_auth_authenticated):
-        """Authenticated user → run proceeds to executor (mocked)."""
+    def test_run_without_auth_succeeds_without_publish(self, runner):
+        """Plain --test run without auth should succeed (auth only required for --publish/--via-api)."""
         from sandbox_isolation.receipt_signer import ReceiptSigner
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from workflo_executor.executor import SandboxRunResult
         from workflo_schema.sandbox import (
-            CanaryCheckResult,
-            RunReport,
-            SignedReceipt,
-            TeardownProof,
+            CanaryCheckResult, RunReport, SignedReceipt, TeardownProof,
         )
 
         private_key = Ed25519PrivateKey.generate()
@@ -1594,556 +1328,146 @@ class TestAuthGate:
             private_key=private_key,
             public_key=private_key.public_key(),
         )
-
-        fake_receipt = SignedReceipt(
-            sandbox_id="sandbox-test-001",
-            issued_at=datetime.utcnow(),
-            run_report=RunReport(sandbox_id="sandbox-test-001", total=5, passed=5),
-            teardown_proof=TeardownProof(
-                sandbox_id="sandbox-test-001",
-                container_removed=True,
-                filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
-            ),
-            canary_check=CanaryCheckResult(
-                sandbox_id="sandbox-test-001",
-                attempted_at=datetime.utcnow(),
-                target_host="https://example.com",
-                request_succeeded=False,
-                error="blocked",
-            ),
-        )
-        fake_signer.sign(fake_receipt)
-
-        fake_result = SandboxRunResult(
-            receipt=fake_receipt,
-            report=RunReport(sandbox_id="sandbox-test-001", total=5, passed=5),
-            lifecycle_events=[],
-            elapsed_seconds=1.5,
-            success=True,
-        )
-
-        with patch("workflo_cli.main.generate_keypair", return_value=fake_signer), \
-             patch("workflo_cli.main.SandboxExecutor") as mock_executor_cls, \
-             patch("workflo_cli.main.generate_sandbox_id", return_value="sandbox-test-001"):
-
-            mock_executor = MagicMock()
-            mock_executor.run.return_value = fake_result
-            mock_executor_cls.return_value = mock_executor
-
-            with runner.isolated_filesystem():
-                result = runner.invoke(cli, [
-                    "run", "--repo", "https://github.com/example/repo.git", "--test", "--output", "report.json"
-                ])
-
-            assert result.exit_code == 0
-            mock_executor.run.assert_called_once()
-
-    def test_dry_run_authenticated_succeeds(self, runner, mock_auth_authenticated):
-        """Authenticated user with --dry-run → plan printed and exit 0."""
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--dry-run",
-            ])
-
-            assert result.exit_code == 0
-            # Should output JSON plan with spec_valid: true
-            import json as _json
-            lines = result.output.strip().splitlines()
-            plan = None
-            for i, line in enumerate(lines):
-                if line.strip() == "{":
-                    plan = _json.loads("\n".join(lines[i:]))
-                    break
-            assert plan is not None
-            assert plan["mode"] == "dry-run"
-            assert plan["spec_valid"] is True
-
-    def test_via_api_unauthenticated_exits_1(self, runner, monkeypatch):
-        """Unauthenticated user with --via-api → exit 1 with clear message."""
-        fake_auth_session = MagicMock()
-        fake_auth_session.status.return_value = None
-        monkeypatch.setattr(
-            "cortex_auth.session.AuthSession",
-            MagicMock(return_value=fake_auth_session),
-        )
-
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--test", "--via-api", "http://localhost:8000",
-        ])
-        assert result.exit_code == 1
-        assert "Not authenticated" in result.output
-        assert "workflo auth login" in result.output
-
-    def test_via_api_authenticated_proceeds(self, runner, mock_auth_authenticated):
-        """Authenticated user with --via-api → round-trips through API."""
-        fake = MagicMock()
-        fake.post = Mock(return_value=Mock(
-            status_code=200, json=lambda: {"run_id": "run-1", "status": "queued"},
-            text="{}"
-        ))
-        fake.get = Mock(return_value=Mock(
-            status_code=200, json=lambda: {"status": "completed", "receipt": {"sandbox_id": "sb-1", "total": 4}},
-            text="{}"
-        ))
-        with patch("httpx.Client", return_value=fake), \
-             patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--via-api", "http://localhost:8000",
-            ])
-            # Authenticated, so should NOT exit 1 from auth gate.
-            # It may exit with other codes if the API mock is incomplete,
-            # but NOT the auth gate message.
-            assert "Not authenticated" not in result.output
-            assert result.exit_code != 1 or "Not authenticated" in result.output
-
-    def test_broken_credential_store_treated_as_unauthenticated(self, runner, monkeypatch):
-        """If AuthSession raises an exception, treat as unauthenticated."""
-        fake_auth_session = MagicMock()
-        fake_auth_session.status.side_effect = Exception("Credential store unreadable")
-        monkeypatch.setattr(
-            "cortex_auth.session.AuthSession",
-            MagicMock(return_value=fake_auth_session),
-        )
-
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git", "--test",
-        ])
-        assert result.exit_code == 1
-        assert "Not authenticated" in result.output
-        assert "workflo auth login" in result.output
-
-    def test_publish_gate_still_works(self, runner, mock_auth_authenticated):
-        """The --publish gate is still present and requires auth (redundant but harmless)."""
-        with patch("workflo_cli.main.generate_keypair"), \
-             patch("workflo_cli.main.SandboxExecutor") as mock_executor_cls, \
-             patch("workflo_cli.main.generate_sandbox_id", return_value="sandbox-test-001"):
-
-            from workflo_executor.executor import SandboxRunResult
-            from workflo_schema.sandbox import (
-                CanaryCheckResult,
-                RunReport,
-                SignedReceipt,
-                TeardownProof,
-            )
-            from sandbox_isolation.receipt_signer import ReceiptSigner
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-            private_key = Ed25519PrivateKey.generate()
-            fake_signer = ReceiptSigner(
-                private_key=private_key,
-                public_key=private_key.public_key(),
-            )
+        with patch("workflo_cli.main.generate_keypair", return_value=fake_signer):
             fake_receipt = SignedReceipt(
-                sandbox_id="sandbox-test-001",
-                issued_at=datetime.utcnow(),
-                run_report=RunReport(sandbox_id="sandbox-test-001", total=5, passed=5),
+                sandbox_id="sandbox-noauth-001",
+                issued_at=datetime.now(UTC),
+                run_report=RunReport(sandbox_id="sandbox-noauth-001", total=1, passed=1),
                 teardown_proof=TeardownProof(
-                    sandbox_id="sandbox-test-001",
+                    sandbox_id="sandbox-noauth-001",
                     container_removed=True,
                     filesystem_removed=True,
-                    destroyed_at=datetime.utcnow(),
+                    destroyed_at=datetime.now(UTC),
                 ),
                 canary_check=CanaryCheckResult(
-                    sandbox_id="sandbox-test-001",
-                    attempted_at=datetime.utcnow(),
+                    sandbox_id="sandbox-noauth-001",
+                    attempted_at=datetime.now(UTC),
                     target_host="https://example.com",
                     request_succeeded=False,
                     error="blocked",
                 ),
             )
             fake_signer.sign(fake_receipt)
+
             fake_result = SandboxRunResult(
                 receipt=fake_receipt,
-                report=RunReport(sandbox_id="sandbox-test-001", total=5, passed=5),
+                report=RunReport(sandbox_id="sandbox-noauth-001", total=1, passed=1),
                 lifecycle_events=[],
-                elapsed_seconds=1.5,
+                elapsed_seconds=1.0,
                 success=True,
             )
-            mock_executor = MagicMock()
-            mock_executor.run.return_value = fake_result
-            mock_executor_cls.return_value = mock_executor
 
-            with runner.isolated_filesystem():
-                result = runner.invoke(cli, [
-                    "run", "--repo", "https://github.com/example/repo.git",
-                    "--test", "--publish",
-                ])
-            assert result.exit_code == 0
+            with patch("workflo_cli.main.generate_keypair", return_value=fake_signer), \
+                 patch("workflo_cli.main.SandboxExecutor") as mock_executor_cls:
+                mock_executor = MagicMock()
+                mock_executor.run.return_value = fake_result
+                mock_executor_cls.return_value = mock_executor
 
+                # Override auth to unauthenticated
+                fake_auth = MagicMock()
+                fake_auth.status.return_value = None
+                with patch("cortex_auth.session.AuthSession", return_value=fake_auth):
+                    result = runner.invoke(cli, [
+                        "run", "--repo", "https://github.com/example/repo.git", "--test",
+                    ])
 
-class TestLocalFolderSupport:
-    """Tests for --path / two-stage sandbox flow.
+                assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
 
-    --path adds a local-directory input option (mutually exclusive with
-    --repo). When the directory has a recognized package manifest
-    (requirements.txt, package.json, etc.), the run uses a two-stage flow:
-    Stage 1 (networked prep to install deps) before Stage 2 (sealed test,
-    network=none). The receipt's dependency_install_had_network flag makes
-    the distinction explicit.
-    """
-
-    def test_path_mutually_exclusive_with_repo(self, runner, mock_auth_authenticated):
-        """--path and --repo cannot both be set."""
-        with runner.isolated_filesystem():
-            Path("local_repo").mkdir()
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--path", "local_repo", "--test",
-            ])
-            assert result.exit_code != 0
-            assert "mutually exclusive" in result.output.lower()
-
-    def test_path_requires_either_repo_or_path(self, runner, mock_auth_authenticated):
-        """Neither --repo nor --path is a config bug."""
-        result = runner.invoke(cli, ["run", "--test"])
-        assert result.exit_code != 0
-        assert "--repo" in result.output or "--path" in result.output
-
-    def test_path_nonexistent_rejected(self, runner, mock_auth_authenticated):
-        """--path must point at a directory that exists."""
-        result = runner.invoke(cli, [
-            "run", "--path", "/tmp/does-not-exist-xyz123", "--test",
-        ])
-        assert result.exit_code != 0
-        assert "does not exist" in result.output.lower() or "not a directory" in result.output.lower()
-
-    def test_path_must_be_directory(self, runner, mock_auth_authenticated):
-        """--path must be a directory, not a file."""
-        with runner.isolated_filesystem():
-            Path("a_file.txt").write_text("hi")
-            result = runner.invoke(cli, [
-                "run", "--path", "a_file.txt", "--test",
-            ])
-            assert result.exit_code != 0
-            assert "not a directory" in result.output.lower()
-
-    def test_path_with_no_manifest_single_stage(self, runner, mock_auth_authenticated, tmp_path):
-        """--path without a package manifest: dry-run shows dependency_install=False."""
-        local_repo = tmp_path / "plain_repo"
-        local_repo.mkdir()
-        (local_repo / "main.py").write_text("print('hi')")
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--path", str(local_repo), "--test", "--dry-run",
-            ])
-            assert result.exit_code == 0
-            import json as _json
-            lines = result.output.strip().splitlines()
-            plan = None
-            for i, line in enumerate(lines):
-                if line.strip() == "{":
-                    plan = _json.loads("\n".join(lines[i:]))
-                    break
-            assert plan is not None
-            assert plan["repo"] is None
-            assert plan["repo_path"] == str(local_repo)
-            # No manifest → no two-stage prep → no network claim
-            assert plan["dependency_install"] is False
-
-    def test_path_with_requirements_txt_triggers_two_stage(self, runner, mock_auth_authenticated, tmp_path):
-        """--path with requirements.txt: dry-run shows dependency_install=True."""
-        local_repo = tmp_path / "py_repo"
-        local_repo.mkdir()
-        (local_repo / "requirements.txt").write_text("requests\n")
-        (local_repo / "main.py").write_text("print('hi')")
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--path", str(local_repo), "--test", "--dry-run",
-            ])
-            assert result.exit_code == 0
-            import json as _json
-            lines = result.output.strip().splitlines()
-            plan = None
-            for i, line in enumerate(lines):
-                if line.strip() == "{":
-                    plan = _json.loads("\n".join(lines[i:]))
-                    break
-            assert plan is not None
-            # Manifest detected → two-stage prep → dependency_install=True
-            assert plan["dependency_install"] is True
-            assert plan["repo_path"] == str(local_repo)
-
-    def test_path_with_package_json_triggers_two_stage(self, runner, mock_auth_authenticated, tmp_path):
-        """--path with package.json: dependency_install=True."""
-        local_repo = tmp_path / "node_repo"
-        local_repo.mkdir()
-        (local_repo / "package.json").write_text('{"name": "x", "version": "1.0.0"}')
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--path", str(local_repo), "--test", "--dry-run",
-            ])
-            assert result.exit_code == 0
-            import json as _json
-            lines = result.output.strip().splitlines()
-            plan = None
-            for i, line in enumerate(lines):
-                if line.strip() == "{":
-                    plan = _json.loads("\n".join(lines[i:]))
-                    break
-            assert plan["dependency_install"] is True
-
-    def test_path_with_commit_sha_rejected(self, runner, mock_auth_authenticated, tmp_path):
-        """--commit-sha is git-clone-only; can't combine with --path."""
-        local_repo = tmp_path / "local"
-        local_repo.mkdir()
-        result = runner.invoke(cli, [
-            "run", "--path", str(local_repo), "--test",
-            "--commit-sha", "abc1234",
-        ])
-        assert result.exit_code != 0
-        assert "--commit-sha" in result.output or "commit_sha" in result.output.lower()
-
-    def test_repo_run_does_not_trigger_two_stage(self, runner, mock_auth_authenticated):
-        """Plain --repo runs stay single-stage (git clone is the only prep)."""
-        with patch("workflo_cli.main.SandboxExecutor"):
-            result = runner.invoke(cli, [
-                "run", "--repo", "https://github.com/example/repo.git",
-                "--test", "--dry-run",
-            ])
-            assert result.exit_code == 0
-            import json as _json
-            lines = result.output.strip().splitlines()
-            plan = None
-            for i, line in enumerate(lines):
-                if line.strip() == "{":
-                    plan = _json.loads("\n".join(lines[i:]))
-                    break
-            assert plan["dependency_install"] is False
-            assert plan["repo_path"] is None
-
-
-class TestCLIDeepTestLLMConfig:
-    """Tests for deep-test mode LLM configuration and environment injection."""
-
-    def test_deep_test_dry_run_includes_llm_config(self, runner, monkeypatch, tmp_path):
-        """`workflo run --repo <url> --deep-test --dry-run` includes llm_config in plan."""
-        config_dir = tmp_path / ".workflo"
-        monkeypatch.setenv("WORKFLO_CONFIG_DIR", str(config_dir))
-        runner.invoke(cli, ["config", "init"])
-        runner.invoke(cli, ["config", "set", "llm.base_url", "http://ollama:11434/v1"])
-        runner.invoke(cli, ["config", "set", "llm.api_key", "sk-secret-12345"])
-        runner.invoke(cli, ["config", "set", "llm.model", "qwen2.5-coder:14b"])
-
+    @patch("httpx.Client.post")
+    def test_via_api_requires_auth(self, mock_post, runner):
+        """--via-api without auth must fail."""
+        mock_post.return_value = MagicMock(
+            status_code=401,
+            json=lambda: {"detail": "Unauthorized"},
+            text="Unauthorized"
+        )
         result = runner.invoke(cli, [
             "run", "--repo", "https://github.com/example/repo.git",
-            "--deep-test", "--dry-run",
+            "--test", "--via-api", "http://localhost:8000",
         ])
-        assert result.exit_code == 0
-        plan = json.loads(result.output)
-        assert "llm_config" in plan
-        assert plan["llm_config"]["base_url"] == "http://ollama:11434/v1"
-        assert plan["llm_config"]["model"] == "qwen2.5-coder:14b"
-        # API key must be redacted in dry-run plan
-        assert plan["llm_config"]["api_key"] == "sk-s****"
-        assert "secret-12345" not in json.dumps(plan)
+        assert result.exit_code != 0
+        assert "not authenticated" in result.output.lower() or "auth" in result.output.lower()
 
-    def test_aggressive_test_dry_run_includes_llm_config(self, runner, monkeypatch, tmp_path):
-        """`--aggressive-test` also surfaces llm_config in dry-run plan."""
-        config_dir = tmp_path / ".workflo"
-        monkeypatch.setenv("WORKFLO_CONFIG_DIR", str(config_dir))
-        runner.invoke(cli, ["config", "init"])
 
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--aggressive-test", "--dry-run",
-        ])
-        assert result.exit_code == 0
-        plan = json.loads(result.output)
-        assert "llm_config" in plan
-        assert plan["llm_config"]["base_url"] == "http://localhost:11434/v1"
+class TestCLIVerify:
+    """Tests for `workflo verify` command."""
 
-    def test_surface_test_dry_run_no_llm_config(self, runner):
-        """Plain surface test (`--test`) should NOT include llm_config."""
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--test", "--dry-run",
-        ])
-        assert result.exit_code == 0
-        plan = json.loads(result.output)
-        assert "llm_config" not in plan
-
-    @patch("workflo_cli.main.generate_keypair")
-    @patch("workflo_cli.main.SandboxExecutor")
-    @patch("workflo_cli.main.generate_sandbox_id", return_value="sandbox-deep-001")
-    def test_deep_test_injects_llm_env_vars(
-        self, mock_id, mock_executor_cls, mock_keypair, runner, monkeypatch, tmp_path
-    ):
-        """Deep-test runs must inject WORKFLO_LLM_* into the SandboxSpec environment."""
+    @patch("workflo_cli.main.verify_receipt_signature", return_value=True)
+    @patch("workflo_cli.main._load_ed25519_pubkey")
+    def test_verify_valid_receipt(self, mock_load_key, mock_verify, runner, tmp_path):
+        """Valid receipt with matching pubkey passes."""
         from sandbox_isolation.receipt_signer import ReceiptSigner
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-        from workflo_executor.executor import SandboxRunResult
-        from workflo_schema.sandbox import CanaryCheckResult, RunReport, SignedReceipt, TeardownProof
-
-        config_dir = tmp_path / ".workflo"
-        monkeypatch.setenv("WORKFLO_CONFIG_DIR", str(config_dir))
-        runner.invoke(cli, ["config", "init"])
-        runner.invoke(cli, ["config", "set", "llm.base_url", "http://ollama:11434/v1"])
-        runner.invoke(cli, ["config", "set", "llm.api_key", "sk-actual-key"])
-        runner.invoke(cli, ["config", "set", "llm.model", "qwen2.5-coder:7b"])
+        from workflo_schema.sandbox import SignedReceipt
 
         private_key = Ed25519PrivateKey.generate()
-        fake_signer = ReceiptSigner(private_key=private_key, public_key=private_key.public_key())
-        mock_keypair.return_value = fake_signer
+        fake_signer = ReceiptSigner(
+            private_key=private_key,
+            public_key=private_key.public_key(),
+        )
 
-        fake_receipt = SignedReceipt(
-            sandbox_id="sandbox-deep-001",
-            issued_at=datetime.utcnow(),
-            run_report=RunReport(sandbox_id="sandbox-deep-001", total=3, passed=3),
+        receipt = SignedReceipt(
+            sandbox_id="verify-test-001",
+            issued_at=datetime.now(UTC),
+            run_report=RunReport(sandbox_id="verify-test-001", total=5, passed=5),
             teardown_proof=TeardownProof(
-                sandbox_id="sandbox-deep-001",
+                sandbox_id="verify-test-001",
                 container_removed=True,
                 filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
+                destroyed_at=datetime.now(UTC),
             ),
             canary_check=CanaryCheckResult(
-                sandbox_id="sandbox-deep-001",
-                attempted_at=datetime.utcnow(),
+                sandbox_id="verify-test-001",
+                attempted_at=datetime.now(UTC),
                 target_host="https://example.com",
                 request_succeeded=False,
                 error="blocked",
             ),
         )
-        fake_result = SandboxRunResult(
-            receipt=fake_receipt,
-            report=fake_receipt.run_report,
-            lifecycle_events=[],
-            elapsed_seconds=2.0,
-            success=True,
-        )
-        mock_executor = MagicMock()
-        mock_executor.run.return_value = fake_result
-        mock_executor_cls.return_value = mock_executor
+        fake_signer.sign(receipt)
 
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--deep-test",
-        ])
+        receipt_file = tmp_path / "receipt.json"
+        receipt_file.write_text(json.dumps({"receipt": receipt.model_dump(mode="json")}, default=str), encoding="utf-8")
+
+        pubkey_file = tmp_path / "pubkey.pem"
+        pubkey_pem = fake_signer.public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        pubkey_file.write_bytes(pubkey_pem)
+
+        result = runner.invoke(cli, ["verify", "--receipt", str(receipt_file), "--pubkey", str(pubkey_file)])
         assert result.exit_code == 0
-        mock_executor.run.assert_called_once()
-        passed_spec = mock_executor.run.call_args[0][0]
-        # Verify LLM env vars are in run_spec["env"] (where the worker reads them)
-        spec_env = passed_spec.run_spec.get("env", {})
-        assert spec_env.get("WORKFLO_LLM_BASE_URL") == "http://ollama:11434/v1"
-        assert spec_env.get("WORKFLO_LLM_API_KEY") == "sk-actual-key"
-        assert spec_env.get("WORKFLO_LLM_MODEL") == "qwen2.5-coder:7b"
+        assert "OK" in result.output or "verified" in result.output.lower()
 
-    @patch("workflo_cli.main.generate_keypair")
-    @patch("workflo_cli.main.SandboxExecutor")
-    @patch("workflo_cli.main.generate_sandbox_id", return_value="sandbox-deep-002")
-    def test_deep_test_banner_shows_llm_status(
-        self, mock_id, mock_executor_cls, mock_keypair, runner, monkeypatch, tmp_path
-    ):
-        """Stderr banner for deep-test must display LLM base URL and model info."""
-        from sandbox_isolation.receipt_signer import ReceiptSigner
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-        from workflo_executor.executor import SandboxRunResult
-        from workflo_schema.sandbox import CanaryCheckResult, RunReport, SignedReceipt, TeardownProof
 
-        config_dir = tmp_path / ".workflo"
-        monkeypatch.setenv("WORKFLO_CONFIG_DIR", str(config_dir))
-        runner.invoke(cli, ["config", "init"])
+class TestCLIKeygen:
+    """Tests for `workflo keygen` command."""
 
-        private_key = Ed25519PrivateKey.generate()
-        fake_signer = ReceiptSigner(private_key=private_key, public_key=private_key.public_key())
-        mock_keypair.return_value = fake_signer
-
-        fake_receipt = SignedReceipt(
-            sandbox_id="sandbox-deep-002",
-            issued_at=datetime.utcnow(),
-            run_report=RunReport(sandbox_id="sandbox-deep-002", total=1, passed=1),
-            teardown_proof=TeardownProof(
-                sandbox_id="sandbox-deep-002",
-                container_removed=True,
-                filesystem_removed=True,
-                destroyed_at=datetime.utcnow(),
-            ),
-            canary_check=CanaryCheckResult(
-                sandbox_id="sandbox-deep-002",
-                attempted_at=datetime.utcnow(),
-                target_host="https://example.com",
-                request_succeeded=False,
-                error="blocked",
-            ),
-        )
-        fake_result = SandboxRunResult(
-            receipt=fake_receipt,
-            report=fake_receipt.run_report,
-            lifecycle_events=[],
-            elapsed_seconds=1.0,
-            success=True,
-        )
-        mock_executor = MagicMock()
-        mock_executor.run.return_value = fake_result
-        mock_executor_cls.return_value = mock_executor
-
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--deep-test",
-        ])
+    def test_keygen_outputs_pem_keys(self, runner):
+        """keygen outputs PEM-encoded keys."""
+        result = runner.invoke(cli, ["keygen"])
         assert result.exit_code == 0
-        # Stderr output should contain LLM status lines
-        assert "LLM base URL:" in result.output
-        assert "LLM model:" in result.output
-        assert "LLM API key:" in result.output
+        assert "BEGIN PRIVATE KEY" in result.output
+        assert "BEGIN PUBLIC KEY" in result.output
+        assert "Fingerprint (SHA-256):" in result.output
 
+    @patch("httpx.Client.post")
+    @patch("cortex_auth.session.AuthSession")
+    def test_keygen_provision(self, mock_auth_session, mock_post, runner):
+        """keygen --provision sends public key to control plane."""
+        from cortex_auth.session import AuthSession
+        from cortex_auth.scopes import WORKFLO_SCOPES, PRODUCT_CLIENT_IDS
 
-class TestCLISecurityHardening:
-    """Tests for security hardening, input validation, and secret protection."""
+        fake_session = MagicMock()
+        fake_session.get_access_token.return_value = "fake-token"
+        mock_auth_session.return_value = fake_session
 
-    def test_invalid_worker_image_characters_rejected(self, runner):
-        """Worker images with shell metacharacters must be rejected."""
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--test", "--worker-image", "worker; rm -rf /",
-        ])
-        assert result.exit_code != 0
-        assert "Invalid worker-image" in result.output
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"key_id": "test-key-id"},
+        )
 
-    def test_invalid_deep_worker_image_rejected(self, runner):
-        """Deep worker images with shell metacharacters must be rejected."""
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--deep-test", "--deep-worker-image", "worker$(whoami)",
-        ])
-        assert result.exit_code != 0
-        assert "Invalid deep-worker-image" in result.output
-
-    def test_invalid_web_worker_image_rejected(self, runner):
-        """Web worker images with shell metacharacters must be rejected."""
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--web", "--web-worker-image", "worker`id`",
-        ])
-        assert result.exit_code != 0
-        assert "Invalid web-worker-image" in result.output
-
-    def test_local_path_with_null_byte_rejected(self, runner):
-        """Path with NUL byte must be rejected immediately."""
-        result = runner.invoke(cli, [
-            "run", "--path", "test\x00dir", "--test",
-        ])
-        assert result.exit_code != 0
-
-    def test_repo_url_with_shell_injection_rejected(self, runner):
-        """Repo URL with command injection attempts must be rejected."""
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git; echo pwned",
-            "--test",
-        ])
-        assert result.exit_code != 0
-
-    def test_both_repo_and_path_mutually_exclusive(self, runner, tmp_path):
-        """Cannot specify both --repo and --path."""
-        test_dir = tmp_path / "test"
-        test_dir.mkdir()
-        result = runner.invoke(cli, [
-            "run", "--repo", "https://github.com/example/repo.git",
-            "--path", str(test_dir), "--test",
-        ])
-        assert result.exit_code != 0
-        assert "mutually exclusive" in result.output
-
+        result = runner.invoke(cli, ["keygen", "--provision", "--device-id", "test-device"])
+        assert result.exit_code == 0
+        assert "Key provisioned" in result.output

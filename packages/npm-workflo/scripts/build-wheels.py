@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Build the six internal wheels into vendor/ for the @workflo/qa npm shim.
+"""Build the six internal wheels into vendor/ for the @cortex/workflo npm shim.
 
 Run from anywhere:
     python scripts/build-wheels.py

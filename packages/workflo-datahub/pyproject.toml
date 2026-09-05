@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workflo-datahub"
-version = "0.1.0"
+version = "1.0.0"
 description = "DataHub client for workflo — reads metadata (datasets, schemas, lineage) via GraphQL + MCP, generates tests, and writes results back."
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }

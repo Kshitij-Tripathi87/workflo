@@ -1,8 +1,52 @@
 """Pydantic models for DataHub metadata — the contract between DataHub and Tenant Shield."""
 
 from datetime import datetime
-from typing import Optional
+from enum import Enum
+from typing import Any, Optional
 from pydantic import BaseModel, Field
+
+
+class DriftType(str, Enum):
+    ADDED = "ADDED"
+    REMOVED = "REMOVED"
+    TYPE_CHANGED = "TYPE_CHANGED"
+    NULLABLE_CHANGED = "NULLABLE_CHANGED"
+    DESCRIPTION_CHANGED = "DESCRIPTION_CHANGED"
+
+
+class DriftSeverity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class ColumnDrift(BaseModel):
+    column_name: str
+    drift_type: DriftType
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    severity: DriftSeverity = DriftSeverity.LOW
+    breaking: bool = False
+    description: str = ""
+
+
+class SchemaDiff(BaseModel):
+    dataset_urn: str
+    baseline_name: str = ""
+    current_name: str = ""
+    drifts: list[ColumnDrift] = Field(default_factory=list)
+    drift_score: float = 0.0  # 0.0 to 1.0 risk score
+    breaking_changes: bool = False
+    summary: str = ""
+
+
+class BlastRadiusReport(BaseModel):
+    root_urn: str
+    affected_datasets: list[str] = Field(default_factory=list)
+    max_depth: int = 0
+    critical_path_impacted: bool = False
+    summary: str = ""
 
 
 class ColumnInfo(BaseModel):

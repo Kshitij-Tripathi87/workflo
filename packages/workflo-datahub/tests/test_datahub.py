@@ -146,6 +146,45 @@ class TestInspector:
         assert "email" in violations
         assert "id" not in violations  # PK has description
 
+    def test_detect_schema_drift_and_risk(self):
+        from workflo_datahub.inspector import MetadataInspector
+        from workflo_datahub.models import DriftType, DriftSeverity
+        insp = MetadataInspector(MagicMock())
+        baseline = _make_schema_fixture()
+        # current schema has 'bio' dropped (breaking), 'phone' added non-nullable (breaking), and 'email' type changed
+        current = DatasetSchema(
+            urn="urn:li:dataset:(urn:li:dataPlatform:postgres,public.x,PROD)",
+            name="public.x",
+            platform="postgres",
+            owner="ali@example.com",
+            columns=[
+                ColumnInfo(name="id", type="INT", nullable=False, primary_key=True, description="PK"),
+                ColumnInfo(name="email", type="VARCHAR(255)", nullable=False),
+                ColumnInfo(name="phone", type="STRING", nullable=False),
+            ],
+        )
+        diff = insp.detect_schema_drift(baseline, current)
+        assert len(diff.drifts) == 3
+        assert diff.breaking_changes is True
+        assert diff.drift_score >= 0.65
+
+        types = {d.drift_type for d in diff.drifts}
+        assert DriftType.REMOVED in types
+        assert DriftType.ADDED in types
+        assert DriftType.TYPE_CHANGED in types
+
+    def test_detect_lineage_blast_radius_traversal(self):
+        from workflo_datahub.inspector import MetadataInspector
+        client = MagicMock()
+        client.get_lineage.side_effect = lambda urn, direction: [
+            LineageEdge(source_urn=urn, target_urn="urn:downstream:1")
+        ] if urn == "urn:root" else []
+        insp = MetadataInspector(client)
+        report = insp.detect_lineage_blast_radius("urn:root", max_depth=3)
+        assert report.root_urn == "urn:root"
+        assert "urn:downstream:1" in report.affected_datasets
+        assert report.max_depth == 1
+
 
 class TestWriteback:
     def test_write_dataset_assertion_calls_api(self):
@@ -215,6 +254,48 @@ class TestGenerator:
         client.get_dataset.return_value = no_owner
         art2 = gen.generate_ownership_tests("urn:1")
         assert "False" in art2.test_code
+
+    def test_generate_drift_regression_tests_produces_runnable_code(self):
+        import ast
+        from workflo_datahub.generator import TestGenerator
+        from workflo_datahub.models import SchemaDiff, ColumnDrift, DriftType, DriftSeverity
+        client = MagicMock()
+        gen = TestGenerator(client)
+        diff = SchemaDiff(
+            dataset_urn="urn:li:dataset:(postgres,public.users,PROD)",
+            baseline_name="public.users",
+            current_name="public.users",
+            drifts=[
+                ColumnDrift(
+                    column_name="email",
+                    drift_type=DriftType.TYPE_CHANGED,
+                    old_value="STRING",
+                    new_value="VARCHAR(255)",
+                    severity=DriftSeverity.HIGH,
+                    breaking=True,
+                )
+            ],
+            drift_score=0.75,
+            breaking_changes=True,
+            summary="1 breaking drift",
+        )
+        artifact = gen.generate_drift_regression_tests(diff)
+        ast.parse(artifact.test_code)
+        assert "TestPublicUsersDriftRegression" in artifact.test_code
+        assert "test_drift_score_within_tolerance" in artifact.test_code
+        assert "CC6.1" in artifact.soc2_controls
+
+    def test_generate_contract_suite_produces_runnable_code(self):
+        import ast
+        from workflo_datahub.generator import TestGenerator
+        client = MagicMock()
+        gen = TestGenerator(client)
+        schema = _make_schema_fixture()
+        artifact = gen.generate_contract_suite(schema)
+        ast.parse(artifact.test_code)
+        assert "TestPublicXDataContract" in artifact.test_code
+        assert "CONTRACT_COLUMNS" in artifact.test_code
+        assert "PRIMARY_KEYS" in artifact.test_code
 
     def test_full_suite_generates_one_artifact_per_test_per_dataset(self):
         from workflo_datahub.generator import TestGenerator

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @workflo/qa entry shim.
+ * @cortex/workflo entry shim.
  *
  * The Python engine lives in a package-local venv created by postinstall.
  * This shim verifies it exists, forwards argv + stdio + exit code.
@@ -21,7 +21,7 @@ if (!fs.existsSync(bin)) {
   console.error(
     "✖ workflo engine not found at:\n  " + bin +
     "\n\nThe install did not complete. Rebuild it with:" +
-    "\n  npm rebuild -g @workflo/qa" +
+    "\n  npm rebuild -g @cortex/workflo" +
     "\n\nRequires Python >= 3.11 on PATH."
   );
   process.exit(1);

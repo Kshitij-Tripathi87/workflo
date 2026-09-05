@@ -1,5 +1,5 @@
 """Tests for auth models."""
-from datetime import datetime
+from datetime import datetime, UTC
 from workflo_schema import Organization, Project, ApiKey, PlanTier, ApiKeyScope
 
 
@@ -16,7 +16,7 @@ class TestOrganization:
         assert org.plan_tier == PlanTier.ENTERPRISE
 
     def test_with_created_at(self):
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         org = Organization(id="org-3", name="Startup LLC", created_at=now)
         assert org.created_at == now
 
@@ -87,7 +87,7 @@ class TestApiKey:
         assert key.has_scope(ApiKeyScope.RUN_TESTS) is False
 
     def test_with_dates(self):
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         key = ApiKey(id="key-7", project_id="proj-3", last_used=now, expires_at=None)
         assert key.last_used == now
         assert key.expires_at is None
