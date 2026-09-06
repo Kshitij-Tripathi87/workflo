@@ -1473,6 +1473,50 @@ class TestCLIKeygen:
         assert "Key provisioned" in result.output
 
 
+class TestCLIUpdate:
+    """`workflo update` checks the npm registry and helps install an update."""
+
+    @patch("workflo_cli.main._fetch_latest_version", return_value="1.1.1")
+    def test_update_up_to_date(self, mock_fetch, runner):
+        result = runner.invoke(cli, ["update"])
+        assert result.exit_code == 0
+        assert "latest version" in result.output
+
+    @patch("workflo_cli.main._fetch_latest_version", return_value="1.2.0")
+    def test_update_check_reports_available(self, mock_fetch, runner):
+        result = runner.invoke(cli, ["update", "--check"])
+        assert result.exit_code == 1
+        assert "Update available" in result.output
+        assert "1.2.0" in result.output
+
+    @patch("workflo_cli.main._fetch_latest_version", return_value="1.0.0")
+    def test_update_no_newer(self, mock_fetch, runner):
+        result = runner.invoke(cli, ["update", "--check"])
+        assert result.exit_code == 0
+        assert "latest version" in result.output
+
+    @patch("workflo_cli.main._npm_install_latest")
+    @patch("workflo_cli.main._fetch_latest_version", return_value="1.2.0")
+    def test_update_install_with_yes(self, mock_fetch, mock_install, runner):
+        result = runner.invoke(cli, ["update", "--yes"])
+        assert result.exit_code == 0
+        mock_install.assert_called_once()
+        assert "updated" in result.output
+
+    @patch("workflo_cli.main._npm_install_latest")
+    @patch("workflo_cli.main._fetch_latest_version", return_value="1.2.0")
+    def test_update_declines_install(self, mock_fetch, mock_install, runner):
+        result = runner.invoke(cli, ["update"], input="n\n")
+        assert result.exit_code == 0
+        mock_install.assert_not_called()
+
+    @patch("workflo_cli.main._fetch_latest_version", side_effect=Exception("offline"))
+    def test_update_offline_is_diagnostic(self, mock_fetch, runner):
+        result = runner.invoke(cli, ["update", "--check"])
+        assert result.exit_code == 1
+        assert "could not check for updates" in result.output
+
+
 class TestCLIPersistPubkey:
     """The run persists its ephemeral signing pubkey so `verify` can find it."""
 

@@ -372,6 +372,7 @@ def cli():
       logout        Log out and revoke tokens (alias for auth logout)
       org           Organization management
       workspace     Workspace management
+      update        Check for a newer version and optionally install it
     """
 
 
@@ -1379,3 +1380,108 @@ def keygen(provision, device_id):
         except httpx.HTTPError as e:
             click.echo(f"FAILED: cannot reach control plane for provisioning: {e}", err=True)
             sys.exit(1)
+
+
+# ---- update -----------------------------------------------------------
+
+def _fetch_latest_version() -> str:
+    """Return the latest published version of @cortexstudio/workflo from
+    the npm registry. Raises on any network/parse failure.
+    """
+    import urllib.request
+
+    url = "https://registry.npmjs.org/@cortexstudio/workflo"
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "workflo-cli", "Accept": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data["dist-tags"]["latest"]
+
+
+def _version_tuple(version: str) -> tuple:
+    """Parse a version string into a comparable tuple, e.g. '1.1.0' -> (1, 1, 0).
+
+    Tolerates common suffixes (pre-releases, build metadata) so
+    '1.1.1-beta.1' still yields (1, 1, 1, 0, 1).
+    """
+    nums = []
+    for part in re.split(r"[.\-+]", str(version)):
+        m = re.match(r"\d+", part)
+        nums.append(int(m.group()) if m else 0)
+    return tuple(nums)
+
+
+def _version_newer(new: str, old: str) -> bool:
+    """True if `new` is strictly newer than `old`."""
+    return _version_tuple(new) > _version_tuple(old)
+
+
+def _npm_install_latest() -> None:
+    """Install the latest @cortexstudio/workflo via npm (global)."""
+    import subprocess
+
+    # Package name is a constant; shell=True is needed on Windows to resolve
+    # npm(.cmd) via PATHEXT.
+    subprocess.run(
+        'npm install -g "@cortexstudio/workflo@latest"',
+        shell=True,
+        check=True,
+    )
+
+
+@cli.command()
+@click.option("--check", "check_only", is_flag=True, default=False,
+              help="Only report whether an update is available (never install).")
+@click.option("--yes", "-y", is_flag=True, default=False,
+              help="Install the update without prompting.")
+def update(check_only: bool, yes: bool):
+    """Check for a newer workflo release and optionally install it.
+
+    Queries the npm registry for the latest published version of
+    @cortexstudio/workflo and compares it against the running version.
+    With --check it only reports availability (exit 0 = up-to-date,
+    exit 1 = update available) so it can be used in scripts/CI.
+    """
+    from workflo_cli import __version__ as current
+
+    current = current or "0.0.0"
+
+    try:
+        latest = _fetch_latest_version()
+    except Exception as e:  # noqa: BLE001 — network/offline must be diagnostic, not fatal
+        click.echo(f"workflo {current} - could not check for updates: {e}", err=True)
+        click.echo(
+            "Check manually: https://www.npmjs.com/package/@cortexstudio/workflo",
+            err=True,
+        )
+        sys.exit(1)
+
+    click.echo(f"workflo {current} - latest published: {latest}")
+
+    if not _version_newer(latest, current):
+        click.echo("You are on the latest version.")
+        if check_only:
+            sys.exit(0)
+        return
+
+    click.echo(f"Update available: {latest} (you have {current})")
+    if check_only:
+        sys.exit(1)
+
+    proceed = yes or click.confirm(f"Install workflo {latest} now via npm?")
+    if not proceed:
+        click.echo("Skipped. Update manually with:")
+        click.echo('  npm install -g "@cortexstudio/workflo@latest"')
+        return
+
+    click.echo("Updating via npm (this may take a minute)...")
+    try:
+        _npm_install_latest()
+    except Exception as e:  # noqa: BLE001 — surface the CLI command to run manually
+        click.echo(f"npm install failed: {e}", err=True)
+        click.echo('Run manually: npm install -g "@cortexstudio/workflo@latest"', err=True)
+        sys.exit(1)
+
+    click.echo(f"workflo updated to {latest}. Verify with: workflo --version")
