@@ -34,6 +34,19 @@ from sandbox_isolation.receipt_signer import (
     verify_receipt_signature,
     fingerprint_public_key,
 )
+from sandbox_isolation.evidence_binding import (
+    compute_evidence_digests,
+    verify_evidence_binding,
+    resolve_evidence_dir,
+)
+from sandbox_isolation.key_directory import KeyStatus, check_key_status
+from sandbox_isolation.transparency import (
+    LocalTransparencyLog,
+    LogRecord,
+    merkle_root,
+    receipt_fingerprint,
+    verify_inclusion,
+)
 
 __all__ = [
     "EphemeralMount",
@@ -50,6 +63,16 @@ __all__ = [
     "generate_keypair",
     "verify_receipt_signature",
     "fingerprint_public_key",
+    "compute_evidence_digests",
+    "verify_evidence_binding",
+    "resolve_evidence_dir",
+    "KeyStatus",
+    "check_key_status",
+    "LocalTransparencyLog",
+    "LogRecord",
+    "merkle_root",
+    "receipt_fingerprint",
+    "verify_inclusion",
 ]
 
 __version__ = "1.1.1"

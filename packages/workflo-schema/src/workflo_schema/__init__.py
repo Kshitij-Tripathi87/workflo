@@ -14,7 +14,7 @@ from workflo_schema.run_spec import (
     TestTargets,
     ArtifactsConfig,
 )
-from workflo_schema.results import TestResult, RunSummary
+from workflo_schema.results import TestResult, RunSummary, Finding
 from workflo_schema.auth import Organization, Project, ApiKey
 from workflo_schema.sandbox import (
     SandboxSpec,
@@ -23,6 +23,20 @@ from workflo_schema.sandbox import (
     CanaryCheckResult,
     RunReport,
     SignedReceipt,
+    AgentActivity,
+)
+from workflo_schema.inference import (
+    ALLOWED_AGENT_TOOLS,
+    INFERENCE_PROTOCOL_VERSION,
+    InferenceBudget,
+    InferenceGatewayRequest,
+    InferenceGatewayResponse,
+    InferencePlan,
+    InferenceProvenance,
+    PlanStep,
+    RuntimeObservation,
+    SourcePayloadError,
+    sanitize_observations,
 )
 
 __all__ = [
@@ -38,6 +52,7 @@ __all__ = [
     "ArtifactsConfig",
     "TestResult",
     "RunSummary",
+    "Finding",
     "Organization",
     "Project",
     "ApiKey",
@@ -47,6 +62,18 @@ __all__ = [
     "CanaryCheckResult",
     "RunReport",
     "SignedReceipt",
+    "AgentActivity",
+    "ALLOWED_AGENT_TOOLS",
+    "INFERENCE_PROTOCOL_VERSION",
+    "InferenceBudget",
+    "InferenceGatewayRequest",
+    "InferenceGatewayResponse",
+    "InferencePlan",
+    "InferenceProvenance",
+    "PlanStep",
+    "RuntimeObservation",
+    "SourcePayloadError",
+    "sanitize_observations",
 ]
 
 __version__ = "1.1.1"

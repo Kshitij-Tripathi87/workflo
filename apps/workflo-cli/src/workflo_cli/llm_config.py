@@ -45,6 +45,8 @@ class LLMConfig:
     model: str
     timeout_seconds: int
     api_key: Optional[str]  # None when the key-store lookup missed
+    mode: str = "direct"          # 'direct' (model endpoint) | 'gateway' (control-plane proxy)
+    gateway_url: Optional[str] = None  # inference gateway base URL (gateway mode)
 
     def is_placeholder(self) -> bool:
         """True when the config still holds placeholder-looking values."""
@@ -130,8 +132,15 @@ def set_llm_config(
     api_key: str,
     model: str = DEFAULT_MODEL,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    mode: str = "direct",
+    gateway_url: Optional[str] = None,
 ) -> str:
-    """Persist LLM settings. Returns a note describing where the key landed."""
+    """Persist LLM settings. Returns a note describing where the key landed.
+
+    mode 'gateway' routes inference through the control-plane privacy
+    gateway (observation-only; the upstream model key stays server-side).
+    mode 'direct' calls the model endpoint with the stored key.
+    """
     base_url = (base_url or "").strip().rstrip("/")
     if not base_url:
         raise LLMConfigError("base_url must not be empty")
@@ -142,12 +151,21 @@ def set_llm_config(
         raise LLMConfigError("api_key must not be empty")
     if timeout_seconds < 5 or timeout_seconds > 600:
         raise LLMConfigError("timeout_seconds must be 5..600")
+    mode = (mode or "direct").strip().lower()
+    if mode not in ("direct", "gateway"):
+        raise LLMConfigError("mode must be 'direct' or 'gateway'")
+    gateway_url = (gateway_url or "").strip().rstrip("/") or None
+    if mode == "gateway" and gateway_url:
+        if not (gateway_url.startswith("http://") or gateway_url.startswith("https://")):
+            raise LLMConfigError("gateway_url must start with http:// or https://")
 
     data = _read_json(_config_path())
     data["llm"] = {
         "base_url": base_url,
         "model": model or DEFAULT_MODEL,
         "timeout_seconds": int(timeout_seconds),
+        "mode": mode,
+        "gateway_url": gateway_url,
     }
     _write_json(_config_path(), data)
     return _store_key(api_key)
@@ -163,6 +181,8 @@ def load_llm_config(include_key: bool = True) -> Optional[LLMConfig]:
         model=data.get("model", "") or DEFAULT_MODEL,
         timeout_seconds=int(data.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         api_key=_load_key() if include_key else None,
+        mode=data.get("mode", "direct") or "direct",
+        gateway_url=data.get("gateway_url") or None,
     )
 
 
@@ -194,6 +214,8 @@ def describe_llm_config() -> dict:
         "base_url": cfg.base_url,
         "model": cfg.model,
         "timeout_seconds": cfg.timeout_seconds,
+        "mode": cfg.mode,
+        "gateway_url": cfg.gateway_url,
         "api_key": redact_key(cfg.api_key),
         "is_placeholder": cfg.is_placeholder(),
     }
@@ -240,13 +262,25 @@ def validate_llm_key(cfg: Optional[LLMConfig] = None, timeout: float = 10.0) -> 
 
 
 def llm_env_for_run(cfg: Optional[LLMConfig] = None) -> dict[str, str]:
-    """Env vars the executor injects into the sandbox for the worker."""
+    """Env vars the host-side planner reads for a run.
+
+    gateway mode: WORKFLO_LLM_BASE_URL points at the CONTROL-PLANE
+    inference gateway; WORKFLO_LLM_API_KEY carries the workflo API key
+    used as the gateway's X-API-Key. The upstream model key NEVER appears
+    here — the control plane holds it server-side.
+    direct mode: WORKFLO_LLM_BASE_URL is the model endpoint and
+    WORKFLO_LLM_API_KEY authenticates it.
+    """
     cfg = cfg or load_llm_config()
     if cfg is None or cfg.is_placeholder() or not cfg.api_key:
         return {}
-    return {
+    env = {
         "WORKFLO_LLM_BASE_URL": cfg.base_url,
-        "WORKFLO_LLM_API_KEY": cfg.api_key,
         "WORKFLO_LLM_MODEL": cfg.model,
         "WORKFLO_LLM_TIMEOUT": str(cfg.timeout_seconds),
+        "WORKFLO_LLM_MODE": cfg.mode,
+        "WORKFLO_LLM_API_KEY": cfg.api_key,
     }
+    if cfg.mode == "gateway" and cfg.gateway_url:
+        env["WORKFLO_LLM_GATEWAY_URL"] = cfg.gateway_url
+    return env

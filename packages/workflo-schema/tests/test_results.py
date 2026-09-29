@@ -1,7 +1,30 @@
 """Tests for result models."""
 import json
 from datetime import datetime
-from workflo_schema import TestResult, RunSummary
+from workflo_schema import TestResult, RunSummary, Finding
+
+
+class TestFindingModel:
+    def test_minimal(self):
+        f = Finding(finding_id="wf-fnd-1", title="Checkout 500", evidence_refs=["evt_00000182"])
+        assert f.severity == "info"
+        assert f.status == "reported"
+        assert f.confidence is None  # no agent/LLM provenance
+
+    def test_roundtrip(self):
+        f = Finding(
+            finding_id="wf-fnd-2", title="x", severity="high",
+            status="confirmed", confidence=0.95, evidence_refs=["evt_0001", "evt_0002"],
+            reproduction={"method": "POST", "path": "/api/checkout"},
+            agent_reasoning="..."
+        )
+        data = f.model_dump(mode="json")
+        assert data["status"] == "confirmed"
+        assert data["reproduction"]["path"] == "/api/checkout"
+
+    def test_finding_requires_evidence_id(self):
+        finding = Finding(finding_id="wf-fnd-x", title="t", evidence_refs=[])
+        assert finding.evidence_refs == []  # allowed, but no evidence
 
 
 class TestTestResult:

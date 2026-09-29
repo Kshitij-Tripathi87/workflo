@@ -39,6 +39,9 @@ from workflo_executor import SandboxExecutor
 from workflo_executor.executor import generate_sandbox_id
 from sandbox_isolation import generate_keypair, verify_receipt_signature
 
+# Supervisor integration
+from workflo_cli.supervisor_client import create_supervisor_client, SupervisorCLIClient
+
 # Auth commands
 from workflo_cli.auth_commands import (
     auth_group,
@@ -50,6 +53,12 @@ from workflo_cli.auth_commands import (
 
 # Config commands (LLM settings)
 from workflo_cli.config_commands import LLM_NOT_CONFIGURED_HINT, config_group
+
+# Security gate (Phase 6 release barrier)
+from workflo_cli.security_gate import security_gate
+
+# Exit-code contract (Phase 7)
+from workflo_cli.exit_codes import classify_run_outcome
 
 # LLM config (deep-tier)
 from workflo_cli.llm_config import (
@@ -337,7 +346,7 @@ def _read_cli_workflo_yaml(repo_url: str) -> tuple[Optional[str], Optional[int]]
 
     Returns (start_command, port), either may be None when absent.
     """
-    if not repo_url.lower().startswith("file://"):
+    if not repo_url or not repo_url.lower().startswith("file://"):
         return None, None
     repo_dir = Path(repo_url[len("file://"):])
     for name in ("workflo.yaml", "workflo.yml"):
@@ -363,10 +372,16 @@ def cli():
     """workflo - sandboxed code-testing agent that verifies specific claims.
 
     Commands:
+      init          Auto-detect the project and generate .workflo/ config
+      doctor        Check that this machine can run Workflo sandboxed executions
       run           Execute sandboxed tests against a repo
+      status        Show the live console for the latest (or given) run
       verify        Verify a receipt's Ed25519 signature (Claim #4)
+      inspect       Inspect a signed receipt: what happened (read-only)
+      explain       Explain recorded findings from a receipt (read-only)
       keygen        Generate Ed25519 keypair for receipt signing
       config        Manage workflo configuration (LLM endpoint, defaults)
+      security-gate Run the Phase 6 adversarial test suites (release barrier)
       auth          Authentication and profile management
       login         Authenticate via device flow (alias for auth login)
       logout        Log out and revoke tokens (alias for auth logout)
@@ -388,6 +403,132 @@ cli.add_command(workspace_group)
 from workflo_cli.repl import repl_command  # noqa: E402
 
 cli.add_command(repl_command)
+cli.add_command(security_gate)
+
+# Phase 7B: read-only artifact analysis layer — inspect/explain share the
+# ReceiptReader/EvidenceReader artifact layer and never execute, mutate,
+# or invoke a model.
+from workflo_cli.inspect_commands import inspect_command  # noqa: E402
+from workflo_cli.explain_commands import explain_command  # noqa: E402
+
+cli.add_command(inspect_command)
+cli.add_command(explain_command)
+
+
+@cli.command()
+@click.option("--path", "project_path", default=".",
+              help="Project root (default: current directory)")
+@click.option("--force", is_flag=True, default=False,
+              help="Overwrite existing configuration (config is not deleted "
+                   "by default; it must be explicitly regenerated)")
+def init(project_path, force):
+    """Detect the project and generate .workflo configuration.
+
+    Inspects the project for language, package manager, test framework,
+    start command, and port — then creates .workflo/ with a minimal,
+    correct config. NEVER modifies the application source; the sandbox
+    only ever *copies* your repo.
+    """
+    from pathlib import Path
+    from workflo_utils.detect import detect_project, config_for_detection
+    from workflo_utils.project_config import (
+        PROJECT_CONFIG_FILE, DEFAULT_POLICIES_YAML,
+    )
+
+    root = Path(project_path).resolve()
+
+    # Deliberately non-destructive: never overwrite without --force.
+    existing = root / PROJECT_CONFIG_FILE
+    if existing.exists() and not force:
+        click.echo(f"Config already exists: {existing}")
+        click.echo("  Use --force to regenerate.")
+        sys.exit(5)  # CONFIGURATION_ERROR
+
+    det = detect_project(root)
+    click.echo("Workflo Project Setup\n")
+    if not det.detected:
+        click.echo(f"! Could not detect project type in {root}")
+        click.echo("  Trying: fall back to a minimal Python-aware setup")
+        det.language = "python"
+
+    click.echo(f"✓ {det.language} detected")
+    if det.package_manager:
+        click.echo(f"✓ {det.package_manager} detected")
+    if det.framework:
+        click.echo(f"✓ {det.framework} detected")
+    if det.test_command:
+        click.echo(f"✓ test command: {det.test_command}")
+    if det.start_command:
+        click.echo(f"✓ start command: {det.start_command}")
+    if det.port:
+        click.echo(f"✓ port: {det.port}")
+    for note in det.notes:
+        click.echo(f"  ⚠ {note}")
+
+    cfg = config_for_detection(det)
+    cfg.name = root.name
+    cfg_path = cfg.save(root)
+
+    policy_path = root / ".workflo" / "policies.yaml"
+    if not policy_path.exists() or force:
+        policy_path.write_text(DEFAULT_POLICIES_YAML, encoding="utf-8")
+
+    click.echo(f"\nCreated:")
+    click.echo(f"  {cfg_path.relative_to(root)}")
+    click.echo(f"  .workflo/policies.yaml")
+    click.echo(f"\nNext: workflo doctor")
+
+
+@cli.command()
+@click.option("--path", "project_path", default=".",
+              help="Project root (default: current directory)")
+def doctor(project_path):
+    """Check that the host can execute Workflo runs.
+
+    Reports per-capability status (OK / DEGRADED / NOT CONFIGURED /
+    UNAVAILABLE) and an overall verdict based on the run contract's
+    fail-closed requirements.
+    """
+    from pathlib import Path
+    from workflo_cli.doctor import run_doctor, render
+
+    report = run_doctor(Path(project_path))
+    click.echo(render(report))
+    sys.exit(0 if report.overall == "READY" else 1)
+
+
+@cli.command()
+@click.option("--runs-dir", default=".workflo/runs",
+              help="Directory containing run state (default: .workflo/runs)")
+@click.option("--run", "run_id", default=None,
+              help="Show a specific run id (default: most recently updated)")
+def status(runs_dir, run_id):
+    """Show the live console for the latest (or given) run.
+
+    Reads <run>/run_state.json — the small always-current snapshot the
+    supervisor maintains on every lifecycle event. Best-effort: if a run
+    is mid-flight you see it change on each invocation.
+    """
+    from sandbox_runtime.run_state import (
+        find_latest_run, load_run_state, render_console,
+    )
+
+    runs_dir = Path(runs_dir)
+    state_path = (runs_dir / run_id / "run_state.json") if run_id \
+        else find_latest_run(runs_dir)
+    if state_path is None:
+        click.echo(f"No runs found under {runs_dir}")
+        sys.exit(5)  # CONFIGURATION_ERROR: nothing to show
+    state = load_run_state(state_path)
+    if state is None:
+        click.echo(f"Run state unreadable: {state_path}", err=True)
+        sys.exit(2)
+    # The console uses ✓/● marks — never crash on cp1252 terminals.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
+    click.echo(render_console(state))
 
 
 @cli.command()
@@ -407,6 +548,13 @@ cli.add_command(repl_command)
 @click.option("--port", default=None, type=int,
               help="Port the app under test binds (web tier). Waited-on before browser probes run.")
 @click.option("--commit-sha", default=None, help="Pin a specific commit (default: HEAD)")
+@click.option("--ref", "git_ref", default=None,
+              help="Git ref to test (branch/tag) — resolved to an immutable commit SHA "
+                   "via the GitHub connector before the run (mutually exclusive with --commit-sha).")
+@click.option("--instruction", "-m", "instruction", default=None,
+              help="Natural-language testing mission for the agent "
+                   "(e.g. 'Test authentication and checkout'). Bounded to 512 "
+                   "chars; reaches the hosted model only as redacted text.")
 @click.option("--output", "-o", default=None, help="Write the result JSON to a file")
 @click.option(
     "--worker-image", default=None,
@@ -443,8 +591,9 @@ cli.add_command(repl_command)
               help="Load defaults from a YAML or JSON config file (CLI flags override)")
 def run(
     repo, repo_path, surface, deep, aggressive, security, web, publish, start_command, port,
-    commit_sha, output, worker_image, deep_worker_image, web_worker_image,
+    commit_sha, instruction, output, worker_image, deep_worker_image, web_worker_image,
     timeout, memory, cpu, pubkey, force, dry_run, config_path, via_api, api_key,
+    git_ref,
 ):
     """Run the sandbox pipeline against a repo.
 
@@ -505,6 +654,8 @@ def run(
     start_command = merge(start_command, "start_command")
     port = merge(port, "port")
     commit_sha = merge(commit_sha, "commit_sha")
+    git_ref = merge(git_ref, "ref")
+    instruction = merge(instruction, "instruction")
     output = merge(output, "output")
     worker_image = merge(worker_image, "worker_image", "workflo-worker:latest")
     # The deep image has NO default here: we leave it None so the executor
@@ -542,6 +693,28 @@ def run(
     else:
         repo = _validate_repo_url(repo)
     commit_sha = _validate_commit_sha(commit_sha)
+    # --ref resolves to the track of "which commit" — the SAME ref-to-SHA
+    # machinery backs --commit-sha in RunConfig (resolve_ref accepts branch,
+    # tag, or hex). The two flags are one semantic knob; never both.
+    if git_ref and commit_sha:
+        raise click.UsageError(
+            "--ref and --commit-sha are mutually exclusive (--ref resolves a "
+            "branch/tag to the immutable SHA before the run)"
+        )
+    if git_ref:
+        commit_sha = _validate_commit_sha(git_ref)
+
+    # Instruction (agent mission): bounded free text. It reaches the hosted
+    # model as redacted text via the planner — never any source code.
+    MAX_INSTRUCTION_CHARS = 512
+    if instruction is not None:
+        instruction = str(instruction).strip()
+        if not instruction:
+            instruction = None
+        elif len(instruction) > MAX_INSTRUCTION_CHARS:
+            raise click.BadParameter(
+                f"--instruction too long ({len(instruction)} > {MAX_INSTRUCTION_CHARS} chars)"
+            )
 
     # Validate worker-image name (defense in depth)
     if not re.match(r"^[A-Za-z0-9._:/\-@]+$", worker_image):
@@ -612,6 +785,26 @@ def run(
         yaml_start, yaml_port = _read_cli_workflo_yaml(repo)
         start_command = start_command or yaml_start
         port = port or yaml_port
+
+    # Project-ingestion fallback (day 6): for a LOCAL input the resolver can
+    # answer start_command/port from the repo itself (package scripts,
+    # framework defaults) when neither flags nor workflo.yaml provided them.
+    # Explicit CLI/config values always win — detection never overrides user
+    # intent, it fills gaps. For git URLs, detection happens worker-side.
+    def _detect_app_config():
+        if not repo_path:
+            return None, None
+        try:
+            from workflo_utils.detect import detect_project
+            det = detect_project(Path(repo_path))
+        except Exception:
+            return None, None
+        return det.start_command, det.port
+
+    if (web or security or deep or aggressive) and not (start_command and port):
+        detected_start, detected_port = _detect_app_config()
+        start_command = start_command or detected_start
+        port = port or detected_port
 
     if web:
         missing = []
@@ -837,6 +1030,7 @@ def run(
             "repo": repo,
             "repo_path": repo_path,
             "commit_sha": commit_sha,
+            "instruction": instruction,
             "probe_groups": probe_groups,
             # Surface BOTH images and the auto-switch decision so a reviewer
             # can see what was configured AND what was selected. The selected
@@ -894,6 +1088,18 @@ def run(
     signer = generate_keypair()
     _persist_signing_pubkey(signer)
 
+    # LLM planner mode for deep tiers: the LLM endpoint must be configured
+    # AND reachable (cheap pre-flight) — otherwise the agent falls back to
+    # the deterministic task-spec mode inside the sandbox.
+    agent_planner = False
+    if needs_deep_image:
+        llm_cfg = load_llm_config()
+        if llm_cfg and not llm_cfg.is_placeholder() and llm_cfg.api_key:
+            # Set the env vars the host-side planner reads. These stay in
+            # this process — secrets never enter RunConfig or the evidence.
+            os.environ.update(llm_env_for_run(llm_cfg))
+            agent_planner = True
+
     click.echo(f"Sandbox ID: {sandbox_id}", err=True)
     if repo:
         click.echo(f"Repo: {repo}", err=True)
@@ -901,6 +1107,8 @@ def run(
         click.echo(f"Local path: {repo_path}", err=True)
     if commit_sha:
         click.echo(f"Commit: {commit_sha}", err=True)
+    if instruction:
+        click.echo(f"Instruction: {instruction}", err=True)
     click.echo(f"Probe groups: {', '.join(probe_groups)}", err=True)
     # The banner prints both images when a deep-tier run was requested, so a
     # reviewer watching stderr sees the auto-switch happen explicitly.
@@ -931,60 +1139,164 @@ def run(
     else:
         click.echo("Isolation: single-stage sealed (network=none)", err=True)
     click.echo(f"Public key fingerprint: {signer.public_key_fingerprint}", err=True)
+    click.echo(
+        "Agent planner: LLM (autonomous deep test)"
+        if agent_planner
+        else "Agent planner: task-spec (LLM not configured — deterministic default task)",
+        err=True,
+    )
     click.echo("Starting sandbox run...", err=True)
 
-    # Pass ALL THREE images to the executor — it picks the right one based on
-    # the spec's probe groups (the executor is the single source of truth at
-    # run time, so the CLI's banner choice and the executor's choice can't
-    # drift).
-    executor = SandboxExecutor(
-        worker_image=worker_image,
-        deep_worker_image=deep_worker_image,
-        web_worker_image=web_worker_image,
-        signer=signer,
+    # Use supervisor client (falls back to local execution if supervisor not running)
+    supervisor_client = create_supervisor_client()
+
+    # Build RunConfig for supervisor
+    from sandbox_runtime.config import RunConfig, DepMode
+
+    run_config = RunConfig(
+        sandbox_id=sandbox_id,
+        repo_url=repo if repo else None,
+        repo_path=Path(repo_path) if repo_path else None,
+        commit_sha=commit_sha,
+        probe_groups=probe_groups,
+        runtime_image=Path("/opt/workflo/workflo-worker"),
+        memory_mb=memory,
+        cpu_cores=cpu,
+        timeout_seconds=timeout,
+        dep_mode=DepMode.PREFLIGHT_CACHE if dependency_install else DepMode.VENDOR_CACHE,
+        evidence_dir=Path(".workflo/runs"),
+        start_command=start_command,
+        port=port,
+        agent_planner=agent_planner,
+        mission=instruction,
     )
 
     try:
-        result = executor.run(spec)
+        result = supervisor_client.run(run_config)
     except KeyboardInterrupt:
         click.echo("Interrupted - sandbox may not be fully torn down.", err=True)
         sys.exit(130)
     except Exception as e:
-        click.echo(f"Executor error: {type(e).__name__}: {e}", err=True)
+        click.echo(f"Supervisor error: {type(e).__name__}: {e}", err=True)
         sys.exit(2)
 
     click.echo(f"Run complete: {'SUCCESS' if result.success else 'FAILURE'}", err=True)
     elapsed = getattr(result, "elapsed_seconds", None)
     if isinstance(elapsed, (int, float)):
         click.echo(f"  Duration: {elapsed:.2f}s", err=True)
-    click.echo(f"  Tests: {result.report.passed}/{result.report.total} passed", err=True)
-    if isinstance(getattr(result.report, "failed", None), int) and result.report.failed > 0:
-        click.echo(f"  Failed: {result.report.failed}", err=True)
-    if getattr(result.report, "collection_error", None) and isinstance(result.report.collection_error, str):
-        click.echo(f"  Collection error: {result.report.collection_error}", err=True)
-    click.echo(f"  Container removed: {result.receipt.teardown_proof.container_removed}", err=True)
-    click.echo(f"  Filesystem removed: {result.receipt.teardown_proof.filesystem_removed}", err=True)
-    teardown_proof = getattr(result.receipt, "teardown_proof", None)
-    if teardown_proof is not None and getattr(teardown_proof, "model_inference_teardown", None) is not None:
-        if isinstance(teardown_proof.model_inference_teardown, bool):
-            click.echo(f"  Model state wiped: {teardown_proof.model_inference_teardown}", err=True)
-    canary_succeeded = getattr(getattr(result.receipt, "canary_check", None), "request_succeeded", None)
-    if isinstance(canary_succeeded, bool):
-        click.echo(f"  Canary passed (egress blocked): {not canary_succeeded}", err=True)
+
+    # --- Sign the receipt in the CLI process ---
+    # The supervisor never holds the signing key: it returns an unsigned
+    # SignedReceipt payload (bound to the evidence bundle digests) and we
+    # sign it here. Even a compromised supervisor cannot forge receipts.
+    receipt = None
+    receipt_payload = getattr(result, "receipt_payload", None)
+    if receipt_payload:
+        try:
+            from workflo_schema.sandbox import SignedReceipt
+            receipt = SignedReceipt(**receipt_payload)
+            receipt = signer.sign(receipt)
+        except Exception as e:
+            click.echo(f"Warning: receipt payload failed schema/signing: {e}", err=True)
+            receipt = None
+
+        if receipt:
+            # Persist the SIGNED receipt next to the run root.
+            evidence_dir = getattr(result, "evidence_dir", None)
+            run_root = Path(evidence_dir).parent if evidence_dir else Path(".workflo/runs") / sandbox_id
+            try:
+                receipt_path = run_root / "receipt.json"
+                receipt_path.parent.mkdir(parents=True, exist_ok=True)
+                receipt_path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+                result.receipt_path = receipt_path
+                click.echo(f"  Signed receipt: {receipt_path}", err=True)
+            except OSError as e:
+                click.echo(f"Warning: could not persist receipt: {e}", err=True)
+
+    # Fallback: load receipt from path (e.g. daemon wrote it)
+    if receipt is None and result.receipt_path and result.receipt_path.exists():
+        from workflo_schema.sandbox import SignedReceipt
+        with open(result.receipt_path) as f:
+            receipt_data = json.load(f)
+        try:
+            receipt = SignedReceipt(**receipt_data)
+        except Exception as e:
+            click.echo(f"Warning: receipt file failed schema: {e}", err=True)
+            receipt = None
+
+    # --- Exit-gate artifact set: project the signed receipt + evidence into
+    # the run root (provenance.json, findings.json, teardown_attestation.json,
+    # receipt.sig, tool_calls.jsonl, observations.jsonl, manifest). ---
+    if receipt is not None:
+        try:
+            from workflo_cli.run_artifacts import materialize_run_artifacts
+
+            evidence_dir = getattr(result, "evidence_dir", None)
+            run_root = (
+                Path(evidence_dir).parent if evidence_dir
+                else Path(".workflo/runs") / sandbox_id
+            )
+            materialize_run_artifacts(
+                run_root,
+                Path(evidence_dir) if evidence_dir else None,
+                receipt=receipt,
+                receipt_path=getattr(result, "receipt_path", None),
+            )
+        except Exception as e:  # artifact projection never fails the run
+            click.echo(f"Warning: artifact materialization incomplete: {e}", err=True)
+
+    if receipt:
+        click.echo(f"  Tests: {receipt.run_report.passed}/{receipt.run_report.total} passed", err=True)
+        if isinstance(getattr(receipt.run_report, "failed", None), int) and receipt.run_report.failed > 0:
+            click.echo(f"  Failed: {receipt.run_report.failed}", err=True)
+        if getattr(receipt.run_report, "collection_error", None) and isinstance(receipt.run_report.collection_error, str):
+            click.echo(f"  Collection error: {receipt.run_report.collection_error}", err=True)
+        tp = receipt.teardown_proof
+        if getattr(tp, "runtime_type", None) == "namespaces":
+            click.echo(f"  Processes terminated: {tp.processes_terminated}", err=True)
+            click.echo(f"  Cgroup removed: {tp.cgroup_removed}", err=True)
+            click.echo(f"  Network namespace removed: {tp.network_namespace_removed}", err=True)
+            click.echo(f"  Workspace removed: {tp.workspace_removed}", err=True)
+        else:
+            click.echo(f"  Container removed: {tp.container_removed}", err=True)
+            click.echo(f"  Filesystem removed: {tp.filesystem_removed}", err=True)
+        if tp is not None and getattr(tp, "model_inference_teardown", None) is not None:
+            if isinstance(tp.model_inference_teardown, bool):
+                click.echo(f"  Model state wiped: {tp.model_inference_teardown}", err=True)
+        canary_succeeded = getattr(getattr(receipt, "canary_check", None), "request_succeeded", None)
+        if isinstance(canary_succeeded, bool):
+            click.echo(f"  Canary passed (egress blocked): {not canary_succeeded}", err=True)
+        else:
+            click.echo(f"  Canary passed (egress blocked): {not receipt.canary_check.request_succeeded}", err=True)
+        if getattr(receipt, "dependency_install_had_network", None) is True:
+            click.echo("  Dependency install: Stage 1 prep completed with network", err=True)
+        if getattr(receipt, "evidence_binding", None) is not None:
+            click.echo(f"  Evidence bundle: {receipt.evidence_binding.bundle_sha256[:16]}...", err=True)
+        aa = getattr(receipt, "agent_activity", None)
+        if aa is not None:
+            planner_label = getattr(aa, "planner", None) or "task_spec"
+            click.echo(
+                f"  Agent ({planner_label}): {aa.tool_calls} tool calls, "
+                f"{aa.denied_attempts} denied, "
+                f"{aa.steps_completed}/{aa.steps_total} steps met",
+                err=True,
+            )
     else:
-        click.echo(f"  Canary passed (egress blocked): {not result.receipt.canary_check.request_succeeded}", err=True)
-    if getattr(result.receipt, "dependency_install_had_network", None) is True:
-        click.echo("  Dependency install: Stage 1 prep completed with network", err=True)
+        click.echo(f"  Tests: N/A (receipt not available)", err=True)
+    
     events = getattr(result, "lifecycle_events", None)
     if isinstance(events, list) and len(events) > 0:
         click.echo(f"  Lifecycle events recorded: {len(events)}", err=True)
-    sig = getattr(result.receipt, "signature", None)
-    if isinstance(sig, str) and sig:
-        click.echo(f"  Receipt signature: {sig[:16]}...", err=True)
+    
+    # Output receipt JSON if available
+    if receipt:
+        output_json = receipt.model_dump_json(indent=2)
     else:
-        click.echo("  Receipt signature: NONE...", err=True)
-
-    output_json = result.to_json()
+        output_json = json.dumps({
+            "success": result.success,
+            "error": result.error,
+            "lifecycle_events": result.lifecycle_events,
+        }, indent=2, default=str)
 
     if output_path:
         if len(output_json.encode("utf-8")) > MAX_OUTPUT_BYTES:
@@ -999,7 +1311,20 @@ def run(
     else:
         click.echo(output_json)
 
-    sys.exit(0 if result.success else 1)
+    # Exit code contract (run_contract.md §6): exit codes are part of the
+    # public API. Failed tests or agent findings → VERIFIED_WITH_FINDINGS (1);
+    # verified + clean → VERIFIED (0).
+    failed_tests = 0
+    if receipt is not None:
+        failed_tests = int(getattr(receipt.run_report, "failed", 0) or 0)
+    sys.exit(classify_run_outcome(
+        result.success,
+        failed_tests=failed_tests,
+        findings_count=getattr(result, "findings_count", 0)
+        or (len(receipt.run_report.findings)
+            if receipt is not None and hasattr(receipt.run_report, "findings")
+            else 0),
+    ))
 
 
 def _run_via_api(
@@ -1142,13 +1467,17 @@ def _run_via_api(
 
 
 @cli.command()
-@click.option("--receipt", "receipt_path", required=True, help="Path to receipt JSON file")
+@click.option("--receipt", "receipt_path", default=None, help="Path to receipt JSON file")
+@click.argument("receipt_arg", required=False, metavar="RECEIPT")
 @click.option("--pubkey", default=None,
               help="Path to Ed25519 public key PEM file (not needed if receipt has key_id)")
 @click.option("--fingerprint", default=None, help="Expected public key fingerprint (SHA-256 hex)")
 @click.option("--control-plane", default=None,
               help="Control plane base URL for auto-fetching provisioned keys (default: env WORKFLO_AUTH_BASE_URL)")
-def verify(receipt_path, pubkey, fingerprint, control_plane):
+@click.option("--evidence", "evidence_dir", default=None,
+              help="Path to the evidence bundle directory to verify the receipt's evidence "
+                   "binding against (default: auto-resolve from the receipt)")
+def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, evidence_dir):
     """Verify a receipt's Ed25519 signature against a published public key.
 
     Backs Claim #4: "every run produces a signed, tamper-evident receipt."
@@ -1158,7 +1487,26 @@ def verify(receipt_path, pubkey, fingerprint, control_plane):
     auto-fetch the public key from the control plane and also check
     that the key is still active (not revoked). Use --pubkey to
     override and verify against a local PEM file instead.
+
+    If the receipt carries an evidence binding (namespace-runtime runs),
+    the hash-chained evidence ledger is independently recomputed from
+    the evidence directory and every digest is compared against the
+    signed binding — proving the evidence was not altered after signing.
+
+    `workflo verify receipt.wfrec` (positional) is equivalent to
+    `workflo verify --receipt receipt.wfrec`.
     """
+
+    # Positional alias: `workflo verify receipt.wfrec` == --receipt form
+    receipt_path = receipt_arg or receipt_path
+    # The receipt file can be given as --receipt or as the positional
+    # RECEIPT argument; the positional wins when both are supplied.
+    if receipt_arg:
+        receipt_path = receipt_arg
+    if not receipt_path:
+        raise click.UsageError(
+            "Missing option '--receipt' or positional RECEIPT argument."
+        )
 
     # Read receipt with size limit to prevent DoS
     receipt_file = Path(receipt_path)
@@ -1184,7 +1532,15 @@ def verify(receipt_path, pubkey, fingerprint, control_plane):
         from workflo_schema.sandbox import SignedReceipt
         receipt = SignedReceipt(**receipt_dict)
     except Exception as e:
-        click.echo(f"FAILED: receipt does not match schema: {e}", err=True)
+        if "UNSUPPORTED_RECEIPT_VERSION" in str(e):
+            click.echo(f"FAILED: UNSUPPORTED_RECEIPT_VERSION: {e}", err=True)
+            click.echo(
+                "This receipt was produced by a newer protocol than this CLI "
+                "understands. Upgrade workflo to verify it.",
+                err=True,
+            )
+        else:
+            click.echo(f"FAILED: receipt does not match schema: {e}", err=True)
         sys.exit(1)
 
     # Resolve public key: prefer auto-fetch by key_id (provenance), fall back to --pubkey
@@ -1293,6 +1649,63 @@ def verify(receipt_path, pubkey, fingerprint, control_plane):
         sys.exit(1)
 
     click.echo("OK: receipt signature verified", err=True)
+
+    # --- Teardown claim checks (runtime-aware) ---
+    tp = receipt.teardown_proof
+    teardown_ok = True
+    if getattr(tp, "runtime_type", None) == "namespaces":
+        namespace_fields = [
+            ("processes_terminated", tp.processes_terminated),
+            ("cgroup_removed", tp.cgroup_removed),
+            ("network_namespace_removed", tp.network_namespace_removed),
+            ("workspace_removed", tp.workspace_removed),
+        ]
+        for name, value in namespace_fields:
+            if value is not True:
+                click.echo(f"FAILED: teardown claim {name} is {value} — sandbox state may persist", err=True)
+                teardown_ok = False
+        if teardown_ok:
+            click.echo("OK: namespace teardown verified (processes, cgroup, netns, workspace gone)", err=True)
+    else:
+        if not tp.container_removed or not tp.filesystem_removed:
+            click.echo("FAILED: teardown proof shows container/filesystem not removed", err=True)
+            teardown_ok = False
+        else:
+            click.echo("OK: teardown proof verified (container + filesystem gone)", err=True)
+
+    # --- Canary claim check ---
+    if receipt.canary_check.request_succeeded:
+        click.echo("FAILED: canary request SUCCEEDED — network isolation was broken", err=True)
+        teardown_ok = False
+    else:
+        click.echo("OK: canary confirms egress was blocked", err=True)
+
+    # --- Evidence binding verification ---
+    from sandbox_isolation import resolve_evidence_dir as _resolve_ev, verify_evidence_binding
+
+    ev_dir = Path(evidence_dir) if evidence_dir else _resolve_ev(receipt_file, receipt)
+    if receipt.evidence_binding is not None:
+        if ev_dir is None:
+            click.echo(
+                "WARNING: receipt has an evidence binding but the evidence directory "
+                "could not be located — pass --evidence to verify it (binding digests "
+                "remain covered by the signature)",
+                err=True,
+            )
+        else:
+            binding_ok, binding_checks = verify_evidence_binding(receipt, ev_dir)
+            for line in binding_checks:
+                click.echo(f"  {line}", err=True)
+            if binding_ok:
+                click.echo(f"OK: evidence bundle verified ({ev_dir})", err=True)
+            else:
+                click.echo("FAILED: evidence binding verification failed", err=True)
+                sys.exit(1)
+    else:
+        click.echo("NOTE: receipt has no evidence binding (legacy Docker receipt)", err=True)
+
+    if not teardown_ok:
+        sys.exit(1)
 
     # Print key status if available
     if key_status:
