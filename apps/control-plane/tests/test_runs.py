@@ -91,8 +91,15 @@ def test_submit_run_unknown_probe_group_rejected(client):
 
 
 def test_get_nonexistent_run_404(client):
-    resp = client.get("/v1/runs/nonexistent-id")
+    headers = _demo_headers(client)
+    resp = client.get("/v1/runs/nonexistent-id", headers=headers)
     assert resp.status_code == 404
+
+
+def test_get_run_requires_auth(client):
+    """Tenant isolation: run status is no longer an unauthenticated surface."""
+    resp = client.get("/v1/runs/some-run-id")
+    assert resp.status_code == 401
 
 
 class TestRunExecutionOutcomes:
@@ -192,7 +199,7 @@ def test_legacy_lifecycle_endpoints_still_work(client):
     assert resp.status_code == 200
 
     # Legacy status view
-    resp = client.get(f"/v1/runs/{run_id}/legacy")
+    resp = client.get(f"/v1/runs/{run_id}/legacy", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "completed"

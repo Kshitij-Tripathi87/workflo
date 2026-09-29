@@ -215,6 +215,62 @@ class ProvisionedKey(Base):
     )
 
 
+class OrgDataKey(Base):
+    """Per-organization Data Encryption Key (DEK), wrapped by the master KEK.
+
+    SOC 2 CC6.7/CC6.8 envelope encryption: credential columns (API key
+    hashes, OAuth token hashes, password hashes) are AES-256-GCM encrypted
+    under the owning org's DEK; the DEK itself is wrapped by the deployment
+    KEK (KMS/HSM in production, master_kek_hex in dev). The DEK is stored
+    ONLY wrapped — never in plaintext — so a database dump alone cannot
+    be used to brute-force credential hashes.
+
+    Rotation: incrementing ``key_version``; ciphertext fields carry the
+    version tag (``wfenc1:v{n}:...``) so old rows stay readable under a
+    retired DEK until re-encrypted.
+    """
+
+    __tablename__ = "org_data_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    org_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    wrapped_dek: Mapped[str] = mapped_column(String(1024), nullable=False)  # b64(nonce):b64(ct)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | retired
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AuditEvent(Base):
+    """Immutable audit-trail event (SOC 2 CC7.2/CC7.3).
+
+    One row per security-relevant action: run creation, auth attempts,
+    key lifecycle events, provisioning/revocation. Written via a DEDICATED
+    session (audit_service) so the event survives even when the request's
+    own transaction rolls back (e.g. failed login — the denial itself must
+    be auditable).
+
+    Append-only by convention: no UPDATE/DELETE path exists in the API
+    surface — events are the system of record for "who did what, when".
+    """
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" | "api_key" | "system"
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # user.id or api_key.id
+    organization_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)  # "run.create" etc.
+    resource_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(20), nullable=False)  # "success" | "denied" | "error"
+    detail_json: Mapped[dict] = mapped_column(JSON, default=dict)  # bounded metadata, NEVER secrets
+    request_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    client_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+
+
 class User(Base):
     """A registered user account with email + password hash.
 

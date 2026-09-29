@@ -49,6 +49,8 @@ def _extract_api_key(request: Request) -> str:
 
 async def require_api_key(request: Request, db: AsyncSession = Depends(get_db)) -> ApiKey:
     """FastAPI dependency: extract and validate the API key header."""
+    from app.db.database import set_tenant_context
+
     raw_key = _extract_api_key(request)
     service = ApiKeyService(db)
     record = await service.validate_key(raw_key)
@@ -57,6 +59,9 @@ async def require_api_key(request: Request, db: AsyncSession = Depends(get_db)) 
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired API key",
         )
+    # RLS tripwire: bind this session's transaction to the key's project
+    # so cross-tenant rows are denied by the database too, not just by us.
+    await set_tenant_context(db, record.project_id)
     request.state.api_key = record
     return record
 
@@ -93,12 +98,20 @@ async def verify_bearer_token(
             detail="Invalid or expired access token",
         )
 
+    from app.core import envelope
+
+    # Stored hashes may be envelope-encrypted under the token's org DEK —
+    # reveal before the PBKDF2 comparison (legacy plaintext verifies as-is).
     stmt = select(OAuthToken)
     records = (await db.execute(stmt)).scalars().all()
-    record = next(
-        (t for t in records if not t.revoked_at and verify_token(raw_token, t.access_token_hash)),
-        None,
-    )
+    record = None
+    for t in records:
+        if t.revoked_at:
+            continue
+        stored_access = await envelope.reveal(db, t.organization_id, t.access_token_hash)
+        if verify_token(raw_token, stored_access):
+            record = t
+            break
     if not record:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -114,7 +127,7 @@ async def verify_bearer_token(
     return record, user
 
 
-async def require_scope(scope: str):
+def require_scope(scope: str):
     """FastAPI dependency factory: enforce a specific API key scope."""
     async def _check(api_key: ApiKey = Depends(require_api_key)) -> ApiKey:
         scopes = api_key.scopes if isinstance(api_key.scopes, list) else [api_key.scopes]

@@ -24,6 +24,7 @@ from app.core.crypto import utc_now
 from app.core.security import verify_bearer_token
 from app.db.database import get_db
 from app.db.models import ProvisionedKey, User
+from app.services.audit_service import record_event
 
 
 router = APIRouter(prefix="/auth/keys", tags=["key-provisioning"])
@@ -143,6 +144,17 @@ async def provision_key(
     db.add(key_record)
     await db.commit()
 
+    await record_event(
+        action="signing_key.provision",
+        outcome="success",
+        actor_type="user",
+        actor_id=user.id,
+        organization_id=user.org_id,
+        resource_type="provisioned_key",
+        resource_id=key_record.id,
+        detail={"fingerprint": fingerprint, "device_id": body.device_id},
+    )
+
     return ProvisionResponse(
         key_id=key_record.id,
         fingerprint=key_record.fingerprint,
@@ -203,6 +215,16 @@ async def revoke_key(
 
     # Authorization: same user_id
     if key_record.user_id != user.id:
+        await record_event(
+            action="signing_key.revoke",
+            outcome="denied",
+            actor_type="user",
+            actor_id=user.id,
+            organization_id=user.org_id,
+            resource_type="provisioned_key",
+            resource_id=key_id,
+            detail={"reason": "owned_by_different_user"},
+        )
         raise HTTPException(
             status_code=403,
             detail="You can only revoke keys you provisioned",
@@ -218,6 +240,17 @@ async def revoke_key(
     key_record.status = "revoked"
     key_record.revoked_at = utc_now()
     await db.commit()
+
+    await record_event(
+        action="signing_key.revoke",
+        outcome="success",
+        actor_type="user",
+        actor_id=user.id,
+        organization_id=user.org_id,
+        resource_type="provisioned_key",
+        resource_id=key_id,
+        detail={"fingerprint": key_record.fingerprint},
+    )
 
     return RevokeResponse(
         key_id=key_record.id,

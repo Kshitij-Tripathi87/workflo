@@ -13,8 +13,12 @@ from app.api.v1.health import router as health_router
 from app.api.v1.runs import router as runs_router
 from app.api.v1.keys import router as keys_router
 from app.api.v1.artifacts import router as artifacts_router
+from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.key_provisioning import router as key_provisioning_router
+from app.api.v1.inference import router as inference_router
+from app.api.v1.audit import router as audit_router
+from app.api.v1.orgs import router as orgs_router
 from app.api.oauth import router as oauth_router
 from app.db.database import init_db, get_db
 from app.db.queue import run_queue
@@ -41,12 +45,32 @@ def create_app() -> FastAPI:
         description="The orchestration API for the Tenant Shield multi-tenant testing platform.",
         lifespan=lifespan,
     )
+
+    @app.middleware("http")
+    async def request_id_middleware(request: Request, call_next):
+        """Attach a correlation ID to every request (SOC 2 CC7.2).
+
+        Honors an inbound X-Request-ID (CI systems correlate pipeline →
+        control-plane events); otherwise generates one. Echoed on the
+        response so callers can cite it in an audit query.
+        """
+        import uuid as _uuid
+
+        request_id = request.headers.get("X-Request-ID") or str(_uuid.uuid4())
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
     app.include_router(health_router, prefix="/v1", tags=["health"])
     app.include_router(runs_router, prefix="/v1", tags=["runs"])
     app.include_router(keys_router, prefix="/v1", tags=["keys"])
     app.include_router(artifacts_router, prefix="/v1", tags=["artifacts"])
+    app.include_router(audit_router, prefix="/v1", tags=["audit"])
+    app.include_router(orgs_router, prefix="/v1", tags=["orgs"])
     app.include_router(auth_router, prefix="/v1", tags=["auth"])
     app.include_router(key_provisioning_router, prefix="/v1", tags=["key-provisioning"])
+    app.include_router(inference_router, prefix="/v1", tags=["inference"])
     # Standard OAuth endpoints (RFC 8628/6749/7009) at root level for
     # cortex-auth client compatibility.
     app.include_router(oauth_router)

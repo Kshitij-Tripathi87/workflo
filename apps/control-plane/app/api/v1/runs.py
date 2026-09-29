@@ -27,7 +27,10 @@ from workflo_schema.api import RunRequest, RunStatus
 from app.db import database as db_module
 from app.db.database import get_db
 from app.db.models import ApiKey, TestRun
+from app.services.audit_service import record_event
 from app.services.run_service import RunService
+from app.core.config import settings
+from app.core.rate_limit import check_tenant_rate_limit
 from app.core.security import require_api_key
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -60,6 +63,65 @@ class CompleteRunRequest(BaseModel):
     duration_seconds: float = 0.0
 
 
+def _extract_receipt_dict(summary_receipt) -> Optional[dict]:
+    """Best-effort receipt dict out of the stored summary.
+
+    The executor stores SandboxRunResult.to_json() under summary.receipt,
+    whose 'receipt' key holds the SignedReceipt dict; earlier/mock paths
+    may store the receipt dict directly. Returns None when neither shape
+    holds a SignedReceipt — the caller treats that as "nothing to log".
+    """
+    if not isinstance(summary_receipt, dict):
+        return None
+    if "sandbox_id" in summary_receipt and "signature" in summary_receipt:
+        return summary_receipt
+    inner = summary_receipt.get("receipt")
+    if isinstance(inner, dict) and "sandbox_id" in inner:
+        return inner
+    return None
+
+
+def _append_receipt_to_transparency_log(receipt_dict: dict, run_id: str) -> None:
+    """Append the receipt's canonical fingerprint to the transparency log.
+
+    Best-effort and off the request path by design (a logging outage must
+    not fail customer runs), but failures ARE audit-visible.
+    """
+    if not settings.transparency_log_path:
+        return
+    try:
+        from pathlib import Path as _Path
+
+        from sandbox_isolation.transparency import (
+            LocalTransparencyLog,
+            receipt_fingerprint,
+        )
+        from workflo_schema.sandbox import SignedReceipt
+
+        receipt = SignedReceipt(**receipt_dict)
+        leaf = receipt_fingerprint(receipt.canonical_payload())
+        log = LocalTransparencyLog(_Path(settings.transparency_log_path))
+        record = log.append(leaf)
+        asyncio.ensure_future(record_event(
+            action="transparency.append",
+            outcome="success",
+            actor_type="system",
+            project_id=None,
+            resource_type="run",
+            resource_id=run_id,
+            detail={"tree_size": record.tree_size, "seq": record.seq},
+        ))
+    except Exception as e:  # noqa: BLE001 — transparency must not fail runs
+        asyncio.ensure_future(record_event(
+            action="transparency.append",
+            outcome="error",
+            actor_type="system",
+            resource_type="run",
+            resource_id=run_id,
+            detail={"error": f"{type(e).__name__}: {e}"},
+        ))
+
+
 async def _execute_run(run_id: str, request: RunRequest) -> None:
     """Background task: run the sandbox executor and persist the outcome.
 
@@ -83,14 +145,26 @@ async def _execute_run(run_id: str, request: RunRequest) -> None:
 
         async with db_module.async_session_factory() as db:
             service = RunService(db)
+            run = await service.get_run(run_id)
+            if run:
+                # RLS defense-in-depth: background sessions don't inherit a
+                # request's tenant binding — set it from the run itself.
+                await db_module.set_tenant_context(db, run.project_id)
+            result_json = json.loads(result.to_json())
             await service.complete_run(run_id, {
                 "status": "completed",
                 # RunStatus.receipt is a dict; to_json() returns a string.
-                "receipt": json.loads(result.to_json()),
+                "receipt": result_json,
             })
+            receipt_dict = _extract_receipt_dict(result_json)
+            if receipt_dict:
+                _append_receipt_to_transparency_log(receipt_dict, run_id)
     except Exception as e:
         async with db_module.async_session_factory() as db:
             service = RunService(db)
+            run = await service.get_run(run_id)
+            if run:
+                await db_module.set_tenant_context(db, run.project_id)
             await service.fail_run(run_id, f"{type(e).__name__}: {e}")
 
 
@@ -111,17 +185,53 @@ async def create_run(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # Per-tenant submission ceiling: one noisy project cannot starve the
+    # shared worker capacity (SOC 2 CC6.1 — resource isolation).
+    if settings.rate_limit_runs_per_minute > 0:
+        allowed, retry_after = check_tenant_rate_limit(api_key.project_id)
+        if not allowed:
+            await record_event(
+                action="run.create",
+                outcome="denied",
+                actor_type="api_key",
+                actor_id=api_key.id,
+                project_id=api_key.project_id,
+                detail={"reason": "rate_limited", "retry_after": retry_after},
+            )
+            raise HTTPException(
+                status_code=429,
+                detail=f"Run submission rate limit exceeded for this project",
+                headers={"Retry-After": str(retry_after)},
+            )
+
     service = RunService(db)
     # enqueue=False: the frozen contract executes in-process in the
     # background task below; the legacy queue path is not used.
     run = await service.create_run(api_key.project_id, spec.model_dump(), enqueue=False)
+    await record_event(
+        action="run.create",
+        outcome="success",
+        actor_type="api_key",
+        actor_id=api_key.id,
+        project_id=api_key.project_id,
+        resource_type="run",
+        resource_id=run.id,
+        detail={"goal": run.goal},
+    )
     asyncio.create_task(_execute_run(run.id, request))
     return RunStatus(run_id=run.id, status="queued", created_at=run.started_at)
 
 
 @router.get("/{run_id}", response_model=RunStatus)
-async def get_run(run_id: str, db: AsyncSession = Depends(get_db)):
+async def get_run(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
     """Poll for the latest status of a run.
+
+    Tenant isolation (BOLA): the run must belong to the caller's project —
+    404 (not 403) so run IDs of other projects are not enumerable.
 
     Returns RunStatus per the frozen contract:
       - completed: receipt is the full signed receipt (test outcomes inside)
@@ -130,7 +240,7 @@ async def get_run(run_id: str, db: AsyncSession = Depends(get_db)):
     """
     service = RunService(db)
     run = await service.get_run(run_id)
-    if not run:
+    if not run or run.project_id != api_key.project_id:
         raise HTTPException(status_code=404, detail="Run not found")
 
     if run.status == "completed":
@@ -172,13 +282,25 @@ async def list_runs(db: AsyncSession = Depends(get_db), limit: int = 20, api_key
     return [CreateRunResponse(run_id=r.id, status=LegacyRunStatusEnum(r.status)) for r in runs]
 
 
-@router.get("/{run_id}/legacy", response_model=RunStatusResponse)
-async def get_run_legacy(run_id: str, db: AsyncSession = Depends(get_db)):
-    """Legacy status view (dashboard shape) — not part of frozen v1."""
+async def _get_own_run(run_id: str, api_key: ApiKey, db: AsyncSession) -> TestRun:
+    """Legacy endpoints share one check: the run must belong to the
+    caller's project. 404-on-mismatch keeps run IDs non-enumerable
+    across tenants."""
     service = RunService(db)
     run = await service.get_run(run_id)
-    if not run:
+    if not run or run.project_id != api_key.project_id:
         raise HTTPException(status_code=404, detail="Run not found")
+    return run
+
+
+@router.get("/{run_id}/legacy", response_model=RunStatusResponse)
+async def get_run_legacy(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    """Legacy status view (dashboard shape) — not part of frozen v1."""
+    run = await _get_own_run(run_id, api_key, db)
     return RunStatusResponse(
         run_id=run.id,
         goal=run.goal,
@@ -191,25 +313,112 @@ async def get_run_legacy(run_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{run_id}/complete")
-async def complete_run(run_id: str, req: CompleteRunRequest, db: AsyncSession = Depends(get_db)):
+async def complete_run(
+    run_id: str,
+    req: CompleteRunRequest,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await _get_own_run(run_id, api_key, db)
     service = RunService(db)
     summary = req.model_dump()
     if req.error:
-        await service.fail_run(run_id, req.error)
+        await service.fail_run(run.id, req.error)
+        outcome_status = "failed"
     else:
-        await service.complete_run(run_id, summary)
+        await service.complete_run(run.id, summary)
+        outcome_status = "completed"
+    await record_event(
+        action="run.complete",
+        outcome="success",
+        actor_type="api_key",
+        actor_id=api_key.id,
+        project_id=api_key.project_id,
+        resource_type="run",
+        resource_id=run.id,
+        detail={"status": outcome_status},
+    )
     return {"run_id": run_id, "status": "completed"}
 
 
 @router.post("/{run_id}/logs")
-async def append_logs(run_id: str, log_line: str = "", db: AsyncSession = Depends(get_db)):
+async def append_logs(
+    run_id: str,
+    log_line: str = "",
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await _get_own_run(run_id, api_key, db)
     service = RunService(db)
-    await service.append_logs(run_id, log_line)
+    await service.append_logs(run.id, log_line)
     return {"run_id": run_id, "ack": True}
 
 
 @router.post("/{run_id}/cancel")
-async def cancel_run(run_id: str, db: AsyncSession = Depends(get_db)):
+async def cancel_run(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await _get_own_run(run_id, api_key, db)
     service = RunService(db)
-    await service.cancel_run(run_id)
+    await service.cancel_run(run.id)
+    await record_event(
+        action="run.cancel",
+        outcome="success",
+        actor_type="api_key",
+        actor_id=api_key.id,
+        project_id=api_key.project_id,
+        resource_type="run",
+        resource_id=run.id,
+    )
     return {"run_id": run_id, "status": "cancelled"}
+
+
+@router.get("/{run_id}/proof")
+async def get_run_inclusion_proof(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merkle inclusion proof that this run's receipt is in the
+    transparency log (SOC 2 CC6.8/CC7.2). Tenant-scoped like every run
+    surface; the proof verifies offline against a checkpoint root the
+    caller pinned earlier — no trust in the server at verify time.
+    """
+    run = await _get_own_run(run_id, api_key, db)
+    if not settings.transparency_log_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Transparency log is not configured on this control plane",
+        )
+    receipt_dict = _extract_receipt_dict((run.summary_json or {}).get("receipt"))
+    if not receipt_dict:
+        raise HTTPException(status_code=404, detail="No signed receipt for this run")
+
+    from pathlib import Path as _Path
+
+    from sandbox_isolation.transparency import (
+        LocalTransparencyLog,
+        receipt_fingerprint,
+    )
+    from workflo_schema.sandbox import SignedReceipt
+
+    try:
+        leaf = receipt_fingerprint(SignedReceipt(**receipt_dict).canonical_payload())
+        log = LocalTransparencyLog(_Path(settings.transparency_log_path))
+    except Exception as e:
+        # A load failure here is exactly the tamper-detection signal the
+        # log exists for — surface it as an error, never as "not found".
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transparency log integrity check failed: {type(e).__name__}",
+        ) from e
+
+    proof = log.proof_inclusion(leaf)
+    if proof is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Receipt not present in the transparency log",
+        )
+    return proof

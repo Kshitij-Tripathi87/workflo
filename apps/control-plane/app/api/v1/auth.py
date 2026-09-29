@@ -15,7 +15,6 @@ OAuth 2.0 Device Authorization Grant (RFC 8628) endpoints:
 - POST /v1/auth/token/revoke       — Revoke token
 """
 
-import time
 from datetime import datetime
 from typing import Optional
 
@@ -35,6 +34,8 @@ from app.db.models import (
     User,
 )
 from app.services.api_key_service import ApiKeyService
+from app.services.audit_service import record_event
+from app.core import envelope
 from app.core.crypto import (
     hash_api_key,
     hash_password,
@@ -213,7 +214,7 @@ async def get_or_create_demo_key(db: AsyncSession) -> str:
     await get_or_create_demo_project(db)
     record = ApiKey(
         project_id="default",
-        key_hash=hash_api_key(DEMO_RAW_KEY),
+        key_hash=await envelope.protect_for_project(db, "default", hash_api_key(DEMO_RAW_KEY)),
         label=DEMO_KEY_LABEL,
         scopes=["run_tests", "read_reports", "admin"],
     )
@@ -402,8 +403,8 @@ async def poll_device_token(
         organization_id=org.id if org else None,
         workspace_id=project.id,
         scopes=dc.scopes,
-        access_token_hash=hash_token(access_token),
-        refresh_token_hash=hash_token(refresh_token),
+        access_token_hash=await envelope.protect(db, org.id if org else None, hash_token(access_token)),
+        refresh_token_hash=await envelope.protect(db, org.id if org else None, hash_token(refresh_token)),
         access_token_expires_at=token_expiry(ACCESS_TOKEN_EXPIRY_MINUTES),
         refresh_token_expires_at=refresh_token_expiry(REFRESH_TOKEN_EXPIRY_DAYS),
     )
@@ -447,10 +448,12 @@ async def refresh_token(
     result = await db.execute(stmt)
     tokens = result.scalars().all()
 
-    # Find matching token (verify against stored hashes)
+    # Find matching token (verify against stored hashes — sealed hashes
+    # are revealed under the token's org DEK first)
     matched_token: Optional[OAuthToken] = None
     for t in tokens:
-        if t.client_id == client_id and verify_token(refresh_token, t.refresh_token_hash):
+        stored_refresh = await envelope.reveal(db, t.organization_id, t.refresh_token_hash)
+        if t.client_id == client_id and verify_token(refresh_token, stored_refresh):
             matched_token = t
             break
 
@@ -527,8 +530,8 @@ async def refresh_token(
         organization_id=user.org_id,
         workspace_id=workspace.id,
         scopes=new_scopes,
-        access_token_hash=hash_token(new_access_token),
-        refresh_token_hash=hash_token(new_refresh_token),
+        access_token_hash=await envelope.protect(db, user.org_id, hash_token(new_access_token)),
+        refresh_token_hash=await envelope.protect(db, user.org_id, hash_token(new_refresh_token)),
         access_token_expires_at=token_expiry(ACCESS_TOKEN_EXPIRY_MINUTES),
         refresh_token_expires_at=refresh_token_expiry(REFRESH_TOKEN_EXPIRY_DAYS),
     )
@@ -561,10 +564,12 @@ async def revoke_token(
     for t in tokens:
         if t.client_id != client_id:
             continue
-        if token_type_hint in (None, "refresh_token") and verify_token(token, t.refresh_token_hash):
+        stored_refresh = await envelope.reveal(db, t.organization_id, t.refresh_token_hash)
+        stored_access = await envelope.reveal(db, t.organization_id, t.access_token_hash)
+        if token_type_hint in (None, "refresh_token") and verify_token(token, stored_refresh):
             t.revoked_at = utc_now()
             revoked = True
-        elif token_type_hint in (None, "access_token") and verify_token(token, t.access_token_hash):
+        elif token_type_hint in (None, "access_token") and verify_token(token, stored_access):
             t.revoked_at = utc_now()
             revoked = True
 
@@ -575,23 +580,14 @@ async def revoke_token(
     return RevokeTokenResponse(revoked=revoked)
 
 
-# ---- Rate limiting for login ----
-
-# Simple in-memory rate limiter (single-instance; distributed env would use Redis)
-_login_attempts: dict[str, list[float]] = {}
+# ---- Rate limiting for login (per-IP; shared module, test-resettable) ----
+from app.core.rate_limit import check_login_rate_limit as _check_login_rate_limit_raw
 
 
 def _check_login_rate_limit(ip: str) -> bool:
-    """Allow 5 login attempts per IP per 5 minutes, with exponential backoff."""
-    now = time.time()
-    timestamps = _login_attempts.get(ip, [])
-    timestamps = [t for t in timestamps if now - t < 300]  # 5 min window
-    _login_attempts[ip] = timestamps
-    if len(timestamps) >= 5:
-        return False  # rate limited
-    timestamps.append(now)
-    _login_attempts[ip] = timestamps
-    return True
+    """Allow 5 login attempts per IP per 5 minutes (sliding window)."""
+    allowed, _retry_after = _check_login_rate_limit_raw(ip)
+    return allowed
 
 
 # ---- Endpoints ----
@@ -621,19 +617,22 @@ async def signup(
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Hash password with argon2id
+    # Hash password with argon2id, then seal the HASH under the new org's
+    # DEK — a stolen DB dump cannot be brute-forced without the KEK.
     password_hash = hash_password(password)
+
+    org = Organization(name=f"Org for {email}")
+    db.add(org)
+    await db.flush()
+
+    protected_hash = await envelope.protect(db, org.id, password_hash)
 
     # Create user + default organization (own transaction)
     user = User(
         email=email,
-        password_hash=password_hash,
+        password_hash=protected_hash,
     )
     db.add(user)
-    await db.flush()
-
-    org = Organization(name=f"Org for {email}")
-    db.add(org)
     await db.flush()
 
     # Link user to org
@@ -650,6 +649,18 @@ async def signup(
     # Ensure the shared demo project + demo API key exist (idempotent)
     await get_or_create_demo_project(db)
     api_key = await get_or_create_demo_key(db)
+
+    await record_event(
+        action="auth.signup",
+        outcome="success",
+        actor_type="user",
+        actor_id=user.id,
+        organization_id=org.id,
+        project_id=project.id,
+        detail={"email_domain": email.split("@")[-1]},
+        client_ip=request.client.host if request.client else None,
+        request_id=getattr(request.state, "request_id", None),
+    )
 
     return {
         "user_id": user.id,
@@ -686,8 +697,23 @@ async def login(
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(password, user.password_hash):
+    # Reveal the sealed hash under the user's org DEK before argon2 verification.
+    stored_password = (
+        await envelope.reveal(db, user.org_id, user.password_hash)
+        if user
+        else ""
+    )
+
+    if not user or not verify_password(password, stored_password):
         # Generic failure — don't enumerate whether email or password is wrong
+        await record_event(
+            action="auth.login",
+            outcome="denied",
+            actor_type="user",
+            detail={"email_domain": email.split("@")[-1] if "@" in email else ""},
+            client_ip=client_host,
+            request_id=getattr(request.state, "request_id", None),
+        )
         raise HTTPException(
             status_code=400,
             detail="Invalid credentials",
@@ -717,14 +743,25 @@ async def login(
         scopes=["openid", "profile", "offline_access",
                 "workflo:runs:create", "workflo:runs:read",
                 "workflo:receipts:read", "workflo:projects:read"],
-        access_token_hash=hash_token(access_token),
-        refresh_token_hash=hash_token(refresh_token),
+        access_token_hash=await envelope.protect(db, org.id if org else None, hash_token(access_token)),
+        refresh_token_hash=await envelope.protect(db, org.id if org else None, hash_token(refresh_token)),
         access_token_expires_at=token_expiry(ACCESS_TOKEN_EXPIRY_MINUTES),
         refresh_token_expires_at=refresh_token_expiry(REFRESH_TOKEN_EXPIRY_DAYS),
     )
     db.add(oauth_token)
     await db.flush()
     await db.commit()  # persist the token row: revocation/bearer checks depend on it
+
+    await record_event(
+        action="auth.login",
+        outcome="success",
+        actor_type="user",
+        actor_id=user.id,
+        organization_id=org.id if org else None,
+        project_id=project.id,
+        client_ip=client_host,
+        request_id=getattr(request.state, "request_id", None),
+    )
 
     return TokenResponse(
         access_token=access_token,

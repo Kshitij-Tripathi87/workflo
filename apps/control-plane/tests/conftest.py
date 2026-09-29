@@ -78,6 +78,18 @@ def setup_db(tmp_path):
     asyncio.run(_drop_async())
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Rate-limit windows must not leak across tests in one process —
+    the login ceiling (5/5min) is global per IP and would otherwise make
+    later tests fail with 429 depending on execution order."""
+    from app.core.rate_limit import reset_rate_limits
+
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
+
+
 @pytest.fixture
 def client():
     """Synchronous HTTP client for testing FastAPI endpoints."""
