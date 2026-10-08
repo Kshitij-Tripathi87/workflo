@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from app.models.scenario import ScenarioRequest, ScenarioResult
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.connectors.datahub.client import DataHubClient
-from app.services.graph_builder import build_snapshot
-from app.engine.scenario_engine import apply_scenario
-from app.core.exceptions import CortexError
-from app.middleware.auth import get_current_user, require_role
 from app.core.auth import User
+from app.core.exceptions import CortexError
+from app.engine.scenario_engine import apply_scenario
+from app.middleware.auth import require_role
+from app.models.scenario import ScenarioRequest, ScenarioResult
+from app.services.graph_builder import build_snapshot
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 client = DataHubClient()

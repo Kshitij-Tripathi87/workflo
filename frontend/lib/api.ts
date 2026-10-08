@@ -146,7 +146,7 @@ export async function runDemo(payload: {
   asset_urn: string;
   scenario_type: string;
   change?: Record<string, any>;
-  notes?: string;
+  notes?: string | null;
 }): Promise<DemoResponse> {
   return request<DemoResponse>(`${apiBase}/demo/run`, {
     method: "POST",

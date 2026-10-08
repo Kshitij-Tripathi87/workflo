@@ -1,9 +1,8 @@
 """Resolution repository - persistence boundary for Resolution records."""
 
-from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Resolution
@@ -20,15 +19,15 @@ class ResolutionRepo:
         self,
         asset_urn: str,
         *,
-        plan_id: Optional[str] = None,
-        scenario_type: Optional[str] = None,
-        ranked_action: Optional[str] = None,
-        severity: Optional[int] = None,
-        predicted_effort: Optional[int] = None,
-        predicted_benefit: Optional[int] = None,
-        confidence: Optional[float] = None,
-        artifact_type: Optional[str] = None,
-        artifact_body: Optional[str] = None,
+        plan_id: str | None = None,
+        scenario_type: str | None = None,
+        ranked_action: str | None = None,
+        severity: int | None = None,
+        predicted_effort: int | None = None,
+        predicted_benefit: int | None = None,
+        confidence: float | None = None,
+        artifact_type: str | None = None,
+        artifact_body: str | None = None,
         status: str = "open",
         created_by: str = "system",
     ) -> Resolution:
@@ -51,7 +50,7 @@ class ResolutionRepo:
         await self.session.flush()
         return record
 
-    async def get_by_id(self, record_id: UUID) -> Optional[Resolution]:
+    async def get_by_id(self, record_id: UUID) -> Resolution | None:
         result = await self.session.execute(
             select(Resolution).where(Resolution.id == record_id)
         )
@@ -66,7 +65,7 @@ class ResolutionRepo:
         )
         return list(result.scalars().all())
 
-    async def update_status(self, record_id: UUID, status: str) -> Optional[Resolution]:
+    async def update_status(self, record_id: UUID, status: str) -> Resolution | None:
         record = await self.get_by_id(record_id)
         if record is None:
             return None

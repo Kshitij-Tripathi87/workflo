@@ -8,15 +8,13 @@ This is intentionally minimal: a dict. We resist building an
 "ConnectorRegistry framework" until we have 3+ connectors that share
 non-trivial logic (the rule of three).
 """
-from typing import Type
 
 from app.connectors.base import BaseConnector
 
+_REGISTRY: dict[str, type[BaseConnector]] = {}
 
-_REGISTRY: dict[str, Type[BaseConnector]] = {}
 
-
-def register(name: str, cls: Type[BaseConnector]) -> None:
+def register(name: str, cls: type[BaseConnector]) -> None:
     """Register a connector class under a string name.
 
     Idempotent: re-registering the same name replaces the previous class.

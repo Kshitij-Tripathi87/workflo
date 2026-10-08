@@ -1,8 +1,8 @@
-from typing import List, Dict
+
 from app.models.future import FutureScenario
 
 
-def _score(candidate: FutureScenario, objective: str, constraints: Dict) -> float:
+def _score(candidate: FutureScenario, objective: str, constraints: dict) -> float:
     risk_weight = 0.5
     effort_weight = 0.2
     benefit_weight = 0.3
@@ -41,9 +41,9 @@ def _score(candidate: FutureScenario, objective: str, constraints: Dict) -> floa
 
 
 def rank_candidates(
-    candidates: List[FutureScenario],
+    candidates: list[FutureScenario],
     objective: str = "minimize incident risk",
-    constraints: Dict = None
+    constraints: dict | None = None
 ) -> FutureScenario:
     if not candidates:
         raise ValueError("No candidates to rank")

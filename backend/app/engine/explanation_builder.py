@@ -1,8 +1,8 @@
-from typing import List
+
 from app.models.future import FutureScenario
 
 
-def build_explanation(ranked_choice: FutureScenario, candidates: List[FutureScenario]) -> List[str]:
+def build_explanation(ranked_choice: FutureScenario, candidates: list[FutureScenario]) -> list[str]:
     explanation = []
 
     explanation.append(f"Selected: {ranked_choice.scenario_type}")

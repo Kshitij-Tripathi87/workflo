@@ -139,6 +139,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      npm-workflo:
+        specifier: file:./packages/npm-workflo
+        version: '@cortexstudio/workflo@file:packages/npm-workflo'
       react:
         specifier: ^19.2.1
         version: 19.2.1
@@ -372,6 +375,13 @@ packages:
 
   '@chevrotain/utils@11.0.3':
     resolution: {integrity: sha512-YslZMgtJUyuMbZ+aKvfF3x1f5liK4mWNxghFRv7jqRR9C3R3fAOGTTKvxXDa2Y1s9zSbcpuO0cAxDYsc9SrXoQ==}
+
+  '@cortexstudio/workflo@file:packages/npm-workflo':
+    resolution: {directory: packages/npm-workflo, type: directory}
+    engines: {node: '>=18'}
+    cpu: [x64, arm64]
+    os: [linux, darwin, win32]
+    hasBin: true
 
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
@@ -4184,6 +4194,8 @@ snapshots:
   '@chevrotain/types@11.0.3': {}
 
   '@chevrotain/utils@11.0.3': {}
+
+  '@cortexstudio/workflo@file:packages/npm-workflo': {}
 
   '@date-fns/tz@1.4.1': {}
 

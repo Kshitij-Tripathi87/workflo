@@ -7,11 +7,10 @@ API paths while leaving the legacy DataHubClient/Adapter untouched.
 from typing import Any
 
 from app.connectors.base import BaseConnector
-from app.connectors.registry import register
-from app.connectors.datahub.client import DataHubClient
 from app.connectors.datahub.adapter import adapter as _adapter
-from app.models.asset import AssetNode, GraphEdge, GraphSnapshot
-
+from app.connectors.datahub.client import DataHubClient
+from app.connectors.registry import register
+from app.models.asset import AssetNode, EdgeType, GraphEdge, GraphSnapshot
 
 _DATAHUB_CLIENT = DataHubClient()
 
@@ -33,7 +32,7 @@ def _asset_dict_to_node(asset: dict[str, Any]) -> AssetNode:
     )
 
 
-def _infer_edge_type(source: AssetNode, target: AssetNode) -> str:
+def _infer_edge_type(source: AssetNode, target: AssetNode) -> EdgeType:
     if target.kind == "model":
         return "trains"
     if target.kind == "dashboard":

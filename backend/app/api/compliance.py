@@ -1,10 +1,11 @@
 """SOC 2 Compliance Center API Endpoints."""
 
 from fastapi import APIRouter
+
 from app.connectors.datahub.mock_store import MOCK_ASSETS
-from app.services.graph_builder import build_snapshot
 from app.engine.compliance import compliance_engine
 from app.models.compliance import ComplianceReport
+from app.services.graph_builder import build_snapshot
 
 router = APIRouter(prefix="/compliance", tags=["Compliance"])
 

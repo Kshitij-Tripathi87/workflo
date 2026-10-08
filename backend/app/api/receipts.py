@@ -1,7 +1,8 @@
 """Cryptographic Receipts and Sandbox Verification API Endpoints."""
 
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException
+from typing import Any
+
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.receipts import receipt_engine
@@ -16,9 +17,9 @@ router = APIRouter(prefix="/receipts", tags=["Receipts"])
 class SignReceiptRequest(BaseModel):
     action_type: str
     asset_urn: str
-    parameters: Dict[str, Any]
-    result_summary: Dict[str, Any]
-    soc2_controls: Optional[List[str]] = None
+    parameters: dict[str, Any]
+    result_summary: dict[str, Any]
+    soc2_controls: list[str] | None = None
 
 
 @router.post("/sign", response_model=SignedReceipt)

@@ -1,4 +1,5 @@
-from typing import List, Literal, Optional
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.core.validators import CortexURN
@@ -13,17 +14,17 @@ class AssetNode(BaseModel):
     urn: CortexURN
     name: str = Field(min_length=1, max_length=255)
     kind: AssetKind = "dataset"
-    owner: Optional[str] = Field(default=None, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
-    schema_fields: List[str] = Field(default_factory=list, max_length=500)
-    upstream: List[CortexURN] = Field(default_factory=list, max_length=1000)
-    downstream: List[CortexURN] = Field(default_factory=list, max_length=1000)
-    tags: List[str] = Field(default_factory=list, max_length=100)
-    quality_signals: List[str] = Field(default_factory=list, max_length=100)
-    governance_signals: List[str] = Field(default_factory=list, max_length=100)
-    freshness: Optional[str] = Field(default=None, max_length=64)
+    owner: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+    schema_fields: list[str] = Field(default_factory=list, max_length=500)
+    upstream: list[CortexURN] = Field(default_factory=list, max_length=1000)
+    downstream: list[CortexURN] = Field(default_factory=list, max_length=1000)
+    tags: list[str] = Field(default_factory=list, max_length=100)
+    quality_signals: list[str] = Field(default_factory=list, max_length=100)
+    governance_signals: list[str] = Field(default_factory=list, max_length=100)
+    freshness: str | None = Field(default=None, max_length=64)
     criticality: Severity = "medium"
-    status: Optional[str] = Field(default=None, max_length=64)
+    status: str | None = Field(default=None, max_length=64)
 
 
 class GraphEdge(BaseModel):
@@ -37,4 +38,4 @@ class GraphEdge(BaseModel):
 class GraphSnapshot(BaseModel):
     """Snapshot of the asset graph for reasoning."""
     nodes: dict[CortexURN, AssetNode] = Field(default_factory=dict)
-    edges: List[GraphEdge] = Field(default_factory=list, max_length=10_000)
+    edges: list[GraphEdge] = Field(default_factory=list, max_length=10_000)

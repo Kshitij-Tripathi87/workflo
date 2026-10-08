@@ -1,6 +1,6 @@
 """Prometheus metrics for the Cortex API."""
 
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Gauge, Histogram
 
 # Request metrics
 REQUESTS_TOTAL = Counter(

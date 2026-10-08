@@ -17,6 +17,13 @@ import pytest
 from sandbox_runtime.config import RunConfig, DepMode
 from sandbox_runtime.supervisor import Supervisor
 from sandbox_runtime.evidence import verify_evidence_bundle
+from sandbox_runtime.landlock import probe_abi
+
+# Host kernel capability. The supervisor's policy DIFFERS by capability, so
+# the security-mode tests below assert the branch this host is actually in
+# rather than assuming Landlock is unavailable (which only held on kernels
+# without Landlock and made the Linux gate fail).
+LANDLOCK_ABI = probe_abi()
 
 
 def _run_supervisor(supervisor, tmp_path, *, probe_stdout=None, probe_returncode=0):
@@ -251,23 +258,45 @@ class TestSecurityMode:
         assert attestation["security_mode"] == "compatible"
         assert attestation["cgroup_attached"] is True
         assert attestation["source_code_included"] is False
-        # On this (non-Linux/test) host the kernel probe reports no
-        # Landlock — the attestation must SAY so, not hide it.
-        assert attestation["landlock"]["requested"] is False
-        assert attestation["landlock"]["applied"] is False
+        # The attestation must SAY what the kernel probe found — never hide
+        # reduced isolation.
+        landlock = attestation["landlock"]
+        if LANDLOCK_ABI > 0:
+            # Landlock-capable kernel: the run requests it and records the ABI.
+            assert landlock["requested"] is True
+            assert landlock["abi_version"] == LANDLOCK_ABI
+            # No in-sandbox status files in this mocked run => not "applied",
+            # and the reason must be reported rather than left null.
+            assert landlock["applied"] is False
+            assert landlock["reason"] == "no_status_reported"
+        else:
+            # Unsupported kernel: compatible mode proceeds but says so.
+            assert landlock["requested"] is False
+            assert landlock["applied"] is False
+            assert landlock["reason"] == "not_requested"
 
-    def test_hardened_mode_refuses_unsupported_landlock(self, tmp_path):
-        """hardened + unsupported kernel -> abort BEFORE spawning workloads."""
+    def test_hardened_mode_landlock_policy(self, tmp_path):
+        """hardened mode fails closed ONLY when Landlock is unavailable.
+
+        Both directions are asserted so this is a real gate on a
+        Landlock-capable kernel (where it must NOT refuse) and on kernels
+        without Landlock (where it must abort before spawning workloads).
+        """
         supervisor = self._make_supervisor(tmp_path, security_mode="hardened")
         (tmp_path / "cgroup" / "sbx").mkdir(parents=True)
 
         result = _run_supervisor(supervisor, tmp_path)
 
-        assert result.success is False
-        assert "Landlock" in (result.error or "")
-        assert "hardened" in (result.error or "")
-        # The failure is provable: a receipt is still produced
-        assert result.receipt_payload is not None
+        if LANDLOCK_ABI > 0:
+            assert result.success is True, result.error
+            # The attestation must record the enforced posture.
+            assert result.receipt_payload["security_attestation"]["landlock"]["requested"] is True
+        else:
+            assert result.success is False
+            assert "Landlock" in (result.error or "")
+            assert "hardened" in (result.error or "")
+            # The failure is provable: a receipt is still produced
+            assert result.receipt_payload is not None
 
     def test_cgroup_attach_failure_never_silent_compatible(self, tmp_path):
         """F-5: attach failure records evidence and reports reduced isolation."""
@@ -299,15 +328,25 @@ class TestSecurityMode:
         with pytest.raises(RuntimeError, match="no cgroup"):
             supervisor.register_process("app", _fake_bwrap_proc())
 
-    def test_landlock_unavailable_emits_evidence(self, tmp_path):
-        """Compatible mode records the reduced posture in the ledger."""
+    def test_landlock_posture_is_recorded_in_evidence(self, tmp_path):
+        """The ledger records the REAL Landlock posture for this kernel."""
         supervisor = self._make_supervisor(tmp_path)
         (tmp_path / "cgroup" / "sbx").mkdir(parents=True)
 
         result = _run_supervisor(supervisor, tmp_path)
 
         events = [e["event"] for e in result.lifecycle_events]
-        assert "LANDLOCK_UNAVAILABLE" in events
+        if LANDLOCK_ABI > 0:
+            assert "LANDLOCK_AVAILABLE" in events
+            available = next(
+                e for e in result.lifecycle_events if e["event"] == "LANDLOCK_AVAILABLE"
+            )
+            assert available["detail"]["abi"] == LANDLOCK_ABI
+            assert available["detail"]["security_mode"] == "compatible"
+            assert "LANDLOCK_UNAVAILABLE" not in events
+        else:
+            assert "LANDLOCK_UNAVAILABLE" in events
+            assert "LANDLOCK_AVAILABLE" not in events
 
     def test_landlock_status_files_aggregate_into_attestation(self, tmp_path):
         """In-sandbox landlock-status-*.json -> receipt attestation."""

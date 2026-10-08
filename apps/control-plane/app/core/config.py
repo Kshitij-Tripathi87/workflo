@@ -4,6 +4,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     app_name: str = "Tenant Shield Control Plane"
     environment: str = "development"
+    # Explicit production flag ("PRODUCTION=true"). Production posture is
+    # also implied by ENVIRONMENT=production|prod. Either one arms the
+    # fail-closed startup guards in app/core/startup_guards.py.
+    production: bool = False
     database_url: str = "sqlite+aiosqlite:///./workflo.db"
     redis_url: str = ""
     cp_port: int = 3001  # local-mode port for the auth site (WORKFLO_CP_PORT)

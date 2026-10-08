@@ -201,9 +201,9 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div style={{ marginBottom: 6 }}>
       <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase" }}>
         {label}
-     </div>
-      <div style={{ fontSize: 18, color: "#e2e8f0", fontWeight: 600 }}>{value</div>
-   </div>
+      </div>
+      <div style={{ fontSize: 18, color: "#e2e8f0", fontWeight: 600 }}>{value}</div>
+    </div>
   );
 }
 

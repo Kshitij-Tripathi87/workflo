@@ -25,13 +25,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff mypy
+          pip install ruff mypy pytest-cov
 
       - name: Lint
         run: ruff check app/
 
+      # This is a real gate: `|| true` used to hide real defects here, including
+      # two shipped crashes (Url.rstrip AttributeError, and a Literal vocabulary
+      # mismatch that broke the ownerless-asset path).
       - name: Type check
-        run: mypy --ignore-missing-imports app/ || true
+        run: mypy --ignore-missing-imports app/
 
       - name: Run tests
         env:
@@ -39,11 +42,56 @@ jobs:
           AUTH_REQUIRED: "false"
         run: pytest -q --cov=app --cov-report=term-missing
 
-  frontend:
+      - name: Tests must not dirty tracked files
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=no -- .)" ]; then
+            echo "::error::The test suite modified tracked files under backend/."
+            git status --porcelain --untracked-files=no -- .
+            exit 1
+          fi
+
+  # The repository root is a pnpm project (package.json + pnpm-lock.yaml).
+  # `pnpm install --frozen-lockfile`, `pnpm check` and `pnpm test` must work
+  # from a clean checkout; CI verifies exactly those commands.
+  workspace:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm check
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Tests must not dirty tracked files
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::The test suite modified tracked files."
+            git status --porcelain --untracked-files=no
+            exit 1
+          fi
+
+  # One entry per Next.js app. The website shipped with broken JSX for a long
+  # time because nothing in CI ever compiled it; every app is now built here.
+  nextjs:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, website, apps/dashboard]
     steps:
       - uses: actions/checkout@v4
 
@@ -52,20 +100,23 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: ${{ matrix.app }}
         run: npm ci
 
       - name: Type check
+        working-directory: ${{ matrix.app }}
         run: npx tsc --noEmit
 
       - name: Build
+        working-directory: ${{ matrix.app }}
         run: npm run build
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, nextjs]
     steps:
       - uses: actions/checkout@v4
 
@@ -75,8 +126,25 @@ jobs:
       - name: Build frontend image
         run: docker build -t workflo-frontend:${{ github.sha }} ./frontend
 
-      - name: Smoke test compose
+      - name: Validate compose file
+        run: docker compose config -q
+
+      # docker-compose.yml declares the dev *dependencies* (db/redis/minio) only;
+      # it has no backend/frontend service, so the previous `curl localhost:8000`
+      # smoke step could never pass. This exercises what the file actually
+      # defines; an app-level compose smoke test needs service definitions (see
+      # the product-boundary decisions in CODE_REVIEW.md).
+      - name: Smoke test dev dependencies
         run: |
           docker compose up -d --wait
-          curl -fsS http://localhost:8000/health | grep '"ok"'
+          ready=""
+          for _ in 1 2 3 4 5; do
+            if docker compose exec -T db pg_isready -U workflo; then ready=1; break; fi
+            sleep 5
+          done
+          if [ -z "$ready" ]; then
+            echo "::error::postgres did not become ready"
+            docker compose logs db
+            exit 1
+          fi
           docker compose down -v

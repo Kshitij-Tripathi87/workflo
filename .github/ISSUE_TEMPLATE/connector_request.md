@@ -1,6 +1,6 @@
 ---
 name: Connector request
-description: Request a new connector for Cortex Autopilot
+about: Request a new connector for Cortex Autopilot
 title: "[connector] "
 labels: ["connector", "needs-triage"]
 ---

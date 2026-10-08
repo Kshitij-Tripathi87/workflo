@@ -1,6 +1,7 @@
-from typing import Dict, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Literal
 from uuid import uuid4
+
+from pydantic import BaseModel, Field
 
 ScenarioType = Literal[
     "schema_rename",
@@ -16,8 +17,8 @@ class ScenarioRequest(BaseModel):
     """Request to simulate a hypothetical change."""
     asset_urn: str
     scenario_type: ScenarioType
-    change: Dict = Field(default_factory=dict)
-    notes: Optional[str] = None
+    change: dict = Field(default_factory=dict)
+    notes: str | None = None
 
 
 class ScenarioResult(BaseModel):
@@ -25,7 +26,7 @@ class ScenarioResult(BaseModel):
     scenario_id: str = Field(default_factory=lambda: str(uuid4()))
     asset_urn: str
     scenario_type: str
-    applied_change: Dict = Field(default_factory=dict)
+    applied_change: dict = Field(default_factory=dict)
     predicted_breakages: list[str] = Field(default_factory=list)
     predicted_severity: Literal["low", "medium", "high", "critical"] = "low"
     confidence: float = 0.85

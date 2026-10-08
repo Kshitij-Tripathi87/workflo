@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.core.auth import User
+from app.middleware.auth import require_role
 from app.models.impact import ImpactReport
 from app.models.recommendation import Recommendation
 from app.services.recommendation_engine import recommend_action
-from app.middleware.auth import get_current_user, require_role
-from app.core.auth import User
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 

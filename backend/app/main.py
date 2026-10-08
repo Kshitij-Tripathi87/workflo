@@ -10,38 +10,36 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from app.core.settings import settings
-from app.core.logging import configure_logging, logger
-from app.core.health import get_detailed_health
-from app.core.startup_checks import run_startup_checks
-from app.middleware.observability import (
-    RequestIDMiddleware,
-    MetricsMiddleware,
-    ErrorHandlingMiddleware,
-)
-from app.middleware.auth import get_current_user
-from app.core.auth import User
-
-from app.api.assets import router as assets_router
-from app.api.incidents import router as incidents_router
-from app.api.scenarios import router as scenarios_router
-from app.api.impact import router as impact_router
-from app.api.recommendations import router as recommendations_router
 from app.api.artifacts import router as artifacts_router
-from app.api.writeback import router as writeback_router
-from app.api.demo import router as demo_router
-from app.api.future_search import router as future_search_router
+from app.api.assets import router as assets_router
 from app.api.auth import router as auth_router
 from app.api.autopilot import router as autopilot_router
-from app.api.policy import router as policy_router
-from app.api.contracts import router as contracts_router
-from app.api.receipts import router as receipts_router
 from app.api.compliance import router as compliance_router
+from app.api.contracts import router as contracts_router
+from app.api.demo import router as demo_router
+from app.api.future_search import router as future_search_router
+from app.api.impact import router as impact_router
+from app.api.incidents import router as incidents_router
+from app.api.policy import router as policy_router
+from app.api.receipts import router as receipts_router
+from app.api.recommendations import router as recommendations_router
+from app.api.scenarios import router as scenarios_router
+from app.api.writeback import router as writeback_router
+from app.core.auth import User
+from app.core.health import get_detailed_health
+from app.core.logging import configure_logging, logger
+from app.core.settings import settings
+from app.core.startup_checks import run_startup_checks
+from app.middleware.auth import get_current_user
+from app.middleware.observability import (
+    ErrorHandlingMiddleware,
+    MetricsMiddleware,
+    RequestIDMiddleware,
+)
 from app.services.autopilot import get_autopilot
-
 
 configure_logging()
 

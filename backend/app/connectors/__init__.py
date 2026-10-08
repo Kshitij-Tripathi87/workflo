@@ -6,15 +6,14 @@ its own optional-dependency imports gracefully so that importing this
 package never fails if an optional dep (e.g. snowflake-connector-python)
 is absent.
 """
-from app.connectors.registry import (  # noqa: F401
-    register,
-    get_connector,
-    list_connectors,
-    is_registered,
-)
-
 # Always available — backed by the in-memory mock store.
 from app.connectors.datahub import connector as _datahub_connector  # noqa: F401
+from app.connectors.registry import (  # noqa: F401
+    get_connector,
+    is_registered,
+    list_connectors,
+    register,
+)
 
 # Optional — fails gracefully if deps or config are missing.
 try:

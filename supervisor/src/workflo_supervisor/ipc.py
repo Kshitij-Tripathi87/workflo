@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import socket
 import struct
+import threading
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -33,8 +34,17 @@ class Response:
 class SupervisorClient:
     """Client for communicating with workflod supervisor."""
     
-    def __init__(self, socket_path: Optional[str] = None):
+    def __init__(self, socket_path: Optional[str] = None, timeout: Optional[float] = 30.0):
+        """Create a client.
+
+        ``timeout`` bounds connection establishment and each blocking read in
+        ``call``. Without it a server-side fault becomes an indefinite hang:
+        the CLI's supervisor fallback keys off ``ConnectionError``, so a
+        stalled daemon must surface as an error rather than blocking forever.
+        Pass ``None`` to wait indefinitely.
+        """
         self.socket_path = socket_path or SOCKET_PATH
+        self.timeout = timeout
         self._request_id = 0
     
     def _get_socket_path(self) -> Path:
@@ -48,13 +58,46 @@ class SupervisorClient:
                 return p
         raise FileNotFoundError(f"Supervisor socket not found at {paths}")
     
+    def _connect(self, sock_path: Path, timeout: Optional[float]) -> socket.socket:
+        """Connect to the supervisor socket, applying a read timeout.
+
+        Raises ConnectionError (not a bare OSError) so callers that fall back
+        to local execution — SupervisorCLIClient.run/verify — handle a dead or
+        unresponsive daemon through a single exception type.
+        """
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            if timeout is not None:
+                sock.settimeout(timeout)
+            sock.connect(str(sock_path))
+        except OSError as e:
+            sock.close()
+            raise ConnectionError(f"Cannot connect to supervisor at {sock_path}: {e}") from e
+        return sock
+    
+    def _recv_exactly(self, sock: socket.socket, count: int, method: str) -> bytes:
+        """Read up to ``count`` bytes, converting a stall into ConnectionError."""
+        data = b""
+        try:
+            while len(data) < count:
+                chunk = sock.recv(count - len(data))
+                if not chunk:
+                    break
+                data += chunk
+        except socket.timeout as e:
+            raise ConnectionError(
+                f"Supervisor did not respond to '{method}' "
+                f"within {self.timeout}s (socket timed out)"
+            ) from e
+        except OSError as e:
+            raise ConnectionError(f"Supervisor connection failed during '{method}': {e}") from e
+        return data
+    
     def call(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Make a blocking RPC call to supervisor."""
         sock_path = self._get_socket_path()
         
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            sock.connect(str(sock_path))
-            
+        with self._connect(sock_path, self.timeout) as sock:
             self._request_id += 1
             request = Request(method=method, params=params, id=self._request_id)
             
@@ -64,17 +107,19 @@ class SupervisorClient:
             sock.sendall(request_json.encode())
             
             # Read response
-            length_data = sock.recv(4)
+            length_data = self._recv_exactly(sock, 4, method)
             if not length_data:
-                raise ConnectionError("Supervisor closed connection")
+                raise ConnectionError(
+                    f"Supervisor closed the connection without replying to '{method}'"
+                )
             length = struct.unpack(">I", length_data)[0]
             
-            response_data = b""
-            while len(response_data) < length:
-                chunk = sock.recv(length - len(response_data))
-                if not chunk:
-                    break
-                response_data += chunk
+            response_data = self._recv_exactly(sock, length, method)
+            if len(response_data) < length:
+                raise ConnectionError(
+                    f"Supervisor sent a truncated reply to '{method}' "
+                    f"({len(response_data)}/{length} bytes)"
+                )
             
             response = json.loads(response_data.decode())
             
@@ -83,13 +128,18 @@ class SupervisorClient:
             
             return response.get("result", {})
     
-    def stream_events(self, method: str, params: Dict[str, Any]):
-        """Stream events from a long-running operation."""
+    def stream_events(self, method: str, params: Dict[str, Any],
+                      timeout: Optional[float] = None):
+        """Stream events from a long-running operation.
+
+        ``timeout`` bounds each read. It defaults to ``None`` (wait
+        indefinitely) because a legitimate long run can go quiet between
+        lifecycle events; pass a value to fail fast on a stalled daemon
+        instead of hanging.
+        """
         sock_path = self._get_socket_path()
         
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            sock.connect(str(sock_path))
-            
+        with self._connect(sock_path, timeout) as sock:
             self._request_id += 1
             request = Request(method=method, params=params, id=self._request_id)
             
@@ -99,17 +149,16 @@ class SupervisorClient:
             
             # Stream events until final result
             while True:
-                length_data = sock.recv(4)
+                length_data = self._recv_exactly(sock, 4, method)
                 if not length_data:
                     break
                 length = struct.unpack(">I", length_data)[0]
                 
-                response_data = b""
-                while len(response_data) < length:
-                    chunk = sock.recv(length - len(response_data))
-                    if not chunk:
-                        break
-                    response_data += chunk
+                response_data = self._recv_exactly(sock, length, method)
+                if len(response_data) < length:
+                    raise ConnectionError(
+                        f"Supervisor sent a truncated event stream for '{method}'"
+                    )
                 
                 response = json.loads(response_data.decode())
                 
@@ -158,13 +207,20 @@ class SupervisorServer:
         self.socket_path.chmod(0o660)
         self._server_socket.listen(5)
         
-        import threading
         threading.Thread(target=self._serve_loop, daemon=True).start()
     
     def _serve_loop(self):
-        """Main server loop."""
+        """Main server loop. Exits quietly once stop() closes the socket."""
         while True:
-            conn, _ = self._server_socket.accept()
+            server_socket = self._server_socket
+            if server_socket is None:
+                return
+            try:
+                conn, _ = server_socket.accept()
+            except OSError:
+                # accept() raises once stop() closes the listening socket —
+                # a normal shutdown, not an error worth a traceback.
+                return
             threading.Thread(target=self._handle_connection, args=(conn,), daemon=True).start()
     
     def _handle_connection(self, conn: socket.socket):
@@ -232,5 +288,6 @@ class SupervisorServer:
         """Stop the server."""
         if self._server_socket:
             self._server_socket.close()
+            self._server_socket = None
         if self.socket_path.exists():
             self.socket_path.unlink()

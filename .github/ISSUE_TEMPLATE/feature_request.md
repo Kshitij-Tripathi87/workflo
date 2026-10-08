@@ -1,6 +1,6 @@
 ---
 name: Feature request
-description: Suggest a new feature for Cortex Autopilot
+about: Suggest a new feature for Cortex Autopilot
 title: "[feature] "
 labels: ["enhancement", "needs-triage"]
 ---

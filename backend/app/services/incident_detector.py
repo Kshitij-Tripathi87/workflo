@@ -1,7 +1,8 @@
 from uuid import uuid4
 
-from app.models.scenario import ScenarioRequest
 from app.models import AssetSummary, Incident
+from app.models.asset import Severity
+from app.models.scenario import ScenarioRequest
 
 
 def detect_incident(asset: AssetSummary, expected_schema: list[str], current_schema: list[str]) -> tuple[Incident | None, ScenarioRequest | None]:
@@ -29,8 +30,8 @@ def detect_incident(asset: AssetSummary, expected_schema: list[str], current_sch
     if expected_schema != current_schema:
         removed = [f for f in expected_schema if f not in current_schema]
         added = [f for f in current_schema if f not in expected_schema]
-        severity = "critical" if len(removed) > 1 else "high"
-        
+        severity: Severity = "critical" if len(removed) > 1 else "high"
+
         incident = Incident(
             incident_id=str(uuid4()),
             incident_type="schema_drift",
@@ -39,7 +40,7 @@ def detect_incident(asset: AssetSummary, expected_schema: list[str], current_sch
             reason=f"Schema mismatch detected. Removed: {removed}. Added: {added}.",
             blast_radius=[],
         )
-        
+
         if removed:
             scenario = ScenarioRequest(
                 asset_urn=asset.urn,

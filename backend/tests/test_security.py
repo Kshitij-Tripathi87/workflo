@@ -70,3 +70,23 @@ def test_decision_engine_pure_deterministic():
     r2 = rank_candidates(candidates, "minimize incident risk", {})
     # Two consecutive calls must rank deterministically (no random tiebreaker)
     assert r1.scenario_type == r2.scenario_type
+
+
+def test_writeback_mirror_stays_out_of_the_repo():
+    """Test runs must never append to committed data files.
+
+    backend/data/writeback.jsonl is tracked in git; before this guard every
+    write-back test appended sample records to it, so running the suite left
+    the worktree dirty and the diff was indistinguishable from real incident
+    data. conftest redirects WRITEBACK_DIR to a temporary directory.
+    """
+    from pathlib import Path
+
+    from app.connectors.datahub.writeback import _writeback_base_dir, _writeback_path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    base = _writeback_base_dir()
+
+    assert base != repo_root, f"writeback base points at the repo: {base}"
+    assert repo_root not in base.parents, f"writeback base is inside the repo: {base}"
+    assert repo_root not in _writeback_path().parents, _writeback_path()

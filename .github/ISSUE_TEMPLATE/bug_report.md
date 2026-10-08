@@ -1,6 +1,6 @@
 ---
 name: Bug report
-description: Report a bug in Cortex Autopilot
+about: Report a bug in Cortex Autopilot
 title: "[bug] "
 labels: ["bug", "needs-triage"]
 ---

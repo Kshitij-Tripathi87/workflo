@@ -1,14 +1,14 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.models import AssetSummary, FixDraft, Incident
 from app.connectors.datahub.client import DataHubClient
-from app.services.incident_detector import detect_incident
-from app.services.impact_analyzer import analyze_blast_radius
-from app.services.fix_generator import generate_fix
-from app.core.exceptions import CortexError
-from app.middleware.auth import get_current_user, require_role
 from app.core.auth import User
+from app.core.exceptions import CortexError
+from app.middleware.auth import require_role
+from app.models import AssetSummary, FixDraft, Incident
+from app.services.fix_generator import generate_fix
+from app.services.impact_analyzer import analyze_blast_radius
+from app.services.incident_detector import detect_incident
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 client = DataHubClient()

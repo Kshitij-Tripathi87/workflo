@@ -6,13 +6,12 @@ Provides:
 - `AuthMiddleware`: Optional middleware for async enforcement (kept simple in v1).
 """
 
+
 from fastapi import Depends, Request
-from typing import Optional
 
-from app.core.auth import User, verify_token, extract_bearer_token
+from app.core.auth import User, extract_bearer_token, verify_token
+from app.core.exceptions import CortexForbiddenError
 from app.core.settings import settings
-from app.core.exceptions import CortexAuthError, CortexForbiddenError
-
 
 # Routes that never require auth
 PUBLIC_PATHS = {"/health", "/version", "/metrics", "/api/v1/health"}

@@ -5,11 +5,11 @@ and upstream/downstream lineage into executable pytest test suites mapped
 to SOC 2 controls (CC6.1 Data Integrity, CC7.2 System Monitoring).
 """
 
-from datetime import datetime, timezone
 import re
-from textwrap import dedent
-from typing import List, Optional
 import uuid
+from datetime import UTC, datetime
+from textwrap import dedent
+from typing import Literal
 
 from app.models.asset import AssetNode
 from app.models.contract import (
@@ -33,7 +33,7 @@ class ContractTestGenerator:
 
     def extract_contract_from_node(self, node: AssetNode) -> ContractSpec:
         """Derive a ContractSpec from an AssetNode."""
-        columns: List[ColumnConstraint] = []
+        columns: list[ColumnConstraint] = []
         for field in node.schema_fields:
             # Common schema string formats: "id:INTEGER", "id (INT)", "id"
             if ":" in field:
@@ -71,7 +71,7 @@ class ContractTestGenerator:
         """Generate a complete, executable pytest suite from a ContractSpec."""
         test_id = f"contract_test_{uuid.uuid4().hex[:8]}"
         pascal_name = self._pascal(contract.dataset_name)
-        now_str = datetime.now(timezone.utc).isoformat()
+        now_str = datetime.now(UTC).isoformat()
 
         expected_columns = [(c.name, c.data_type, c.nullable) for c in contract.columns]
         pk_columns = [c.name for c in contract.columns if c.is_primary_key]
@@ -207,7 +207,7 @@ class ContractTestGenerator:
         findings.append({"test": "test_upstream_lineage_continuity", "status": "PASSED", "detail": f"{len(contract.upstream_lineage)} upstream links validated."})
 
         total = passed + failed + skipped
-        status = "passed" if failed == 0 else "failed"
+        status: Literal["passed", "failed", "warning"] = "passed" if failed == 0 else "failed"
 
         return ContractExecutionResult(
             dataset_urn=contract.dataset_urn,

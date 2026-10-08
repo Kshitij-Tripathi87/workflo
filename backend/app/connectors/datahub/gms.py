@@ -6,21 +6,19 @@ with retry, timeout, rate limiting, and structured error handling.
 
 import asyncio
 import time
-from typing import Any, Optional
-from collections import deque
 
 import httpx
 
 from app.core.exceptions import (
-    DataHubNotFoundError,
     DataHubAuthError,
-    DataHubRateLimitedError,
-    DataHubTimeoutError,
     DataHubConnectionError,
     DataHubError,
+    DataHubNotFoundError,
+    DataHubRateLimitedError,
+    DataHubTimeoutError,
 )
-from app.models.asset import AssetNode
 from app.core.settings import settings as _settings
+from app.models.asset import AssetKind, AssetNode
 
 
 class TokenBucketRateLimiter:
@@ -61,14 +59,18 @@ class DataHubGMSClient:
         max_retries: int | None = None,
         rate_limit_rps: float | None = None,
     ):
-        self.base_url = (base_url or _settings.DATAHUB_BASE_URL).rstrip("/") if (base_url or _settings.DATAHUB_BASE_URL) else ""
+        # DATAHUB_BASE_URL is a pydantic AnyHttpUrl at runtime, not a str —
+        # calling .rstrip on it raises AttributeError. Coerce first (the
+        # adapter and health check already do this).
+        _raw_base = base_url or _settings.DATAHUB_BASE_URL
+        self.base_url = str(_raw_base).rstrip("/") if _raw_base else ""
         self.token = token or _settings.DATAHUB_TOKEN
         self.timeout = timeout or _settings.DATAHUB_TIMEOUT
         self.max_retries = max_retries or _settings.DATAHUB_MAX_RETRIES
         self.rate_limiter = TokenBucketRateLimiter(
             rate_limit_rps or _settings.DATAHUB_RATE_LIMIT_RPS
         )
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -101,7 +103,7 @@ class DataHubGMSClient:
     ) -> dict:
         """Execute a request with retry, rate limiting, and error mapping."""
         client = await self._get_client()
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(self.max_retries + 1):
             await self.rate_limiter.acquire()
@@ -143,7 +145,7 @@ class DataHubGMSClient:
                     await asyncio.sleep(2 ** attempt)
                     continue
                 raise last_error
-            except (DataHubAuthError, DataHubNotFoundError) as e:
+            except (DataHubAuthError, DataHubNotFoundError):
                 # Non-retryable
                 raise
 
@@ -318,13 +320,13 @@ class DataHubGMSClient:
     @staticmethod
     def _normalize_asset(entity: dict) -> AssetNode:
         """Convert a raw DataHub entity dict to an AssetNode."""
-        kind_map = {
+        kind_map: dict[str, AssetKind] = {
             "DATASET": "dataset",
             "DATA_JOB": "pipeline",
             "DASHBOARD": "dashboard",
             "ML_MODEL": "model",
         }
-        kind = kind_map.get(entity.get("type", ""), "dataset")
+        kind: AssetKind = kind_map.get(entity.get("type", ""), "dataset")
 
         schema_fields = []
         schema = entity.get("schemaMetadata") or entity.get("schema")

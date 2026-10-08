@@ -17,19 +17,17 @@ back to an in-memory dict so the Autopilot still works end-to-end.
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.settings import settings
 from app.models.autopilot import AutopilotTask, ContextDocument
-
 
 # ---------------------------------------------------------------------------
 # Schema hash helper (used by the observer loop to detect changes)
 # ---------------------------------------------------------------------------
 
-def compute_schema_hash(schema_fields: List[str]) -> str:
+def compute_schema_hash(schema_fields: list[str]) -> str:
     """Stable hash of a schema so we can detect drift cheaply."""
     normalized = sorted(f.lower() for f in (schema_fields or []))
     return hashlib.sha1("|".join(normalized).encode("utf-8")).hexdigest()
@@ -43,7 +41,7 @@ class _InMemoryStore:
     """Minimal fallback when chromadb isn't installed (CI / dev without deps)."""
 
     def __init__(self):
-        self._docs: Dict[str, Dict[str, Any]] = {}
+        self._docs: dict[str, dict[str, Any]] = {}
 
     def add(self, ids, documents, metadatas):
         for i, doc, meta in zip(ids, documents, metadatas):
@@ -82,8 +80,8 @@ class ContextStore:
 
     def __init__(self) -> None:
         self._chroma = self._init_chroma()
-        self._asset_state_cache: Dict[str, Dict[str, Any]] = {}
-        self._task_log: List[AutopilotTask] = []
+        self._asset_state_cache: dict[str, dict[str, Any]] = {}
+        self._task_log: list[AutopilotTask] = []
 
     # -- Chroma -----------------------------------------------------------
     def _init_chroma(self):
@@ -107,8 +105,8 @@ class ContextStore:
         self,
         query: str,
         k: int = 5,
-        where: Optional[Dict[str, Any]] = None,
-    ) -> List[ContextDocument]:
+        where: dict[str, Any] | None = None,
+    ) -> list[ContextDocument]:
         """Top-k most relevant context entries for `query`."""
         if not query or not query.strip():
             return []
@@ -133,7 +131,7 @@ class ContextStore:
         metas = metadatas[0] if metadatas else []
         dists = distances[0] if distances else []
 
-        out: List[ContextDocument] = []
+        out: list[ContextDocument] = []
         for idx, text in enumerate(docs):
             dist = dists[idx] if idx < len(dists) else 1.0
             meta = metas[idx] if idx < len(metas) else {}
@@ -152,10 +150,10 @@ class ContextStore:
         self,
         asset_urn: str,
         connector: str,
-        name: Optional[str] = None,
-        owner: Optional[str] = None,
-        schema_fields: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        name: str | None = None,
+        owner: str | None = None,
+        schema_fields: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Record the latest observed state of an asset.
 
@@ -204,10 +202,10 @@ class ContextStore:
         )
         return changed
 
-    def get_asset_state(self, asset_urn: str) -> Optional[Dict[str, Any]]:
+    def get_asset_state(self, asset_urn: str) -> dict[str, Any] | None:
         return self._asset_state_cache.get(f"asset:{asset_urn}")
 
-    def list_registered_assets(self) -> List[str]:
+    def list_registered_assets(self) -> list[str]:
         return [
             v["asset_urn"] for v in self._asset_state_cache.values()
         ]
@@ -231,7 +229,7 @@ class ContextStore:
             },
         )
 
-    def recent_tasks(self, limit: int = 10) -> List[AutopilotTask]:
+    def recent_tasks(self, limit: int = 10) -> list[AutopilotTask]:
         return list(reversed(self._task_log[-limit:]))
 
     def total_tasks(self) -> int:
@@ -246,7 +244,7 @@ class ContextStore:
             return 0
 
     # -- Internals --------------------------------------------------------
-    def _index_document(self, doc_id: str, text: str, metadata: Dict[str, Any]) -> None:
+    def _index_document(self, doc_id: str, text: str, metadata: dict[str, Any]) -> None:
         if isinstance(self._chroma, _InMemoryStore):
             self._chroma.add([doc_id], [text], [metadata])
             return

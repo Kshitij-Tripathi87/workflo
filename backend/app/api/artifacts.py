@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
-from app.models.recommendation import Recommendation
-from app.models.artifact import ArtifactDraft
-from app.services.artifact_generator import generate_artifact
-from app.middleware.auth import get_current_user, require_role
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.core.auth import User
+from app.middleware.auth import require_role
+from app.models.artifact import ArtifactDraft
+from app.models.recommendation import Recommendation
+from app.services.artifact_generator import generate_artifact
 
 router = APIRouter(prefix="/artifacts", tags=["artifacts"])
 

@@ -2,16 +2,15 @@
 
 import time
 import uuid
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
+from app.core.exceptions import CortexError
 from app.core.logging import logger
 from app.core.metrics import REQUEST_DURATION, REQUESTS_TOTAL
-from app.core.exceptions import CortexError
 
 
 def _safe_path(path: str) -> str:

@@ -1,7 +1,6 @@
 """dbt connector configuration sourced from environment variables."""
 import os
 from pathlib import Path
-from typing import Optional
 
 
 def dbt_config_from_env() -> dict:
@@ -31,7 +30,7 @@ def dbt_config_from_env() -> dict:
     }
 
 
-def _resolve(path: str, base: Path) -> Optional[Path]:
+def _resolve(path: str, base: Path) -> Path | None:
     """Resolve a path relative to base, returning None if not found."""
     p = Path(path)
     if not p.is_absolute():

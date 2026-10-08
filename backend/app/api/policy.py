@@ -5,7 +5,7 @@ Exposes:
   POST /policy/validate       — validate a policy list against the engine
   GET  /policy/examples       — a few example policies to copy/paste
 """
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -13,12 +13,11 @@ from pydantic import BaseModel, Field
 from app.core.auth import User
 from app.engine.policy import (
     Policy,
-    evaluate_policies,
     combine_verdict,
+    evaluate_policies,
     policies_from_dicts,
 )
 from app.middleware.auth import get_current_user, require_role
-
 
 router = APIRouter(prefix="/policy", tags=["policy"])
 
@@ -26,7 +25,7 @@ router = APIRouter(prefix="/policy", tags=["policy"])
 # Server-side defaults — applied when the user has no inline policy and
 # no cortex.yml. Conservative: blocks on critical severity, warns on
 # ML downstream impact.
-DEFAULT_POLICIES: List[Dict[str, Any]] = [
+DEFAULT_POLICIES: list[dict[str, Any]] = [
     {
         "name": "Cortex Autopilot default — block on critical severity",
         "max_severity": 75,
@@ -42,7 +41,7 @@ DEFAULT_POLICIES: List[Dict[str, Any]] = [
 ]
 
 
-EXAMPLE_POLICIES: List[Dict[str, Any]] = [
+EXAMPLE_POLICIES: list[dict[str, Any]] = [
     {
         "name": "Block any change to critical assets",
         "max_severity": 0,
@@ -62,7 +61,7 @@ EXAMPLE_POLICIES: List[Dict[str, Any]] = [
 
 
 @router.get("/defaults")
-async def get_defaults(user: User = Depends(get_current_user)) -> Dict[str, Any]:
+async def get_defaults(user: User = Depends(get_current_user)) -> dict[str, Any]:
     """Return the server-side default policy list.
 
     The Impact Gate uses this when the user's PR has neither an inline
@@ -72,13 +71,13 @@ async def get_defaults(user: User = Depends(get_current_user)) -> Dict[str, Any]
 
 
 @router.get("/examples")
-async def get_examples(user: User = Depends(get_current_user)) -> Dict[str, Any]:
+async def get_examples(user: User = Depends(get_current_user)) -> dict[str, Any]:
     """Return a curated set of example policies."""
     return {"policies": EXAMPLE_POLICIES}
 
 
 class ValidateRequest(BaseModel):
-    policies: List[Dict[str, Any]] = Field(min_length=0, max_length=50)
+    policies: list[dict[str, Any]] = Field(min_length=0, max_length=50)
     severity: float = Field(ge=0, le=100)
     blast_radius: int = Field(ge=0, le=10_000)
     has_owner: bool = True
@@ -86,7 +85,7 @@ class ValidateRequest(BaseModel):
 
 class ValidateResponse(BaseModel):
     verdict: str
-    results: List[Dict[str, Any]]
+    results: list[dict[str, Any]]
 
 
 @router.post("/validate", response_model=ValidateResponse)
@@ -99,7 +98,7 @@ async def validate_policies(
     Useful for the "tweak loop" in the UI — adjust thresholds and
     immediately see the verdict flip.
     """
-    policies: List[Policy] = policies_from_dicts(payload.policies)
+    policies: list[Policy] = policies_from_dicts(payload.policies)
     if len(policies) != len(payload.policies):
         raise HTTPException(
             status_code=400,

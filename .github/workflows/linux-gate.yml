@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@8f4b7f84864484a7bf31730abe267c3f869a2437  # v4.1.8
 
-      - name: Preflight: verify isolation prerequisites exist
+      - name: "Preflight: verify isolation prerequisites exist"
         run: |
           echo "Checking for required scripts and test directories..."
           for path in \
@@ -67,7 +67,7 @@ jobs:
         run: sudo -E bash scripts/linux/golden_run.sh
 
       # JUSTIFIED: Root required for deep-tier app + governed agent isolation.
-      - name: Agent golden run (deep tier: app + governed agent)
+      - name: "Agent golden run (deep tier: app + governed agent)"
         run: sudo -E bash scripts/linux/agent_golden_run.sh
 
       # JUSTIFIED: Root required for planner-mode isolation with real LLM.

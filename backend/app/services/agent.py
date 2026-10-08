@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, cast, get_args
 
 from app.core.llm import BaseLlmProvider, get_llm_provider
 from app.core.settings import settings
-from app.models.autopilot import AgentStep, AutopilotTask, Complexity, Verdict
+from app.models.autopilot import AgentStep, AutopilotTask, Complexity
 from app.services.context_store import ContextStore
-
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -79,7 +78,7 @@ Notes:
 # Tool schemas (sent to the LLM as function definitions)
 # ---------------------------------------------------------------------------
 
-TOOL_SCHEMAS: List[Dict[str, Any]] = [
+TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "name": "get_asset_context",
         "description": "Retrieve the current state of an asset plus any past incidents, tasks, or context relevant to it. Always call this first.",
@@ -227,7 +226,7 @@ def classify_complexity(
 # Result construction helpers
 # ---------------------------------------------------------------------------
 
-def _summarise_plan(plan) -> Dict[str, Any]:
+def _summarise_plan(plan) -> dict[str, Any]:
     """Reduce a FuturePlan to a compact dict for LLM consumption."""
     choice = plan.ranked_choice
     return {
@@ -273,8 +272,8 @@ class CortexAgent:
     def __init__(
         self,
         context_store: ContextStore,
-        llm: Optional[BaseLlmProvider] = None,
-        max_iterations: Optional[int] = None,
+        llm: BaseLlmProvider | None = None,
+        max_iterations: int | None = None,
     ) -> None:
         self.context_store = context_store
         self._llm: BaseLlmProvider = llm or get_llm_provider()
@@ -296,7 +295,7 @@ class CortexAgent:
             .replace("{trial}", str(settings.CORTEX_TRIAL_ACTIVE).lower())
         )
 
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": system},
         ]
         if rag_ctx:
@@ -324,7 +323,7 @@ class CortexAgent:
                 task.summary = f"Agent aborted: LLM error — {exc}"
                 return task
 
-            assistant_message: Dict[str, Any] = {"role": "assistant", "content": response.content}
+            assistant_message: dict[str, Any] = {"role": "assistant", "content": response.content}
             if response.tool_calls:
                 assistant_message["tool_calls"] = response.tool_calls
             messages.append(assistant_message)
@@ -380,7 +379,7 @@ class CortexAgent:
     # Tool dispatch
     # ------------------------------------------------------------------
 
-    async def _dispatch_tool(self, name: str, args: Dict[str, Any], task: AutopilotTask) -> str:
+    async def _dispatch_tool(self, name: str, args: dict[str, Any], task: AutopilotTask) -> str:
         handler = getattr(self, f"_tool_{name}", None)
         if handler is None:
             return f"ERROR: unknown tool '{name}'"
@@ -420,7 +419,7 @@ class CortexAgent:
     # The tools themselves
     # ------------------------------------------------------------------
 
-    def _tool_get_asset_context(self, urn: str, **_kwargs) -> Dict[str, Any]:
+    def _tool_get_asset_context(self, urn: str, **_kwargs) -> dict[str, Any]:
         state = self.context_store.get_asset_state(urn) or {}
         docs = self.context_store.retrieve_context(urn, k=4)
         return {
@@ -431,7 +430,7 @@ class CortexAgent:
             ],
         }
 
-    def _tool_list_registered_assets(self, **_kwargs) -> Dict[str, Any]:
+    def _tool_list_registered_assets(self, **_kwargs) -> dict[str, Any]:
         return {"asset_urns": self.context_store.list_registered_assets()}
 
     def _tool_classify_complexity(
@@ -440,7 +439,7 @@ class CortexAgent:
         blast_radius: int = 0,
         downstream_count: int = 0,
         **_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         complexity = classify_complexity(
             change_type=change_type,
             blast_radius=blast_radius,
@@ -460,8 +459,8 @@ class CortexAgent:
 
 
     async def _tool_build_snapshot(
-        self, asset_urns: List[str], connector: str = "datahub", **_kwargs
-    ) -> Dict[str, Any]:
+        self, asset_urns: list[str], connector: str = "datahub", **_kwargs
+    ) -> dict[str, Any]:
         from app.connectors import get_connector, list_connectors
 
         if not list_connectors():
@@ -498,7 +497,7 @@ class CortexAgent:
         connector: str = "datahub",
         objective: str = "minimize incident risk",
         **_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         from app.connectors import get_connector, list_connectors
         from app.engine.future_search_engine import generate_futures
 
@@ -521,10 +520,10 @@ class CortexAgent:
         severity: float,
         blast_radius: int,
         has_owner: bool,
-        policies: Optional[List[Dict[str, Any]]] = None,
+        policies: list[dict[str, Any]] | None = None,
         **_kwargs,
-    ) -> Dict[str, Any]:
-        from app.engine.policy import evaluate_policies, combine_verdict, policies_from_dicts
+    ) -> dict[str, Any]:
+        from app.engine.policy import combine_verdict, evaluate_policies, policies_from_dicts
 
         policy_objs = policies_from_dicts(policies or [])
         results = evaluate_policies(
@@ -546,9 +545,10 @@ class CortexAgent:
         severity: str,
         reason: str,
         **_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         from uuid import uuid4
-        from app.models import Incident, FixDraft
+
+        from app.models import FixDraft, Incident
         from app.services.fix_generator import generate_fix
 
         # Map severity → incident severity literal. Some callers pass
@@ -593,10 +593,25 @@ class CortexAgent:
         summary: str,
         confidence: float = 0.7,
         **_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
+        from app.models.asset import Severity
         from app.models.impact import ImpactReport
-        from app.models.recommendation import Recommendation
+        from app.models.recommendation import Recommendation, RecommendationAction
         from app.services.writeback_service import writeback_service
+
+        # `severity` and `action_type` are free-form strings supplied by the LLM
+        # tool call, but the models below accept only literals. Normalise them
+        # here rather than letting pydantic raise mid-run (which aborted the
+        # whole agent task): an unrecognised action escalates to a human, an
+        # unrecognised severity records the schema default.
+        severity_norm: Severity = (
+            cast(Severity, severity) if severity in get_args(Severity) else "medium"
+        )
+        action_norm: RecommendationAction = (
+            cast(RecommendationAction, action_type)
+            if action_type in get_args(RecommendationAction)
+            else "escalate"
+        )
 
         impact = ImpactReport(
             asset_urn=asset_urn,
@@ -604,15 +619,15 @@ class CortexAgent:
             affected_dashboards=[],
             affected_models=[],
             affected_pipelines=[],
-            severity=severity,  # type: ignore[arg-type]
+            severity=severity_norm,
             reason=summary,
             confidence=confidence,
             explanation=[],
         )
         recommendation = Recommendation(
             impact_id="autopilot",
-            action_type=action_type,
-            title=action_type,
+            action_type=action_norm,
+            title=action_norm,
             rationale=summary,
             confidence=confidence,
             risk="low",

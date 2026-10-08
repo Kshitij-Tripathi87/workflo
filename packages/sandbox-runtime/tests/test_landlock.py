@@ -61,9 +61,32 @@ class TestMaskForAbi:
 
 
 class TestProbeAbi:
-    def test_unsupported_platform_returns_zero(self):
-        """On non-Linux (or unsupported kernels) the probe is 0, never raises."""
+    def test_unsupported_platform_returns_zero(self, monkeypatch):
+        """Unsupported platform -> 0, never raises.
+
+        Deterministic on every host: the platform gate is driven by os.name
+        instead of being assumed, so this asserts the same contract on a
+        Landlock-capable kernel (where the bare probe legitimately returns a
+        non-zero ABI). The previous unconditional `probe_abi() == 0` only held
+        on kernels without Landlock, which is why the Linux gate went red.
+        """
+        import sandbox_runtime.landlock as landlock
+
+        monkeypatch.setattr(landlock.os, "name", "nt")
         assert probe_abi() == 0
+
+    def test_probed_abi_drives_the_access_mask(self):
+        """Whatever this host reports must map to a usable ruleset mask."""
+        abi = probe_abi()
+        assert isinstance(abi, int) and abi >= 0
+
+        masked = mask_for_abi(LANDLOCK_ACCESS_FS_RW, abi=abi)
+        if abi == 0:
+            # Unsupported kernel: no Landlock bits may be requested.
+            assert masked == 0
+        else:
+            # Supported kernel: the probe's ABI must enable real access bits.
+            assert masked != 0
 
 
 class TestWorkloadRuleTables:

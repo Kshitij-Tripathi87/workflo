@@ -61,3 +61,37 @@ def test_mock_client_tags():
     tags = client.get_tags(ORDER_URN)
     assert isinstance(tags, list)
     assert len(tags) >= 1
+
+
+def test_gms_client_base_url_from_settings_is_str_coerced(monkeypatch):
+    """Regression: settings.DATAHUB_BASE_URL is a pydantic AnyHttpUrl.
+
+    The GMS client used to call ``.rstrip("/")`` directly on the settings value,
+    which raised ``AttributeError: 'Url' object has no attribute 'rstrip'``.
+    mypy reported this (union-attr) but CI ran mypy with ``|| true``, so the
+    defect shipped silently. Exercised through the *settings* path.
+    """
+    from pydantic import AnyHttpUrl
+    from app.core import settings as settings_module
+
+    # Must be a real pydantic Url: patching in a plain str would silently make
+    # this test pass even with the defect present (str.rstrip works fine).
+    monkeypatch.setattr(
+        settings_module.settings,
+        "DATAHUB_BASE_URL",
+        AnyHttpUrl("http://localhost:8080/"),
+    )
+    from app.connectors.datahub.gms import DataHubGMSClient
+
+    client = DataHubGMSClient()
+    assert client.base_url == "http://localhost:8080"
+
+
+def test_gms_client_without_base_url_is_empty_not_crash(monkeypatch):
+    """Unset base URL must degrade to "" - never raise."""
+    from app.core import settings as settings_module
+
+    monkeypatch.setattr(settings_module.settings, "DATAHUB_BASE_URL", None)
+    from app.connectors.datahub.gms import DataHubGMSClient
+
+    assert DataHubGMSClient().base_url == ""

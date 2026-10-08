@@ -1,20 +1,20 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from app.connectors import get_connector, list_connectors
 from app.connectors.datahub.client import DataHubClient
-from app.services.graph_builder import build_snapshot
+from app.core.auth import User
+from app.core.exceptions import CortexError
 from app.engine.future_search_engine import generate_futures
 from app.engine.policy import (
     Policy,
-    evaluate_policies,
     combine_verdict,
+    evaluate_policies,
 )
-from app.models.future import PolicyResultSummary
-from app.connectors import list_connectors, get_connector
 from app.middleware.auth import get_current_user, require_role
-from app.core.auth import User
-from app.core.exceptions import CortexError
+from app.models.future import PolicyResultSummary
+from app.services.graph_builder import build_snapshot
 
 router = APIRouter(prefix="/future-search", tags=["future-search"])
 
@@ -35,8 +35,8 @@ class FutureSearchRequest(BaseModel):
 
     asset_urn: str
     objective: str = "minimize incident risk"
-    constraints: Dict = Field(default_factory=dict)
-    policies: Optional[List[Policy]] = None
+    constraints: dict = Field(default_factory=dict)
+    policies: list[Policy] | None = None
     connector: str = "datahub"
 
 

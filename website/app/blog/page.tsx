@@ -61,15 +61,15 @@ export default function BlogPage() {
                 marginBottom: 8,
               }}
             >
-              <span>{post.date</span>
+              <span>{post.date}</span>
               <span>{post.read} read</span>
-        </div>
-            <h2 style={{ marginTop: 0, marginBottom: 8, color: "var(--text)" }}>
+              </div>
+              <h2 style={{ marginTop: 0, marginBottom: 8, color: "var(--text)" }}>
               {post.title}
-        </h2>
-            <p style={{ color: "var(--text-dim)", margin: 0 }}>{post.excerpt</p>
-      </Link>
-        ))}
+              </h2>
+              <p style={{ color: "var(--text-dim)", margin: 0 }}>{post.excerpt}</p>
+            </Link>
+          ))}
     </div>
  </div>
   );

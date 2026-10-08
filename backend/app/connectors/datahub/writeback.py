@@ -8,20 +8,18 @@ When a real DataHub is configured, it writes to DataHub GMS and mirrors
 the result to JSONL for local debugging.
 """
 
-import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from uuid import uuid4
 
+from app.connectors.datahub.adapter import adapter
 from app.core.settings import settings
-from app.models.impact import ImpactReport
-from app.models.recommendation import Recommendation
 from app.models.artifact import ArtifactDraft
 from app.models.future import FuturePlan
+from app.models.impact import ImpactReport
+from app.models.recommendation import Recommendation
 from app.models.writeback import WritebackRecord
-from app.connectors.datahub.adapter import adapter
 
 
 def _safe_resolve(raw_path, base_dir: Path | None = None) -> Path:
@@ -53,8 +51,18 @@ def _safe_resolve(raw_path, base_dir: Path | None = None) -> Path:
     return resolved
 
 
+def _writeback_base_dir() -> Path:
+    """Base directory the JSONL mirror is confined to.
+
+    Defaults to ./data next to the process CWD (historical behaviour). The test
+    suite points WRITEBACK_DIR at a temporary directory so a test run can never
+    append to the committed data/writeback.jsonl.
+    """
+    return Path(settings.WRITEBACK_DIR or "data").expanduser().resolve()
+
+
 def _writeback_path() -> Path:
-    return _safe_resolve(settings.WRITEBACK_PATH)
+    return _safe_resolve(settings.WRITEBACK_PATH, base_dir=_writeback_base_dir())
 
 
 def _mirror_to_jsonl(record: WritebackRecord):
@@ -67,7 +75,7 @@ def _build_summary(
     asset_name: str,
     impact: ImpactReport,
     rec: Recommendation,
-    plan: Optional[FuturePlan] = None,
+    plan: FuturePlan | None = None,
 ) -> str:
     parts = [f"Cortex resolution for {asset_name}."]
     if plan:
@@ -82,7 +90,7 @@ def _build_summary(
     return " ".join(parts)
 
 
-def _build_artifact_doc(artifact: Optional[ArtifactDraft]) -> str:
+def _build_artifact_doc(artifact: ArtifactDraft | None) -> str:
     """Build a markdown doc from the artifact for DataHub documentation tab."""
     if not artifact:
         return "_No artifact attached._"
@@ -140,7 +148,7 @@ async def record_verdict_assertion(
     reason: str,
     severity: str = "medium",
     blast_radius: int = 0,
-    run_id: Optional[str] = None,
+    run_id: str | None = None,
     created_by: str = "system",
 ) -> dict:
     """Cherry #2 — write back the verdict to DataHub as an assertion.
@@ -219,8 +227,8 @@ async def record_resolution_to_datahub(
     asset_name: str,
     impact: ImpactReport,
     recommendation: Recommendation,
-    artifact: Optional[ArtifactDraft] = None,
-    plan: Optional[FuturePlan] = None,
+    artifact: ArtifactDraft | None = None,
+    plan: FuturePlan | None = None,
     created_by: str = "system",
 ) -> WritebackRecord:
     """
@@ -289,7 +297,9 @@ class WritebackServiceSync:
         from app.connectors.datahub.writeback import _safe_resolve
 
         raw = base_path or settings.WRITEBACK_PATH
-        base_dir = Path(raw).resolve().parent if base_path else None
+        # Explicit base_path (tests) confines to its own directory; otherwise
+        # confine to the configured mirror base, never implicitly to ./data.
+        base_dir = Path(raw).resolve().parent if base_path else _writeback_base_dir()
         self.base_path = _safe_resolve(raw, base_dir=base_dir)
         self.base_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -298,7 +308,7 @@ class WritebackServiceSync:
         asset_urn: str,
         impact_report: ImpactReport,
         recommendation: Recommendation,
-        artifact: Optional[ArtifactDraft] = None,
+        artifact: ArtifactDraft | None = None,
         created_by: str = "system",
     ) -> WritebackRecord:
         summary = (
@@ -323,7 +333,7 @@ class WritebackServiceSync:
         latest: dict[str, dict] = {}
         if not self.base_path.exists():
             return latest
-        with open(self.base_path, "r", encoding="utf-8") as f:
+        with open(self.base_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -358,12 +368,12 @@ class WritebackServiceSync:
         results.sort(key=lambda r: r.created_at, reverse=True)
         return results
 
-    def get_record(self, record_id: str) -> Optional[WritebackRecord]:
+    def get_record(self, record_id: str) -> WritebackRecord | None:
         latest = self._read_all()
         data = latest.get(record_id)
         return WritebackRecord(**data) if data else None
 
-    def update_status(self, record_id: str, status: str) -> Optional[WritebackRecord]:
+    def update_status(self, record_id: str, status: str) -> WritebackRecord | None:
         latest = self._read_all()
         if record_id not in latest:
             return None

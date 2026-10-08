@@ -26,6 +26,7 @@ from app.db.models import DeviceCode
 from app.core.config import settings
 from app.core.crypto import utc_now
 from app.core.security import verify_bearer_token
+from app.core.startup_guards import enforce_production_config
 
 
 @asynccontextmanager
@@ -39,6 +40,11 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    # Fail closed: if this process is declared production, an unsafe posture
+    # (placeholder JWT secret, RLS off, credential encryption unavailable)
+    # aborts startup here instead of serving traffic with a silent downgrade.
+    enforce_production_config(settings)
+
     app = FastAPI(
         title="Workflo Control Plane",
         version="0.2.0",

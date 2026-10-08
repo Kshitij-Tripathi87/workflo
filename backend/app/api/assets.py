@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
-from app.models import AssetSummary
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.connectors.datahub.client import DataHubClient
+from app.core.auth import User
 from app.core.exceptions import CortexError
 from app.middleware.auth import require_role
-from app.core.auth import User
+from app.models import AssetSummary
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 client = DataHubClient()
@@ -29,7 +31,7 @@ def get_asset(urn: str, user: User = Depends(require_role("viewer"))):
 
 
 @router.get("/{urn}/lineage")
-def get_lineage(urn: str, user: User = Depends(require_role("viewer"))) -> Dict[str, List[str]]:
+def get_lineage(urn: str, user: User = Depends(require_role("viewer"))) -> dict[str, list[str]]:
     """Get upstream and downstream lineage for an asset."""
     try:
         return client.get_lineage(urn)
@@ -40,12 +42,12 @@ def get_lineage(urn: str, user: User = Depends(require_role("viewer"))) -> Dict[
 
 
 @router.get("/{urn}/graph")
-def get_asset_graph(urn: str, user: User = Depends(require_role("viewer"))) -> Dict[str, Any]:
+def get_asset_graph(urn: str, user: User = Depends(require_role("viewer"))) -> dict[str, Any]:
     """Get normalized graph snapshot for an asset."""
     from app.services.graph_builder import build_snapshot
 
     try:
-        asset = client.get_asset(urn)
+        client.get_asset(urn)
         snapshot = build_snapshot([urn])
 
         node = snapshot.nodes.get(urn)

@@ -5,8 +5,8 @@ created lazily only when DATABASE_URL is configured. When DATABASE_URL is
 None (mock/dev mode without a DB), the session functions are no-ops.
 """
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -24,11 +24,11 @@ class Base(DeclarativeBase):
     pass
 
 
-_engine: Optional[AsyncEngine] = None
-_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
+_engine: AsyncEngine | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
-def get_engine() -> Optional[AsyncEngine]:
+def get_engine() -> AsyncEngine | None:
     """Lazily create and return the async engine. None when no DATABASE_URL."""
     global _engine
     if _engine is None and settings.DATABASE_URL:
@@ -48,7 +48,7 @@ def get_engine() -> Optional[AsyncEngine]:
     return _engine
 
 
-def get_session_factory() -> Optional[async_sessionmaker[AsyncSession]]:
+def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
     """Lazily create and return the session factory. None when no DB."""
     global _session_factory
     if _session_factory is None and settings.DATABASE_URL:

@@ -122,7 +122,7 @@ export function PolicyTweaker({
             border: "1px solid rgba(148, 163, 184, 0.12)",
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>{policy.name</div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>{policy.name}</div>
 
           {policy.max_severity !== undefined && (
             <SliderRow
@@ -187,9 +187,9 @@ function SliderRow({
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-        <span style={{ color: "#94a3b8" }}>{label</span>
-        <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{value</span>
-  </div>
+        <span style={{ color: "#94a3b8" }}>{label}</span>
+        <span style={{ color: "#e2e8f0", fontWeight: 600 }}>{value}</span>
+      </div>
       <input
         type="range"
         min={min}

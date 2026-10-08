@@ -8,16 +8,20 @@ on:
       - "apps/sandbox-executor/**"
       - "packages/cortex-auth/**"
       - "packages/sandbox-isolation/**"
+      - "packages/sandbox-runtime/**"
       - "packages/probe-engine/**"
       - "packages/workflo-schema/**"
+      - "supervisor/**"
   pull_request:
     paths:
       - "apps/workflo-cli/**"
       - "apps/sandbox-executor/**"
       - "packages/cortex-auth/**"
       - "packages/sandbox-isolation/**"
+      - "packages/sandbox-runtime/**"
       - "packages/probe-engine/**"
       - "packages/workflo-schema/**"
+      - "supervisor/**"
       - ".github/workflows/workflo-cli.yml"
 
 jobs:
@@ -38,9 +42,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install packages (editable, dependency order)
+        # sandbox-runtime and supervisor are hard imports of
+        # workflo_cli/supervisor_client.py — without them the CLI test suite
+        # cannot even be collected.
         run: |
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/sandbox-isolation
+          pip install -e ./packages/sandbox-runtime
+          pip install -e ./supervisor
           pip install -e ./packages/probe-engine
           pip install -e ./packages/cortex-auth
           pip install -e ./apps/sandbox-executor
@@ -69,6 +78,8 @@ jobs:
         run: |
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/sandbox-isolation
+          pip install -e ./packages/sandbox-runtime
+          pip install -e ./supervisor
           pip install -e ./packages/probe-engine
           pip install -e ./packages/cortex-auth
           pip install -e ./apps/sandbox-executor

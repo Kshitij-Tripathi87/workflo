@@ -6,11 +6,10 @@ in LLM prompts, persisted to SQLite/Postgres, and returned to API callers.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
-
 
 TriggerType = Literal["manual", "webhook", "auto_detect", "scheduled"]
 TaskStatus = Literal["pending", "running", "completed", "blocked", "failed"]
@@ -25,16 +24,16 @@ class AutopilotTask(BaseModel):
     trigger_type: TriggerType = "manual"
     asset_urn: str
     connector: str = "datahub"
-    change: Dict[str, Any] = Field(default_factory=dict)
+    change: dict[str, Any] = Field(default_factory=dict)
     description: str = ""
-    complexity: Optional[Complexity] = None
-    verdict: Optional[Verdict] = None
+    complexity: Complexity | None = None
+    verdict: Verdict | None = None
     status: TaskStatus = "pending"
-    result: Dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
     summary: str = ""
-    steps: List["AgentStep"] = Field(default_factory=list)
+    steps: list["AgentStep"] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 
 class AgentStep(BaseModel):
@@ -42,8 +41,8 @@ class AgentStep(BaseModel):
 
     step_index: int
     thought: str = ""
-    tool_name: Optional[str] = None
-    tool_args: Dict[str, Any] = Field(default_factory=dict)
+    tool_name: str | None = None
+    tool_args: dict[str, Any] = Field(default_factory=dict)
     tool_result: str = ""
     observation: str = ""
 
@@ -53,7 +52,7 @@ class ContextDocument(BaseModel):
 
     id: str
     text: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     similarity: float = 0.0
 
 
@@ -67,8 +66,8 @@ class AutopilotStatus(BaseModel):
     poll_interval_seconds: int
     registered_assets: int = 0
     total_tasks: int = 0
-    recent_tasks: List[AutopilotTask] = Field(default_factory=list)
-    last_observation_at: Optional[datetime] = None
+    recent_tasks: list[AutopilotTask] = Field(default_factory=list)
+    last_observation_at: datetime | None = None
 
 
 AutopilotTask.model_rebuild()

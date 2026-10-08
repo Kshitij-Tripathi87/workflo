@@ -16,7 +16,6 @@ from pathlib import Path
 from app.core.settings import settings
 from app.core.snapshot_cache import get_snapshot_cache
 
-
 _START_TIME = time.monotonic()
 
 

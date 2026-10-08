@@ -15,6 +15,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "pytest-timeout>=2.1.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -23,3 +24,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Backstop only: the hang regression is asserted with a wall-clock bound in
+# tests/test_ipc.py (no extra dependency). This fails the suite outright if a
+# future change manages to block the event loop or a thread indefinitely.
+timeout = 60
