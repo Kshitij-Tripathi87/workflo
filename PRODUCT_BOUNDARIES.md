@@ -43,6 +43,8 @@ Status values:
 | `packages/sandbox-isolation/`, `packages/probe-engine/`, `packages/cortex-auth/` | Installed by `setup_env.sh`; used by the sandbox stack |
 | `packages/workflo-schema/`, `packages/workflo-utils/` | Schemas/utils shared by control plane + CLI |
 | `packages/npm-workflo/` | npm distribution of the CLI (`file:` dependency of the root project) |
+| `workflo-ai-integration/` | Local model router + safety gate (llama.cpp path) destined for the sandbox worker. Disposition **MERGE** — see the disposition table below |
+| `bench/model-serving/` | Model-serving benchmark harness (throughput + unit economics). Runs against any OpenAI-compatible endpoint; its stub-server test runs in `linux-gate.yml` |
 
 ## Marketing / product sites
 
@@ -67,13 +69,39 @@ Status values:
 | `docs/benchmark_results_2026.md` | Synthetic benchmark numbers. **Not** a measured result; do not cite it |
 | `deploy/*.env.example` | Env templates for the control plane; keep aligned with `apps/control-plane/app/core/config.py` |
 
-## Quarantine — candidates for deletion
+## Dispositions — no item stays in limbo
 
-| Path | Reason |
-| --- | --- |
-| `workflo-ai-integration/workflo-ai-integration/` | Doubly-nested copy of an integration kit; no CI, no importer, separate product identity. Confirm with its owner, then delete |
-| root `data/`, `backend/data/` | Runtime state (JSONL mirrors, vector store). **Already untracked and git-ignored** in this pass; they must never be committed again |
-| `bench/` | Referenced by `packages/sandbox-runtime/tests/test_bench_inference.py` but the directory does not exist in the tree. The test is skipped with an explicit reason; either restore the harness or delete the test |
+Quarantine is not a destination. Every previously-ambiguous item below has an
+assigned state, the evidence behind it, and what would change it. States:
+**KEEP** (active, has an owner), **MERGE** (functionality belongs elsewhere),
+**MIGRATE** (move required code to the canonical location), **ARCHIVE**
+(preserved, no active execution), **DELETE** (confirmed dead).
+
+| Item | State | Evidence and next action |
+| --- | --- | --- |
+| `workflo-ai-integration/` | **MERGE** | Its own README: *"Standalone scaffolding for the LoRA-adapter path... Meant to be merged into the real sandbox worker once adapters exist."* 24 mock-based tests, green, now run by the `ai-integration` CI job. **Action (P4):** move `src/model_router.py` + `src/safety_gate.py` into the worker's model path once adapters exist; then delete the scaffolding. The double-nested directory (bad extraction) was flattened on 2026-10-08. |
+| `bench/` | **KEEP** | Was referenced by a test but absent from the tree; the harness was implemented on 2026-10-08, its stub test runs in `linux-gate.yml`, and `--gpu-hourly-usd` keeps cost figures explicitly assumed rather than invented. |
+| `data/`, `backend/data/` | **KEEP** (runtime state) | Untracked and git-ignored; `WRITEBACK_DIR` keeps test runs out of them. Not a quarantine item any more — committing them again would recreate the dirty-diff problem. |
+| `client/`, `server/`, `shared/`, `drizzle/`, `vite.config.ts`, root `dist/` | **ARCHIVE** | Root Vite/Express trial-signup app coupled to Manus. Kept because the root `pnpm check`/`pnpm test` scripts still cover it; **action:** once the marketing site owns trial sign-up, delete the app and the root scripts with it. |
+| `action/` | **ARCHIVE** | GitHub Action wrapper on the legacy Cortex naming; no workflow references it. **Action:** re-target at the CLI or delete. |
+| `examples/` | **ARCHIVE** | Generated demo artifacts from an earlier pass. `examples/generated-tests/` contains skips by design (sample output), so it is not a test suite. |
+| `ci-templates/gitlab.yml` | **ARCHIVE** | Repository is GitHub-Actions only. |
+| `infra/` | **ARCHIVE** | k8s/oracle/terraform/vllm manifests. `infra/vllm` documents the actual serving target for `bench/model-serving`; the rest is unreferenced and unvalidated by CI. |
+| `docs/benchmark_results_2026.md` | **ARCHIVE** | Synthetic numbers — explicitly not a measurement. Never cite it as a result. |
+| `deploy/*.env.example` | **ARCHIVE** | Keep aligned with `apps/control-plane/app/core/config.py`; not consumed by any workflow. |
+
+### Rule that produced these dispositions
+
+```
+missing implementation -> the test FAILS   (never SKIP -> green)
+obsolete test          -> the test is REMOVED
+implemented capability -> the test RUNS
+```
+
+The benchmark harness is the worked example: its test previously skipped with
+"the harness is not part of this repository", which is an implementation gap
+dressed as a pass. The harness now exists, the test executes, and a missing
+harness fails the suite.
 
 ## Product identity
 

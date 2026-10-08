@@ -84,6 +84,29 @@ jobs:
             exit 1
           fi
 
+  # Scaffolding explicitly destined for the sandbox worker (see its README and
+  # PRODUCT_BOUNDARIES.md: disposition MERGE). It is P4-relevant - the model
+  # router and safety gate sit between generated code and the sandbox - so its
+  # 24 mock-based tests run here instead of rotting unobserved.
+  ai-integration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workflo-ai-integration
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
   # One entry per Next.js app. The website shipped with broken JSX for a long
   # time because nothing in CI ever compiled it; every app is now built here.
   nextjs:

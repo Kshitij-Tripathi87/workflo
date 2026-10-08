@@ -48,19 +48,100 @@ jobs:
       - name: Provision isolation stack
         run: sudo bash scripts/linux/setup_env.sh
 
+      # NOTE: this suite imports sibling packages (workflo_worker,
+      # sandbox_isolation, probe_engine, ...) that scripts/linux/setup_env.sh
+      # installs into /opt/workflo/venv - it is not self-contained.
       - name: Agent-layer unit suites (mock gate)
         run: |
           /opt/workflo/venv/bin/python -m pytest \
             packages/sandbox-runtime/tests \
             packages/workflo-schema/tests \
             --ignore packages/sandbox-runtime/tests/integration \
-            -q -x
+            -q -x --junitxml=/tmp/linux-gate-unit.xml
+
+      # Exit status alone cannot tell "476 tests verified isolation logic" from
+      # "the suite collected nothing and skipped the rest".
+      - name: Assert the unit suite actually executed
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          MIN_EXECUTED = 400  # suite currently executes 476; a lower number means tests vanished
+          path = "/tmp/linux-gate-unit.xml"
+          try:
+              root = ET.parse(path).getroot()
+          except FileNotFoundError:
+              sys.exit(f"::error::no junit report at {path} - the unit step did not run")
+
+          suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+          total = sum(int(s.get("tests", 0)) for s in suites)
+          skipped = sum(int(s.get("skipped", 0)) for s in suites)
+          failed = sum(int(s.get("failures", 0)) + int(s.get("errors", 0)) for s in suites)
+          executed = total - skipped
+          print(f"collected={total} executed={executed} skipped={skipped} failed={failed}")
+
+          if failed:
+              sys.exit(f"::error::{failed} unit test(s) failed")
+          if executed < MIN_EXECUTED:
+              sys.exit(f"::error::only {executed} unit tests executed (expected >= {MIN_EXECUTED})")
+          print(f"[ok] {executed} unit tests executed")
+          PY
 
       # JUSTIFIED: Root required for real namespace/cgroup/landlock testing.
       - name: Linux integration gate (root, real namespaces)
         run: |
           sudo -E /opt/workflo/venv/bin/python -m pytest \
-            packages/sandbox-runtime/tests/integration -q -v
+            packages/sandbox-runtime/tests/integration -q -v \
+            --junitxml=/tmp/linux-gate-integration.xml
+
+      # The authoritative isolation gate. These tests skip whenever a capability
+      # is missing (not root, no bwrap/nft/dnsmasq, runtime image absent, kernel
+      # without Landlock), so a half-provisioned runner would report "33 skipped,
+      # 0 failed" and exit 0 - a green gate that verified nothing. Skips are
+      # therefore a FAILURE here: a security test that only passes because the
+      # capability was skipped is not an authoritative security gate.
+      - name: Assert the integration gate actually executed
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          MIN_EXECUTED = 30  # suite has 33 tests; fewer means tests were removed
+          path = "/tmp/linux-gate-integration.xml"
+          try:
+              root = ET.parse(path).getroot()
+          except FileNotFoundError:
+              sys.exit(f"::error::no junit report at {path} - the integration step did not run")
+
+          suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+          total = sum(int(s.get("tests", 0)) for s in suites)
+          skipped = sum(int(s.get("skipped", 0)) for s in suites)
+          failed = sum(int(s.get("failures", 0)) + int(s.get("errors", 0)) for s in suites)
+          executed = total - skipped
+          print(f"collected={total} executed={executed} skipped={skipped} failed={failed}")
+
+          problems = []
+          if skipped:
+              problems.append(
+                  f"{skipped} integration test(s) skipped, so the isolation claims were "
+                  "never exercised. Check that scripts/linux/setup_env.sh provisioned "
+                  "bwrap/ip/nft/dnsmasq and the runtime image, that the step runs as root, "
+                  "and that the kernel provides Landlock. Fix the environment or record an "
+                  "explicit decision - do not let the gate report success."
+              )
+          if executed < MIN_EXECUTED:
+              problems.append(f"only {executed} tests executed (expected >= {MIN_EXECUTED})")
+          if failed:
+              problems.append(f"{failed} test(s) failed")
+          if problems:
+              for problem in problems:
+                  print(f"::error::{problem}")
+              sys.exit(1)
+          print(f"[ok] isolation gate executed: {executed} tests, no skips")
+          PY
 
       # JUSTIFIED: Root required for bwrap + namespace isolation.
       - name: Namespaces golden run (tests tier)

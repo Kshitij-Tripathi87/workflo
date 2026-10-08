@@ -20,6 +20,7 @@ import hashlib
 from datetime import datetime
 from typing import Any
 
+from app.core.logging import logger
 from app.core.settings import settings
 from app.models.autopilot import AutopilotTask, ContextDocument
 
@@ -85,19 +86,59 @@ class ContextStore:
 
     # -- Chroma -----------------------------------------------------------
     def _init_chroma(self):
+        """Return a ChromaDB collection, or the in-memory fallback.
+
+        The fallback must engage not only when chromadb is absent but also when
+        its embedding model is unusable. ChromaDB's default embedder downloads
+        its model on first use, so in an offline deployment - including the
+        ``--network none`` sandbox this product runs in - every upsert/query
+        fails. Previously that degradation was silent: retrieval just returned
+        nothing while the object still looked healthy.
+
+        Readiness is therefore *probed* here, and every downgrade is logged.
+        """
         try:
             import chromadb
-        except ImportError:
+        except ImportError as e:
+            logger.warning(
+                "context_store.chroma_unavailable",
+                reason=f"chromadb not installed: {e}",
+                fallback="in_memory",
+            )
             return _InMemoryStore()
 
         path = settings.CORTEX_CHROMA_PATH
+        try:
+            from chromadb.utils import embedding_functions
+
+            embedder = embedding_functions.DefaultEmbeddingFunction()
+            embedder(["readiness probe"])  # first call downloads/loads the model
+        except Exception as e:
+            logger.warning(
+                "context_store.chroma_embedding_unavailable",
+                reason=f"{type(e).__name__}: {e}",
+                detail=(
+                    "ChromaDB's embedding model could not be loaded (it is "
+                    "fetched on first use). Semantic retrieval would silently "
+                    "return nothing."
+                ),
+                fallback="in_memory",
+            )
+            return _InMemoryStore()
+
         try:
             client = chromadb.PersistentClient(path=path)
             self._collection = client.get_or_create_collection(
                 name=settings.CORTEX_CHROMA_COLLECTION,
             )
             return self._collection
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "context_store.chroma_init_failed",
+                reason=f"{type(e).__name__}: {e}",
+                path=path,
+                fallback="in_memory",
+            )
             return _InMemoryStore()
 
     # -- RAG retrieval ----------------------------------------------------
@@ -120,7 +161,12 @@ class ContextStore:
                 n_results=k,
                 where=where,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "context_store.retrieve_failed",
+                reason=f"{type(e).__name__}: {e}",
+                query=query[:120],
+            )
             return []
 
         documents = result.get("documents", [[]])
@@ -254,5 +300,9 @@ class ContextStore:
                 documents=[text],
                 metadatas=[metadata],
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "context_store.index_failed",
+                reason=f"{type(e).__name__}: {e}",
+                doc_id=doc_id,
+            )

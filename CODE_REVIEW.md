@@ -386,3 +386,67 @@ Nothing in the P3 "Quarantine" list was deleted — those need an owner's call.
 The website redesign gate is met: clean build, clean dependency graph, green CI,
 fail-closed production config, documented boundaries.
 
+---
+
+## 14. P4 preparation (2026-10-08, follow-up)
+
+Review feedback on §13 raised two release blockers and one framing correction;
+both are closed and the framing is adopted.
+
+### Blocker 1 — the skipped benchmark test
+
+"Missing implementation -> SKIP -> green" is not an acceptable state for a test
+guarding the model-serving economics, so the harness now exists:
+**`bench/model-serving/bench_inference.py`** (throughput, latency percentiles,
+decode throughput, and unit cost across concurrency levels, against any
+OpenAI-compatible endpoint — `infra/vllm` locally). The test no longer skips; a
+missing harness is a hard failure.
+
+Two things it deliberately does *not* do: invent a cost figure (the hourly
+instance rate is a required, recorded assumption — every cost number in the
+report is labelled an estimate, because no infra cost exists anywhere in the
+repo), and only test the happy path. Verified: stub-server test passes; an
+independent CLI run reached 19/39/77 rps at concurrency 1/2/4 with linear cost
+scaling; a dead endpoint exits 1 with the report retained (the "model
+unavailable" negative path, N8 in `P4_ACCEPTANCE.md`).
+
+### Blocker 2 — quarantine disposition
+
+Every previously-ambiguous item now has an explicit state (KEEP / MERGE /
+MIGRATE / ARCHIVE / DELETE) with evidence — see `PRODUCT_BOUNDARIES.md`. The
+double-nested extraction was **flattened**, and the finding that changed the
+disposition is the kit's own README: *"Standalone scaffolding for the
+LoRA-adapter path... Meant to be merged into the real sandbox worker once
+adapters exist."* That makes it **MERGE**, and P4-relevant — `safety_gate.py` is
+the compile-check gate between generated code and the sandbox, `model_router.py`
+is the adapter routing. Its 24 mock-based tests passed but no CI ran them; a new
+`ai-integration` CI job now does.
+
+### The gate that could still lie
+
+`linux-gate.yml` returns 0 whenever the integration tests *skip* — which is what
+happens when provisioning half-fails (no root, no bwrap/nft/dnsmasq, no runtime
+image, no Landlock). A security gate that reports success after verifying
+nothing is exactly the false green this work exists to remove. Both suites now
+emit junit reports and assert: no silent skips in the integration gate, and a
+minimum executed count in each. Verified against fabricated reports — 33
+collected / 33 skipped / 0 failed now exits 1.
+
+### Defect found by re-running with full dependencies
+
+With chromadb installed (fresh setup, offline), `TestContextStore` failed for a
+real reason: ChromaDB's default embedder **downloads its model on first use**, so
+inside the `--network none` sandbox this product runs in, every upsert/query
+fails. The in-memory fallback only engaged when chromadb was *absent*, and both
+`_index_document` and `retrieve_context` swallowed the exception — so RAG
+silently returned nothing while the store looked healthy. Readiness is now
+probed and every downgrade is logged; two regression tests pin it, and removing
+the probe fails them. This is the fourth real defect the honest gates exposed.
+
+### Framing
+
+Repo integrity is not product readiness. The remaining proof is real execution:
+sandbox -> model -> exploration -> confirmation -> receipt -> independent
+verification. That chain, its negative paths, and the runnable subset are
+specified in **`P4_ACCEPTANCE.md`**; nothing there is claimed as passing that
+was not run.

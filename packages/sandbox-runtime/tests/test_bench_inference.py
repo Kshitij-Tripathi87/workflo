@@ -67,11 +67,19 @@ BENCH_SCRIPT = (
 
 
 def _load_bench_module():
-    """Load bench_inference.py by path (it lives outside the package tree)."""
+    """Load bench_inference.py by path (it lives outside the package tree).
+
+    A missing harness is a FAILURE, not a skip: the file is part of the repo, and
+    the model-serving economics depend on it running (see PRODUCT_BOUNDARIES.md).
+    """
     import importlib.util
     import sys
 
     target = BENCH_SCRIPT
+    assert target.exists(), (
+        f"benchmark harness missing: {target} — restore it or delete this test; "
+        "a permanently skipped economics test is not evidence of anything"
+    )
     spec = importlib.util.spec_from_file_location("bench_inference", target)
     module = importlib.util.module_from_spec(spec)
     # Register before exec: dataclass field resolution looks the module up
@@ -85,14 +93,6 @@ def _load_bench_module():
     return module
 
 
-@pytest.mark.skipif(
-    not BENCH_SCRIPT.exists(),
-    reason=(
-        f"benchmark harness {BENCH_SCRIPT} is not part of this repository — the "
-        "bench/ tree was never committed, so this test cannot run. It is not a "
-        "security gate; it auto-enables if the harness is added back."
-    ),
-)
 def test_direct_mode_against_stub(stub_server, tmp_path):
     bench = _load_bench_module()
     out_json = tmp_path / "bench.json"
