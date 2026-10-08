@@ -1,0 +1,79 @@
+name: Weekly Benchmark
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate corpus
+        run: |
+          python -m tests.benchmark.repo_generator \
+            --output-dir tests/benchmark/corpus \
+            --num-repos 100 \
+            --num-changes-per-repo 100 \
+            --seed 20260801
+
+      - name: Run benchmark
+        run: |
+          python -m tests.benchmark.run_benchmark \
+            --corpus tests/benchmark/corpus \
+            --output tests/benchmark/results
+
+      - name: Upload REPORT.md
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: backend/tests/benchmark/results/REPORT.md
+          if-no-files-found: warn
+
+      - name: Upload records.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-records
+          path: backend/tests/benchmark/results/records.json
+          if-no-files-found: warn
+
+      - name: Assert FP rate below 5%
+        run: |
+          python -c "
+          import re
+          text = open('tests/benchmark/results/REPORT.md').read()
+          match = re.search(r'false-positive rate: ([0-9.]+)%', text)
+          fp = float(match.group(1))
+          assert fp < 5.0, f'FP rate {fp}% exceeds 5% threshold'
+          print(f'[ok] FP rate {fp}% is below 5% threshold')
+          "
+
+      - name: Assert p95 latency below 250 ms
+        run: |
+          python -c "
+          import re
+          text = open('tests/benchmark/results/REPORT.md').read()
+          match = re.search(r'p95: ([0-9.]+) ms', text)
+          p95 = float(match.group(1))
+          assert p95 < 250.0, f'p95 latency {p95} ms exceeds 250 ms budget'
+          print(f'[ok] p95 latency {p95} ms is below 250 ms budget')
+          "

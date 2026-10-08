@@ -1,0 +1,9 @@
+{
+  "asset_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)",
+  "scenario_type": "schema_rename",
+  "change": {
+    "removed": ["customer_name"],
+    "added": ["name"]
+  },
+  "notes": "Rename customer_name to name for consistency"
+}

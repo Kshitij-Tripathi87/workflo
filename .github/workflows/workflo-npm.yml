@@ -1,0 +1,142 @@
+name: npm package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/npm-workflo/**"
+      - "apps/workflo-cli/**"
+      - "apps/sandbox-executor/**"
+      - "packages/cortex-auth/**"
+      - "packages/sandbox-isolation/**"
+      - "packages/probe-engine/**"
+      - "packages/workflo-schema/**"
+  pull_request:
+    paths:
+      - "packages/npm-workflo/**"
+      - ".github/workflows/workflo-npm.yml"
+  release:
+    types: [published]
+
+jobs:
+  build-and-smoke:
+    # Build vendor wheels, pack tarball, run structural smoke test.
+    # Runs on PRs touching the package, pushes to main, and releases.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build vendor wheels
+        working-directory: packages/npm-workflo
+        run: python scripts/build-wheels.py
+
+      - name: Pack tarball
+        working-directory: packages/npm-workflo
+        run: |
+          IPATH=$(pwd)
+          npm pack --pack-destination dist
+          ls -la "$IPATH/dist"
+
+      - name: Structural smoke test
+        working-directory: packages/npm-workflo
+        run: node scripts/smoke-test.js
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-tarball
+          path: packages/npm-workflo/dist/*.tgz
+          retention-days: 7
+
+  install-matrix:
+    # Global install from the built tarball across Node versions and OSes.
+    # Validates postinstall (venv + wheels) actually works end-to-end.
+    needs: build-and-smoke
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ["18", "20", "22"]
+
+    steps:
+      - name: Download tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-tarball
+          path: dist
+
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tarball globally
+        shell: bash
+        run: |
+          TARBALL=$(find dist -name "*.tgz" | head -1)
+          echo "Installing: $TARBALL"
+          npm install -g "$TARBALL" --allow-scripts=@cortexstudio/workflo
+
+      - name: Verify CLI
+        shell: bash
+        run: |
+          workflo --version
+          workflo --help
+          workflo run --dry-run --repo https://github.com/psf/requests.git --test
+
+  publish:
+    # Publishes to npm ONLY on a GitHub Release (tag-based). Requires the
+    # NPM_TOKEN secret (classic token with publish rights on @cortexstudio).
+    # Provenance requires this job to run on the repo's own runner with
+    # id-token: write (GitHub-hosted runners).
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [build-and-smoke, install-matrix]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # npm provenance (OIDC)
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build + pack (fresh, reproducible)
+        working-directory: packages/npm-workflo
+        run: |
+          python scripts/build-wheels.py
+          node scripts/smoke-test.js
+          npm pack --pack-destination dist
+
+      - name: Publish to npm
+        working-directory: packages/npm-workflo
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance dist/*.tgz
+
+      - name: Verify publication
+        run: npm view @cortexstudio/workflo version

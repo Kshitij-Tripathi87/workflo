@@ -1,0 +1,44 @@
+name: "Cortex Autopilot Impact Gate"
+description: "Block risky data changes before they reach production"
+author: "Cortex"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  cortex_server:
+    description: "Cortex server URL (defaults to localhost for self-hosted)"
+    required: false
+    default: "http://localhost:8000"
+  api_token:
+    description: "Bearer token for the Cortex API if auth is enforced"
+    required: false
+    default: ""
+  cortex_yml:
+    description: "Path to cortex.yml (repo-root config)"
+    required: false
+    default: "cortex.yml"
+  schema_change:
+    description: "JSON blob describing the change (asset_urn + change dict). If omitted, action attempts to detect from git diff."
+    required: false
+    default: ""
+  policy:
+    description: "Inline YAML policy to override cortex.yml (max_severity, max_blast_radius, etc.)"
+    required: false
+    default: ""
+  slack_webhook:
+    description: "Slack incoming webhook URL. If set, posts a summary when verdict is warn or block."
+    required: false
+    default: ""
+
+outputs:
+  verdict:
+    description: "pass, warn, or block"
+  blast_radius:
+    description: "Number of downstream affected assets"
+  plan_id:
+    description: "ID of the generated FuturePlan (for traceability)"
+
+runs:
+  using: "docker"
+  image: "Dockerfile"

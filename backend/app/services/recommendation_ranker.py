@@ -1,0 +1,1 @@
+from app.engine.recommendation_ranker import rank_candidates  # noqa: F401

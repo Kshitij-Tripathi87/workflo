@@ -1,0 +1,44 @@
+---
+name: Bug report
+description: Report a bug in Cortex Autopilot
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+---
+
+## Summary
+
+One-paragraph description of the bug.
+
+## Steps to Reproduce
+
+1. Step one
+2. Step two
+3. ...
+
+## Expected Behavior
+
+What you expected to happen.
+
+## Actual Behavior
+
+What actually happened.
+
+## Environment
+
+- **Cortex version:** (run `curl http://localhost:8000/version`)
+- **Connector(s):** dbt / Snowflake / DataHub / custom
+- **OS:** macOS / Linux / Windows
+- **dbt version:** (if applicable)
+- **Snowflake account region:** (if applicable)
+
+## Logs
+
+Paste relevant logs here, or attach a file. Remove any secrets first.
+
+## Possible Cause
+
+If you have an idea what might be causing this, share it.
+
+## Additional Context
+
+Screenshots, related issues, anything else that might help.

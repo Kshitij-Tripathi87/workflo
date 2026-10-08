@@ -1,0 +1,971 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v8.json",
+    "dbt_version": "1.5.0",
+    "generated_at": "2026-08-01T00:00:00.000Z",
+    "project_name": "synth_0000",
+    "project_id": "synth_0000"
+  },
+  "nodes": {
+    "model.synth_0000.stg_0": {
+      "name": "stg_0",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Staging model 0",
+      "depends_on": {
+        "nodes": [
+          "source.synth_0000.raw.raw_events_1"
+        ]
+      },
+      "config": {
+        "materialized": "view"
+      },
+      "columns": {
+        "secondary_rate": {
+          "name": "previous_status"
+        },
+        "next_deleted_at": {
+          "name": "primary_name"
+        },
+        "secondary_amount": {
+          "name": "last_date"
+        }
+      },
+      "tags": [
+        "staging"
+      ],
+      "meta": {
+        "owner": "data-platform"
+      }
+    },
+    "model.synth_0000.stg_1": {
+      "name": "stg_1",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Staging model 1",
+      "depends_on": {
+        "nodes": [
+          "source.synth_0000.raw.raw_products_0"
+        ]
+      },
+      "config": {
+        "materialized": "view"
+      },
+      "columns": {
+        "total_id": {
+          "name": "total_value"
+        },
+        "last_created_at": {
+          "name": "next_code"
+        },
+        "next_order_id": {
+          "name": "previous_status"
+        },
+        "previous_rate": {
+          "name": "secondary_created_at"
+        },
+        "secondary_product_id": {
+          "name": "current_rate"
+        },
+        "secondary_value": {
+          "name": "first_order_id"
+        }
+      },
+      "tags": [
+        "staging"
+      ],
+      "meta": {
+        "owner": "data-platform"
+      }
+    },
+    "model.synth_0000.model_2": {
+      "name": "model_2",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 2",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_0",
+          "model.synth_0000.stg_1"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "next_user_id": {
+          "name": "current_id"
+        },
+        "next_date": {
+          "name": "secondary_rate"
+        },
+        "last_date": {
+          "name": "last_deleted_at"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_3": {
+      "name": "model_3",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 3",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_0",
+          "model.synth_0000.stg_1",
+          "model.synth_0000.model_2"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "current_amount": {
+          "name": "primary_product_id"
+        },
+        "current_deleted_at": {
+          "name": "current_rate"
+        },
+        "current_product_id": {
+          "name": "previous_created_at"
+        },
+        "secondary_name": {
+          "name": "first_status"
+        },
+        "primary_code": {
+          "name": "last_rate"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_4": {
+      "name": "model_4",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 4",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_3"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "current_deleted_at": {
+          "name": "next_status"
+        },
+        "secondary_name": {
+          "name": "total_customer_id"
+        },
+        "current_date": {
+          "name": "raw_product_id"
+        },
+        "first_created_at": {
+          "name": "last_deleted_at"
+        },
+        "raw_code": {
+          "name": "next_type"
+        },
+        "raw_count": {
+          "name": "total_user_id"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_5": {
+      "name": "model_5",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 5",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_1"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "previous_email": {
+          "name": "raw_customer_id"
+        },
+        "secondary_product_id": {
+          "name": "type"
+        },
+        "deleted_at": {
+          "name": "current_score"
+        },
+        "previous_score": {
+          "name": "next_customer_id"
+        },
+        "raw_value": {
+          "name": "raw_deleted_at"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_6": {
+      "name": "model_6",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 6",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_0"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "last_id": {
+          "name": "last_name"
+        },
+        "raw_user_id": {
+          "name": "last_date"
+        },
+        "primary_rate": {
+          "name": "previous_updated_at"
+        },
+        "secondary_email": {
+          "name": "total_type"
+        },
+        "last_name": {
+          "name": "name"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_7": {
+      "name": "model_7",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 7",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_1",
+          "model.synth_0000.model_4"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "primary_rate": {
+          "name": "total_code"
+        },
+        "current_user_id": {
+          "name": "total_order_id"
+        },
+        "next_type": {
+          "name": "raw_date"
+        },
+        "next_user_id": {
+          "name": "secondary_deleted_at"
+        },
+        "amount": {
+          "name": "rate"
+        },
+        "total_updated_at": {
+          "name": "last_amount"
+        }
+      },
+      "tags": [
+        "core",
+        "critical"
+      ],
+      "meta": {
+        "owner": null
+      }
+    },
+    "model.synth_0000.model_8": {
+      "name": "model_8",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 8",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_1"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "last_type": {
+          "name": "primary_updated_at"
+        },
+        "current_score": {
+          "name": "first_amount"
+        },
+        "first_deleted_at": {
+          "name": "raw_customer_id"
+        },
+        "last_customer_id": {
+          "name": "total_score"
+        },
+        "secondary_id": {
+          "name": "total_customer_id"
+        },
+        "first_rate": {
+          "name": "first_created_at"
+        },
+        "previous_deleted_at": {
+          "name": "raw_amount"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_9": {
+      "name": "model_9",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 9",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_7",
+          "model.synth_0000.stg_0"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "raw_code": {
+          "name": "current_value"
+        },
+        "first_status": {
+          "name": "deleted_at"
+        },
+        "first_customer_id": {
+          "name": "total_id"
+        },
+        "next_code": {
+          "name": "total_email"
+        },
+        "previous_id": {
+          "name": "raw_id"
+        },
+        "created_at": {
+          "name": "current_created_at"
+        },
+        "first_amount": {
+          "name": "current_amount"
+        },
+        "total_customer_id": {
+          "name": "raw_deleted_at"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_10": {
+      "name": "model_10",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 10",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_4",
+          "model.synth_0000.model_5"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "amount": {
+          "name": "previous_status"
+        },
+        "last_date": {
+          "name": "raw_order_id"
+        },
+        "current_value": {
+          "name": "last_deleted_at"
+        },
+        "first_name": {
+          "name": "current_value"
+        },
+        "value": {
+          "name": "previous_order_id"
+        },
+        "last_name": {
+          "name": "previous_order_id"
+        },
+        "raw_score": {
+          "name": "total_code"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_11": {
+      "name": "model_11",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 11",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.stg_0"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "next_user_id": {
+          "name": "raw_updated_at"
+        },
+        "previous_created_at": {
+          "name": "primary_date"
+        },
+        "first_score": {
+          "name": "secondary_value"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_12": {
+      "name": "model_12",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 12",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_8"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "first_type": {
+          "name": "previous_date"
+        },
+        "rate": {
+          "name": "last_name"
+        },
+        "secondary_updated_at": {
+          "name": "previous_updated_at"
+        },
+        "previous_email": {
+          "name": "total_id"
+        },
+        "current_date": {
+          "name": "secondary_name"
+        },
+        "next_status": {
+          "name": "primary_created_at"
+        },
+        "current_rate": {
+          "name": "current_date"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_13": {
+      "name": "model_13",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 13",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_4",
+          "model.synth_0000.model_2"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "primary_code": {
+          "name": "primary_deleted_at"
+        },
+        "secondary_score": {
+          "name": "secondary_updated_at"
+        },
+        "secondary_email": {
+          "name": "next_email"
+        },
+        "raw_customer_id": {
+          "name": "deleted_at"
+        },
+        "total_id": {
+          "name": "raw_amount"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_14": {
+      "name": "model_14",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 14",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_3",
+          "model.synth_0000.model_7"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "current_customer_id": {
+          "name": "order_id"
+        },
+        "primary_deleted_at": {
+          "name": "current_count"
+        },
+        "primary_product_id": {
+          "name": "raw_rate"
+        },
+        "previous_product_id": {
+          "name": "total_user_id"
+        },
+        "secondary_user_id": {
+          "name": "previous_product_id"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_15": {
+      "name": "model_15",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 15",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_8",
+          "model.synth_0000.stg_1"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "next_status": {
+          "name": "secondary_user_id"
+        },
+        "last_name": {
+          "name": "last_order_id"
+        },
+        "raw_type": {
+          "name": "last_created_at"
+        },
+        "next_name": {
+          "name": "current_date"
+        },
+        "previous_amount": {
+          "name": "primary_email"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_16": {
+      "name": "model_16",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 16",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_13"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "next_id": {
+          "name": "previous_updated_at"
+        },
+        "total_id": {
+          "name": "next_order_id"
+        },
+        "secondary_order_id": {
+          "name": "raw_customer_id"
+        },
+        "total_user_id": {
+          "name": "score"
+        },
+        "last_order_id": {
+          "name": "total_customer_id"
+        },
+        "last_deleted_at": {
+          "name": "next_date"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_17": {
+      "name": "model_17",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 17",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_15",
+          "model.synth_0000.model_8"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "code": {
+          "name": "first_user_id"
+        },
+        "last_score": {
+          "name": "previous_date"
+        },
+        "next_count": {
+          "name": "current_date"
+        },
+        "next_id": {
+          "name": "current_status"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_18": {
+      "name": "model_18",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 18",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_7",
+          "model.synth_0000.model_17"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "updated_at": {
+          "name": "count"
+        },
+        "primary_id": {
+          "name": "total_code"
+        },
+        "total_status": {
+          "name": "email"
+        },
+        "first_value": {
+          "name": "raw_updated_at"
+        },
+        "raw_created_at": {
+          "name": "last_code"
+        }
+      },
+      "tags": [
+        "core"
+      ],
+      "meta": {
+        "owner": "analytics"
+      }
+    },
+    "model.synth_0000.model_19": {
+      "name": "model_19",
+      "resource_type": "model",
+      "package_name": "synth_0000",
+      "description": "Synthetic model 19",
+      "depends_on": {
+        "nodes": [
+          "model.synth_0000.model_6",
+          "model.synth_0000.model_2"
+        ]
+      },
+      "config": {
+        "materialized": "table"
+      },
+      "columns": {
+        "raw_customer_id": {
+          "name": "first_count"
+        },
+        "raw_value": {
+          "name": "secondary_created_at"
+        },
+        "last_value": {
+          "name": "first_count"
+        }
+      },
+      "tags": [
+        "core",
+        "critical"
+      ],
+      "meta": {
+        "owner": null
+      }
+    }
+  },
+  "sources": {
+    "source.synth_0000.raw.raw_products_0": {
+      "name": "raw_products",
+      "resource_type": "source",
+      "source_name": "raw",
+      "package_name": "synth_0000",
+      "identifier": "raw_products_0",
+      "description": "Synthetic raw source raw_products",
+      "columns": {
+        "secondary_amount": {
+          "name": "first_type"
+        },
+        "first_rate": {
+          "name": "deleted_at"
+        },
+        "primary_value": {
+          "name": "next_customer_id"
+        },
+        "secondary_updated_at": {
+          "name": "last_updated_at"
+        },
+        "total_status": {
+          "name": "first_count"
+        },
+        "primary_score": {
+          "name": "first_updated_at"
+        },
+        "first_name": {
+          "name": "current_updated_at"
+        }
+      },
+      "tags": [
+        "raw"
+      ]
+    },
+    "source.synth_0000.raw.raw_events_1": {
+      "name": "raw_events",
+      "resource_type": "source",
+      "source_name": "raw",
+      "package_name": "synth_0000",
+      "identifier": "raw_events_1",
+      "description": "Synthetic raw source raw_events",
+      "columns": {
+        "secondary_email": {
+          "name": "previous_type"
+        },
+        "rate": {
+          "name": "previous_user_id"
+        },
+        "current_code": {
+          "name": "primary_user_id"
+        }
+      },
+      "tags": [
+        "raw"
+      ]
+    }
+  },
+  "parent_map": {
+    "model.synth_0000.stg_0": [
+      "source.synth_0000.raw.raw_events_1"
+    ],
+    "model.synth_0000.stg_1": [
+      "source.synth_0000.raw.raw_products_0"
+    ],
+    "model.synth_0000.model_2": [
+      "model.synth_0000.stg_0",
+      "model.synth_0000.stg_1"
+    ],
+    "model.synth_0000.model_3": [
+      "model.synth_0000.stg_0",
+      "model.synth_0000.stg_1",
+      "model.synth_0000.model_2"
+    ],
+    "model.synth_0000.model_4": [
+      "model.synth_0000.model_3"
+    ],
+    "model.synth_0000.model_5": [
+      "model.synth_0000.stg_1"
+    ],
+    "model.synth_0000.model_6": [
+      "model.synth_0000.stg_0"
+    ],
+    "model.synth_0000.model_7": [
+      "model.synth_0000.stg_1",
+      "model.synth_0000.model_4"
+    ],
+    "model.synth_0000.model_8": [
+      "model.synth_0000.stg_1"
+    ],
+    "model.synth_0000.model_9": [
+      "model.synth_0000.model_7",
+      "model.synth_0000.stg_0"
+    ],
+    "model.synth_0000.model_10": [
+      "model.synth_0000.model_4",
+      "model.synth_0000.model_5"
+    ],
+    "model.synth_0000.model_11": [
+      "model.synth_0000.stg_0"
+    ],
+    "model.synth_0000.model_12": [
+      "model.synth_0000.model_8"
+    ],
+    "model.synth_0000.model_13": [
+      "model.synth_0000.model_4",
+      "model.synth_0000.model_2"
+    ],
+    "model.synth_0000.model_14": [
+      "model.synth_0000.model_3",
+      "model.synth_0000.model_7"
+    ],
+    "model.synth_0000.model_15": [
+      "model.synth_0000.model_8",
+      "model.synth_0000.stg_1"
+    ],
+    "model.synth_0000.model_16": [
+      "model.synth_0000.model_13"
+    ],
+    "model.synth_0000.model_17": [
+      "model.synth_0000.model_15",
+      "model.synth_0000.model_8"
+    ],
+    "model.synth_0000.model_18": [
+      "model.synth_0000.model_7",
+      "model.synth_0000.model_17"
+    ],
+    "model.synth_0000.model_19": [
+      "model.synth_0000.model_6",
+      "model.synth_0000.model_2"
+    ]
+  },
+  "child_map": {
+    "source.synth_0000.raw.raw_events_1": [
+      "model.synth_0000.stg_0"
+    ],
+    "source.synth_0000.raw.raw_products_0": [
+      "model.synth_0000.stg_1"
+    ],
+    "model.synth_0000.stg_0": [
+      "model.synth_0000.model_2",
+      "model.synth_0000.model_3",
+      "model.synth_0000.model_6",
+      "model.synth_0000.model_9",
+      "model.synth_0000.model_11"
+    ],
+    "model.synth_0000.stg_1": [
+      "model.synth_0000.model_2",
+      "model.synth_0000.model_3",
+      "model.synth_0000.model_5",
+      "model.synth_0000.model_7",
+      "model.synth_0000.model_8",
+      "model.synth_0000.model_15"
+    ],
+    "model.synth_0000.model_2": [
+      "model.synth_0000.model_3",
+      "model.synth_0000.model_13",
+      "model.synth_0000.model_19"
+    ],
+    "model.synth_0000.model_3": [
+      "model.synth_0000.model_4",
+      "model.synth_0000.model_14"
+    ],
+    "model.synth_0000.model_4": [
+      "model.synth_0000.model_7",
+      "model.synth_0000.model_10",
+      "model.synth_0000.model_13"
+    ],
+    "model.synth_0000.model_7": [
+      "model.synth_0000.model_9",
+      "model.synth_0000.model_14",
+      "model.synth_0000.model_18"
+    ],
+    "model.synth_0000.model_5": [
+      "model.synth_0000.model_10"
+    ],
+    "model.synth_0000.model_8": [
+      "model.synth_0000.model_12",
+      "model.synth_0000.model_15",
+      "model.synth_0000.model_17"
+    ],
+    "model.synth_0000.model_13": [
+      "model.synth_0000.model_16"
+    ],
+    "model.synth_0000.model_15": [
+      "model.synth_0000.model_17"
+    ],
+    "model.synth_0000.model_17": [
+      "model.synth_0000.model_18"
+    ],
+    "model.synth_0000.model_6": [
+      "model.synth_0000.model_19"
+    ]
+  }
+}

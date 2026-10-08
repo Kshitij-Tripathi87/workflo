@@ -1,0 +1,702 @@
+[
+  {
+    "change_id": "change_0000",
+    "asset_urn": "urn:dbt:model:synth_0050:model_7",
+    "change_type": "column_rename",
+    "affected_column": "next_value",
+    "new_value": "next_value_renamed"
+  },
+  {
+    "change_id": "change_0001",
+    "asset_urn": "urn:dbt:model:synth_0050:model_26",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0002",
+    "asset_urn": "urn:dbt:model:synth_0050:model_32",
+    "change_type": "column_rename",
+    "affected_column": "last_order_id",
+    "new_value": "last_order_id_renamed"
+  },
+  {
+    "change_id": "change_0003",
+    "asset_urn": "urn:dbt:model:synth_0050:model_22",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0004",
+    "asset_urn": "urn:dbt:model:synth_0050:model_35",
+    "change_type": "type_change",
+    "affected_column": "last_customer_id",
+    "new_value": "DATE"
+  },
+  {
+    "change_id": "change_0005",
+    "asset_urn": "urn:dbt:model:synth_0050:model_38",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0006",
+    "asset_urn": "urn:dbt:model:synth_0050:model_30",
+    "change_type": "column_rename",
+    "affected_column": "secondary_type",
+    "new_value": "secondary_type_renamed"
+  },
+  {
+    "change_id": "change_0007",
+    "asset_urn": "urn:dbt:model:synth_0050:model_18",
+    "change_type": "column_rename",
+    "affected_column": "previous_count",
+    "new_value": "previous_count_renamed"
+  },
+  {
+    "change_id": "change_0008",
+    "asset_urn": "urn:dbt:model:synth_0050:model_14",
+    "change_type": "type_change",
+    "affected_column": "previous_product_id",
+    "new_value": "NUMERIC"
+  },
+  {
+    "change_id": "change_0009",
+    "asset_urn": "urn:dbt:model:synth_0050:model_25",
+    "change_type": "type_change",
+    "affected_column": "total_product_id",
+    "new_value": "NUMERIC"
+  },
+  {
+    "change_id": "change_0010",
+    "asset_urn": "urn:dbt:model:synth_0050:model_8",
+    "change_type": "column_remove",
+    "affected_column": "previous_amount",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0011",
+    "asset_urn": "urn:dbt:model:synth_0050:model_20",
+    "change_type": "add_not_null",
+    "affected_column": "next_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0012",
+    "asset_urn": "urn:dbt:model:synth_0050:model_31",
+    "change_type": "column_rename",
+    "affected_column": "next_order_id",
+    "new_value": "next_order_id_renamed"
+  },
+  {
+    "change_id": "change_0013",
+    "asset_urn": "urn:dbt:model:synth_0050:model_26",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0014",
+    "asset_urn": "urn:dbt:model:synth_0050:model_13",
+    "change_type": "column_rename",
+    "affected_column": "first_created_at",
+    "new_value": "first_created_at_renamed"
+  },
+  {
+    "change_id": "change_0015",
+    "asset_urn": "urn:dbt:model:synth_0050:stg_1",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0016",
+    "asset_urn": "urn:dbt:model:synth_0050:model_30",
+    "change_type": "column_remove",
+    "affected_column": "secondary_amount",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0017",
+    "asset_urn": "urn:dbt:model:synth_0050:model_19",
+    "change_type": "add_column",
+    "affected_column": "primary_rate",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0018",
+    "asset_urn": "urn:dbt:model:synth_0050:model_14",
+    "change_type": "add_not_null",
+    "affected_column": "previous_product_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0019",
+    "asset_urn": "urn:dbt:model:synth_0050:model_6",
+    "change_type": "add_not_null",
+    "affected_column": "previous_status",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0020",
+    "asset_urn": "urn:dbt:model:synth_0050:model_31",
+    "change_type": "column_rename",
+    "affected_column": "current_value",
+    "new_value": "current_value_renamed"
+  },
+  {
+    "change_id": "change_0021",
+    "asset_urn": "urn:dbt:model:synth_0050:model_23",
+    "change_type": "column_rename",
+    "affected_column": "last_score",
+    "new_value": "last_score_renamed"
+  },
+  {
+    "change_id": "change_0022",
+    "asset_urn": "urn:dbt:model:synth_0050:model_18",
+    "change_type": "add_column",
+    "affected_column": "raw_customer_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0023",
+    "asset_urn": "urn:dbt:model:synth_0050:model_13",
+    "change_type": "add_column",
+    "affected_column": "secondary_rate",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0024",
+    "asset_urn": "urn:dbt:model:synth_0050:model_15",
+    "change_type": "column_rename",
+    "affected_column": "current_count",
+    "new_value": "current_count_renamed"
+  },
+  {
+    "change_id": "change_0025",
+    "asset_urn": "urn:dbt:model:synth_0050:model_7",
+    "change_type": "type_change",
+    "affected_column": "next_value",
+    "new_value": "NUMERIC"
+  },
+  {
+    "change_id": "change_0026",
+    "asset_urn": "urn:dbt:model:synth_0050:model_12",
+    "change_type": "column_remove",
+    "affected_column": "previous_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0027",
+    "asset_urn": "urn:dbt:model:synth_0050:stg_0",
+    "change_type": "column_rename",
+    "affected_column": "raw_product_id",
+    "new_value": "raw_product_id_renamed"
+  },
+  {
+    "change_id": "change_0028",
+    "asset_urn": "urn:dbt:model:synth_0050:model_10",
+    "change_type": "add_column",
+    "affected_column": "previous_type",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0029",
+    "asset_urn": "urn:dbt:model:synth_0050:model_29",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0030",
+    "asset_urn": "urn:dbt:model:synth_0050:model_36",
+    "change_type": "column_rename",
+    "affected_column": "current_customer_id",
+    "new_value": "current_customer_id_renamed"
+  },
+  {
+    "change_id": "change_0031",
+    "asset_urn": "urn:dbt:model:synth_0050:model_7",
+    "change_type": "column_remove",
+    "affected_column": "primary_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0032",
+    "asset_urn": "urn:dbt:model:synth_0050:model_29",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0033",
+    "asset_urn": "urn:dbt:model:synth_0050:model_12",
+    "change_type": "add_column",
+    "affected_column": "last_name",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0034",
+    "asset_urn": "urn:dbt:model:synth_0050:model_29",
+    "change_type": "column_remove",
+    "affected_column": "current_amount",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0035",
+    "asset_urn": "urn:dbt:model:synth_0050:model_26",
+    "change_type": "column_remove",
+    "affected_column": "next_updated_at",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0036",
+    "asset_urn": "urn:dbt:model:synth_0050:model_4",
+    "change_type": "type_change",
+    "affected_column": "raw_deleted_at",
+    "new_value": "NUMERIC"
+  },
+  {
+    "change_id": "change_0037",
+    "asset_urn": "urn:dbt:model:synth_0050:model_4",
+    "change_type": "add_column",
+    "affected_column": "raw_count",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0038",
+    "asset_urn": "urn:dbt:model:synth_0050:model_8",
+    "change_type": "add_not_null",
+    "affected_column": "primary_status",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0039",
+    "asset_urn": "urn:dbt:model:synth_0050:model_27",
+    "change_type": "add_not_null",
+    "affected_column": "current_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0040",
+    "asset_urn": "urn:dbt:model:synth_0050:model_31",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0041",
+    "asset_urn": "urn:dbt:model:synth_0050:model_13",
+    "change_type": "column_remove",
+    "affected_column": "secondary_status",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0042",
+    "asset_urn": "urn:dbt:model:synth_0050:model_15",
+    "change_type": "add_not_null",
+    "affected_column": "raw_amount",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0043",
+    "asset_urn": "urn:dbt:model:synth_0050:model_5",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0044",
+    "asset_urn": "urn:dbt:model:synth_0050:model_6",
+    "change_type": "column_rename",
+    "affected_column": "last_customer_id",
+    "new_value": "last_customer_id_renamed"
+  },
+  {
+    "change_id": "change_0045",
+    "asset_urn": "urn:dbt:model:synth_0050:model_27",
+    "change_type": "column_rename",
+    "affected_column": "current_score",
+    "new_value": "current_score_renamed"
+  },
+  {
+    "change_id": "change_0046",
+    "asset_urn": "urn:dbt:model:synth_0050:model_23",
+    "change_type": "column_rename",
+    "affected_column": "secondary_product_id",
+    "new_value": "secondary_product_id_renamed"
+  },
+  {
+    "change_id": "change_0047",
+    "asset_urn": "urn:dbt:model:synth_0050:model_4",
+    "change_type": "column_remove",
+    "affected_column": "primary_user_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0048",
+    "asset_urn": "urn:dbt:model:synth_0050:model_37",
+    "change_type": "column_rename",
+    "affected_column": "last_score",
+    "new_value": "last_score_renamed"
+  },
+  {
+    "change_id": "change_0049",
+    "asset_urn": "urn:dbt:model:synth_0050:model_7",
+    "change_type": "type_change",
+    "affected_column": "raw_created_at",
+    "new_value": "NUMERIC"
+  },
+  {
+    "change_id": "change_0050",
+    "asset_urn": "urn:dbt:model:synth_0050:model_2",
+    "change_type": "column_remove",
+    "affected_column": "previous_updated_at",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0051",
+    "asset_urn": "urn:dbt:model:synth_0050:model_30",
+    "change_type": "add_column",
+    "affected_column": "secondary_amount",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0052",
+    "asset_urn": "urn:dbt:model:synth_0050:model_22",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0053",
+    "asset_urn": "urn:dbt:model:synth_0050:model_16",
+    "change_type": "column_remove",
+    "affected_column": "order_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0054",
+    "asset_urn": "urn:dbt:model:synth_0050:model_20",
+    "change_type": "column_remove",
+    "affected_column": "total_user_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0055",
+    "asset_urn": "urn:dbt:model:synth_0050:model_35",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0056",
+    "asset_urn": "urn:dbt:model:synth_0050:model_26",
+    "change_type": "type_change",
+    "affected_column": "primary_value",
+    "new_value": "BOOLEAN"
+  },
+  {
+    "change_id": "change_0057",
+    "asset_urn": "urn:dbt:model:synth_0050:model_8",
+    "change_type": "column_remove",
+    "affected_column": "current_email",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0058",
+    "asset_urn": "urn:dbt:model:synth_0050:model_5",
+    "change_type": "add_column",
+    "affected_column": "primary_product_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0059",
+    "asset_urn": "urn:dbt:model:synth_0050:model_33",
+    "change_type": "column_rename",
+    "affected_column": "previous_order_id",
+    "new_value": "previous_order_id_renamed"
+  },
+  {
+    "change_id": "change_0060",
+    "asset_urn": "urn:dbt:model:synth_0050:model_25",
+    "change_type": "column_rename",
+    "affected_column": "total_product_id",
+    "new_value": "total_product_id_renamed"
+  },
+  {
+    "change_id": "change_0061",
+    "asset_urn": "urn:dbt:model:synth_0050:model_10",
+    "change_type": "add_column",
+    "affected_column": "secondary_name",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0062",
+    "asset_urn": "urn:dbt:model:synth_0050:model_35",
+    "change_type": "column_remove",
+    "affected_column": "raw_product_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0063",
+    "asset_urn": "urn:dbt:model:synth_0050:model_15",
+    "change_type": "column_rename",
+    "affected_column": "current_count",
+    "new_value": "current_count_renamed"
+  },
+  {
+    "change_id": "change_0064",
+    "asset_urn": "urn:dbt:model:synth_0050:model_22",
+    "change_type": "column_rename",
+    "affected_column": "raw_user_id",
+    "new_value": "raw_user_id_renamed"
+  },
+  {
+    "change_id": "change_0065",
+    "asset_urn": "urn:dbt:model:synth_0050:model_24",
+    "change_type": "column_rename",
+    "affected_column": "secondary_score",
+    "new_value": "secondary_score_renamed"
+  },
+  {
+    "change_id": "change_0066",
+    "asset_urn": "urn:dbt:model:synth_0050:model_28",
+    "change_type": "add_not_null",
+    "affected_column": "primary_user_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0067",
+    "asset_urn": "urn:dbt:model:synth_0050:model_12",
+    "change_type": "add_column",
+    "affected_column": "secondary_date",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0068",
+    "asset_urn": "urn:dbt:model:synth_0050:model_20",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0069",
+    "asset_urn": "urn:dbt:model:synth_0050:model_29",
+    "change_type": "column_remove",
+    "affected_column": "first_name",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0070",
+    "asset_urn": "urn:dbt:model:synth_0050:model_20",
+    "change_type": "type_change",
+    "affected_column": "next_rate",
+    "new_value": "DATE"
+  },
+  {
+    "change_id": "change_0071",
+    "asset_urn": "urn:dbt:model:synth_0050:model_17",
+    "change_type": "column_rename",
+    "affected_column": "raw_deleted_at",
+    "new_value": "raw_deleted_at_renamed"
+  },
+  {
+    "change_id": "change_0072",
+    "asset_urn": "urn:dbt:model:synth_0050:model_35",
+    "change_type": "add_not_null",
+    "affected_column": "last_created_at",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0073",
+    "asset_urn": "urn:dbt:model:synth_0050:model_37",
+    "change_type": "column_rename",
+    "affected_column": "current_value",
+    "new_value": "current_value_renamed"
+  },
+  {
+    "change_id": "change_0074",
+    "asset_urn": "urn:dbt:model:synth_0050:stg_0",
+    "change_type": "column_remove",
+    "affected_column": "current_date",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0075",
+    "asset_urn": "urn:dbt:model:synth_0050:model_37",
+    "change_type": "column_remove",
+    "affected_column": "last_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0076",
+    "asset_urn": "urn:dbt:model:synth_0050:model_37",
+    "change_type": "column_remove",
+    "affected_column": "secondary_code",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0077",
+    "asset_urn": "urn:dbt:model:synth_0050:model_11",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0078",
+    "asset_urn": "urn:dbt:model:synth_0050:model_2",
+    "change_type": "column_remove",
+    "affected_column": "deleted_at",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0079",
+    "asset_urn": "urn:dbt:model:synth_0050:model_11",
+    "change_type": "column_rename",
+    "affected_column": "primary_value",
+    "new_value": "primary_value_renamed"
+  },
+  {
+    "change_id": "change_0080",
+    "asset_urn": "urn:dbt:model:synth_0050:model_18",
+    "change_type": "add_not_null",
+    "affected_column": "secondary_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0081",
+    "asset_urn": "urn:dbt:model:synth_0050:model_9",
+    "change_type": "column_remove",
+    "affected_column": "total_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0082",
+    "asset_urn": "urn:dbt:model:synth_0050:model_31",
+    "change_type": "column_rename",
+    "affected_column": "primary_created_at",
+    "new_value": "primary_created_at_renamed"
+  },
+  {
+    "change_id": "change_0083",
+    "asset_urn": "urn:dbt:model:synth_0050:model_33",
+    "change_type": "column_remove",
+    "affected_column": "previous_product_id",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0084",
+    "asset_urn": "urn:dbt:model:synth_0050:model_28",
+    "change_type": "column_remove",
+    "affected_column": "current_name",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0085",
+    "asset_urn": "urn:dbt:model:synth_0050:model_17",
+    "change_type": "type_change",
+    "affected_column": "current_product_id",
+    "new_value": "DATE"
+  },
+  {
+    "change_id": "change_0086",
+    "asset_urn": "urn:dbt:model:synth_0050:model_33",
+    "change_type": "no_change",
+    "affected_column": null,
+    "new_value": null
+  },
+  {
+    "change_id": "change_0087",
+    "asset_urn": "urn:dbt:model:synth_0050:model_36",
+    "change_type": "column_rename",
+    "affected_column": "current_customer_id",
+    "new_value": "current_customer_id_renamed"
+  },
+  {
+    "change_id": "change_0088",
+    "asset_urn": "urn:dbt:model:synth_0050:model_14",
+    "change_type": "add_not_null",
+    "affected_column": "next_date",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0089",
+    "asset_urn": "urn:dbt:model:synth_0050:model_19",
+    "change_type": "type_change",
+    "affected_column": "current_amount",
+    "new_value": "BOOLEAN"
+  },
+  {
+    "change_id": "change_0090",
+    "asset_urn": "urn:dbt:model:synth_0050:model_17",
+    "change_type": "column_remove",
+    "affected_column": "last_date",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0091",
+    "asset_urn": "urn:dbt:model:synth_0050:model_21",
+    "change_type": "type_change",
+    "affected_column": "first_product_id",
+    "new_value": "VARCHAR"
+  },
+  {
+    "change_id": "change_0092",
+    "asset_urn": "urn:dbt:model:synth_0050:model_14",
+    "change_type": "add_column",
+    "affected_column": "next_value",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0093",
+    "asset_urn": "urn:dbt:model:synth_0050:model_17",
+    "change_type": "type_change",
+    "affected_column": "name",
+    "new_value": "VARCHAR"
+  },
+  {
+    "change_id": "change_0094",
+    "asset_urn": "urn:dbt:model:synth_0050:model_32",
+    "change_type": "type_change",
+    "affected_column": "current_type",
+    "new_value": "BOOLEAN"
+  },
+  {
+    "change_id": "change_0095",
+    "asset_urn": "urn:dbt:model:synth_0050:model_31",
+    "change_type": "column_remove",
+    "affected_column": "current_name",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0096",
+    "asset_urn": "urn:dbt:model:synth_0050:model_27",
+    "change_type": "type_change",
+    "affected_column": "current_score",
+    "new_value": "VARCHAR"
+  },
+  {
+    "change_id": "change_0097",
+    "asset_urn": "urn:dbt:model:synth_0050:model_13",
+    "change_type": "add_not_null",
+    "affected_column": "secondary_status",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0098",
+    "asset_urn": "urn:dbt:model:synth_0050:model_18",
+    "change_type": "add_column",
+    "affected_column": "secondary_score",
+    "new_value": null
+  },
+  {
+    "change_id": "change_0099",
+    "asset_urn": "urn:dbt:model:synth_0050:stg_0",
+    "change_type": "column_rename",
+    "affected_column": "raw_product_id",
+    "new_value": "raw_product_id_renamed"
+  }
+]

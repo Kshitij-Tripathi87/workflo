@@ -1,0 +1,8 @@
+{
+  "asset_urn": "urn:li:pipeline:(airflow,etl_customer_sync)",
+  "scenario_type": "pipeline_failure",
+  "change": {
+    "status": "failed"
+  },
+  "notes": "Pipeline failed during nightly run"
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `trial_signups` ADD `consentedAt` timestamp DEFAULT (now()) NOT NULL;

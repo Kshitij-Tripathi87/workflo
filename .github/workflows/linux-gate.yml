@@ -1,0 +1,87 @@
+name: linux-gate
+
+# Gate 3 of the launch candidate: the REAL sandbox path.
+# The unit/mock suite proves logic on every platform; THIS workflow proves
+# kernel-level isolation (bwrap + cgroups v2 + netns + seccomp + Landlock)
+# on its target platform, plus the golden runs end-to-end through the real
+# CLI surface. Fail-closed: a failure anywhere blocks the merge.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-sandbox-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8f4b7f84864484a7bf31730abe267c3f869a2437  # v4.1.8
+
+      - name: Preflight: verify isolation prerequisites exist
+        run: |
+          echo "Checking for required scripts and test directories..."
+          for path in \
+            scripts/linux/setup_env.sh \
+            scripts/linux/golden_run.sh \
+            scripts/linux/agent_golden_run.sh \
+            scripts/linux/planner_golden_run.sh \
+            packages/sandbox-runtime/tests/integration \
+          ; do
+            if [ ! -e "$path" ]; then
+              echo "MISSING: $path"
+              exit 1
+            fi
+          done
+          echo "All prerequisites present."
+
+      # Installs bubblewrap/nftables/dnsmasq, builds the runtime image at
+      # /opt/workflo/workflo-worker, installs all workflo packages into
+      # /opt/workflo/venv, and creates the /root/wf-fixture repo.
+      # JUSTIFIED: Root required for cgroup/netns setup on Linux.
+      - name: Provision isolation stack
+        run: sudo bash scripts/linux/setup_env.sh
+
+      - name: Agent-layer unit suites (mock gate)
+        run: |
+          /opt/workflo/venv/bin/python -m pytest \
+            packages/sandbox-runtime/tests \
+            packages/workflo-schema/tests \
+            --ignore packages/sandbox-runtime/tests/integration \
+            -q -x
+
+      # JUSTIFIED: Root required for real namespace/cgroup/landlock testing.
+      - name: Linux integration gate (root, real namespaces)
+        run: |
+          sudo -E /opt/workflo/venv/bin/python -m pytest \
+            packages/sandbox-runtime/tests/integration -q -v
+
+      # JUSTIFIED: Root required for bwrap + namespace isolation.
+      - name: Namespaces golden run (tests tier)
+        run: sudo -E bash scripts/linux/golden_run.sh
+
+      # JUSTIFIED: Root required for deep-tier app + governed agent isolation.
+      - name: Agent golden run (deep tier: app + governed agent)
+        run: sudo -E bash scripts/linux/agent_golden_run.sh
+
+      # JUSTIFIED: Root required for planner-mode isolation with real LLM.
+      - name: Planner golden run (scripted LLM planner)
+        run: sudo -E bash scripts/linux/planner_golden_run.sh
+
+      # Upload golden run artifacts for verification
+      - name: Upload golden run receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-run-receipts
+          path: |
+            /root/wf-golden/.workflo/runs/*/receipt.json
+            /root/wf-agent-golden/.workflo/runs/*/receipt.json
+            /root/wf-planner-golden/.workflo/runs/*/receipt.json
+          retention-days: 30

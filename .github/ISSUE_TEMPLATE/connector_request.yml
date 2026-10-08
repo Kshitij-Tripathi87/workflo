@@ -1,0 +1,40 @@
+---
+name: Connector request
+description: Request a new connector for Cortex Autopilot
+title: "[connector] "
+labels: ["connector", "needs-triage"]
+---
+
+## Summary
+
+Which data source would you like Cortex Autopilot to support?
+
+## Source
+
+- **Name:** (e.g., BigQuery, Databricks, Unity Catalog, Kafka)
+- **Vendor:** (e.g., Google, Databricks, self-hosted)
+- **Documentation URL:** (link to the API or metadata spec)
+
+## Schema Metadata Source
+
+Where does the connector get the asset graph from? (e.g.,
+INFORMATION_SCHEMA, REST API, manifest file, etc.)
+
+## Authentication
+
+- OAuth, service account, or PAT?
+- Can a single service principal have read-only access to metadata?
+
+## Customers Waiting
+
+If you have specific customers or companies asking for this, list
+them (anonymized OK).
+
+## Willing to Contribute?
+
+- [ ] I'm willing to submit a PR for this connector.
+- [ ] I'd like to discuss first.
+
+## Additional Context
+
+Anything else that might help.

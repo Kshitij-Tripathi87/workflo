@@ -1,0 +1,26 @@
+# Cortex Autopilot Impact Gate — example config
+# Commit this file to your repo, or pass inputs directly to the GitHub Action.
+
+# The asset URN to evaluate. If omitted, the action tries to detect from
+# the PR diff using `cortex_lib.detect_change`.
+asset_urn: "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)"
+
+# Change specification. Optional - if omitted, the action uses auto-detect.
+change:
+  action: "do nothing"
+
+# Policies evaluated against the generated FuturePlan.
+# Block dominates Warn; Warn dominates Pass.
+policies:
+  - name: Prevent High-Risk Deployments
+    max_severity: 75
+    max_blast_radius: 10
+    action: block
+
+  - name: Require Owner on Critical Assets
+    require_owner: true
+    action: warn
+
+# Engine objective (one of: minimize incident risk, minimize effort,
+# maximize reliability, balance cost and risk)
+objective: minimize incident risk

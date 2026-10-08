@@ -1,0 +1,66 @@
+# Kubernetes deployment manifest for the Tenant Shield Control Plane (Backend).
+#Part of the SaaS core — runs the FastAPI server.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane
+  labels:
+    app: tenant-shield
+    component: control-plane
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tenant-shield
+      component: control-plane
+  template:
+    metadata:
+      labels:
+        app: tenant-shield
+        component: control-plane
+    spec:
+      containers:
+        - name: control-plane
+          image: tenantshield/control-plane:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-shield-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tenant-shield-secrets
+                  key: redis-url
+            - name: ENVIRONMENT
+              value: "production"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: control-plane
+spec:
+  selector:
+    app: tenant-shield
+    component: control-plane
+  ports:
+    - port: 80
+      targetPort: 8000
+  type: ClusterIP

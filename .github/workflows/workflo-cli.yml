@@ -1,0 +1,134 @@
+name: workflo CLI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/workflo-cli/**"
+      - "apps/sandbox-executor/**"
+      - "packages/cortex-auth/**"
+      - "packages/sandbox-isolation/**"
+      - "packages/probe-engine/**"
+      - "packages/workflo-schema/**"
+  pull_request:
+    paths:
+      - "apps/workflo-cli/**"
+      - "apps/sandbox-executor/**"
+      - "packages/cortex-auth/**"
+      - "packages/sandbox-isolation/**"
+      - "packages/probe-engine/**"
+      - "packages/workflo-schema/**"
+      - ".github/workflows/workflo-cli.yml"
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install packages (editable, dependency order)
+        run: |
+          pip install -e ./packages/workflo-schema
+          pip install -e ./packages/sandbox-isolation
+          pip install -e ./packages/probe-engine
+          pip install -e ./packages/cortex-auth
+          pip install -e ./apps/sandbox-executor
+          pip install -e "./apps/workflo-cli[dev]"
+
+      - name: Run unit tests
+        run: cd apps/workflo-cli && python -m pytest tests/ -q --timeout=120
+
+  dry-run-matrix:
+    runs-on: ubuntu-latest
+    # secrets can't be referenced directly in step-level `if:` — map them to
+    # job-level env and compare the env vars instead (GitHub Actions pattern).
+    env:
+      SERVICE_TOKEN: ${{ secrets.WORKFLO_SERVICE_TOKEN }}
+      WORKSPACE_ID: ${{ secrets.WORKFLO_WORKSPACE_ID }}
+      AUTH_BASE_URL: ${{ secrets.WORKFLO_AUTH_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CLI (editable)
+        run: |
+          pip install -e ./packages/workflo-schema
+          pip install -e ./packages/sandbox-isolation
+          pip install -e ./packages/probe-engine
+          pip install -e ./packages/cortex-auth
+          pip install -e ./apps/sandbox-executor
+          pip install -e ./apps/workflo-cli
+
+      - name: CLI smoke (--version / --help)
+        run: |
+          workflo --version
+          workflo --help
+
+      # Dry-run never spawns Docker nor clones; it validates the plan and
+      # exits 0. Auth is only required for --publish, so these tiers run
+      # fully offline (no secrets needed on PRs from forks).
+      - name: Plan --test (surface)
+        run: workflo run --dry-run --repo https://github.com/psf/requests.git --test
+
+      # --security requires --start-command/--port (validated before anything runs)
+      - name: Plan --security
+        run: |
+          workflo run --dry-run --repo https://github.com/psf/requests.git \
+            --security --start-command "python app.py" --port 5000
+
+      # Deep tier without configured LLM falls back to the embedded sandbox
+      # model (prints a note, still exits 0 in dry-run). CI runners have no
+      # LLM config, so this exercises the fallback path.
+      - name: Plan --deep-test (embedded-model fallback)
+        run: workflo run --dry-run --repo https://github.com/psf/requests.git --deep-test
+
+      - name: Plan --aggressive-test (embedded-model fallback)
+        run: workflo run --dry-run --repo https://github.com/psf/requests.git --aggressive-test
+
+      - name: Plan combined --test --security
+        run: |
+          workflo run --dry-run --repo https://github.com/psf/requests.git \
+            --test --security --start-command "python app.py" --port 5000
+
+      - name: Plan --web with start command
+        run: workflo run --dry-run --repo https://github.com/psf/requests.git --web --start-command "python app.py" --port 5000
+
+      - name: Verify exclusive-tier rejection (-1 exit expected)
+        run: |
+          if workflo run --dry-run --repo https://github.com/psf/requests.git --test --deep-test 2>/dev/null; then
+            echo "ERROR: --test --deep-test must be rejected"; exit 1
+          fi
+          echo "OK: mutually exclusive tiers rejected"
+
+      # Service-token login hits the live auth server. Runs only when BOTH
+      # secrets are configured (never on fork PRs, where secrets are absent).
+      # Point AUTH_BASE_URL at your hosted auth endpoint (e.g. https://auth.workflo.dev)
+      # — the CLI default targets the local control plane.
+      - name: Service-token login (optional; secrets-gated)
+        if: ${{ env.SERVICE_TOKEN != '' && env.WORKSPACE_ID != '' }}
+        run: |
+          # Only override the CLI default (localhost:3001) when the secret is set;
+          # an empty WORKFLO_AUTH_BASE_URL would blank out the auth endpoint.
+          if [ -n "$AUTH_BASE_URL" ]; then
+            export WORKFLO_AUTH_BASE_URL="$AUTH_BASE_URL"
+          fi
+          workflo auth login \
+            --service-token "$SERVICE_TOKEN" \
+            --workspace-id "$WORKSPACE_ID"
+          workflo auth status
+          workflo auth logout

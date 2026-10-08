@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "validate-phase2"
+version = "0.1.0"
+description = "Sandboxed architecture-review pipeline for the workflo Phase 2 identity-binding work."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "click>=8.1.0",
+    "requests>=2.31.0",
+    "rich>=13.0.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.scripts]
+validate-phase2 = "validate_phase2.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0", "pytest-mock>=3.11.0", "pytest-timeout>=2.1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 60
+addopts = '-m "not slow"'
+markers = [
+    "slow: Slow tests (run with `pytest -m slow` to include)",
+]

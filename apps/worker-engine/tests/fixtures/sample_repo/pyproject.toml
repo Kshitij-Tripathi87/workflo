@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sample-pkg"
+version = "0.1.0"
+description = "Synthetic fixture repo used by workflo worker-engine tests."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "workflo tests" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# pytest>=7 supports `pythonpath` in ini options — adds the listed entries
+# to sys.path BEFORE collection. This is more reliable than a conftest.py
+# that mutates sys.path at import time (which can race with pytest's own
+# path setup on Windows). `src` makes `import sample_pkg` resolvable.
+pythonpath = ["src"]

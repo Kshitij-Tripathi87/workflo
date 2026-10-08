@@ -1,0 +1,8 @@
+{
+  "asset_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,legacy_table,PROD)",
+  "scenario_type": "dataset_deprecation",
+  "change": {
+    "status": "deprecated"
+  },
+  "notes": "Deprecating legacy table after migration"
+}

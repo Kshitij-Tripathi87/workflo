@@ -1,0 +1,8 @@
+{
+  "asset_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,customers,PROD)",
+  "scenario_type": "owner_missing",
+  "change": {
+    "owner": null
+  },
+  "notes": "No owner assigned to this critical asset"
+}

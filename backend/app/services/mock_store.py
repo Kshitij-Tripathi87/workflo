@@ -1,0 +1,1 @@
+from app.connectors.datahub.mock_store import MOCK_ASSETS  # noqa: F401

@@ -1,0 +1,12 @@
+{
+  "incident_id": "inc_001",
+  "incident_type": "schema_drift",
+  "severity": "high",
+  "asset_urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)",
+  "reason": "Schema mismatch detected. Removed: [customer_name]. Added: [name].",
+  "blast_radius": [
+    "urn:li:dataset:(urn:li:dataPlatform:dbt,orders_summary,PROD)",
+    "urn:li:dashboard:(looker,orders_monitoring)"
+  ],
+  "status": "open"
+}
