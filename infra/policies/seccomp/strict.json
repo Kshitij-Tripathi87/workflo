@@ -1,0 +1,35 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_AARCH64"],
+  "comment": "Workflo strict profile for untrusted workloads: same deny-default as default.json, but no execve/clone3 — the sandbox runs exactly one predeclared command, and process creation inside is forbidden.",
+  "syscalls": [
+    {
+      "names": [
+        "read", "write", "close", "pread64", "pwrite64", "readv", "writev",
+        "lseek", "dup", "dup2", "dup3", "pipe", "pipe2", "fcntl",
+        "openat", "openat2", "newfstatat", "fstat", "stat", "lstat",
+        "statx", "readlink", "readlinkat", "getdents64", "getcwd",
+        "access", "faccessat", "faccessat2",
+        "mkdir", "mkdirat", "rmdir", "unlink", "unlinkat",
+        "rename", "renameat", "renameat2",
+        "chmod", "fchmod", "fchmodat", "umask", "truncate", "ftruncate",
+        "brk", "mmap", "mprotect", "munmap", "mremap", "madvise",
+        "rt_sigaction", "rt_sigprocmask", "rt_sigreturn", "sigaltstack",
+        "ioctl", "poll", "ppoll", "pselect6", "select", "epoll_create1",
+        "epoll_ctl", "epoll_wait", "epoll_pwait", "eventfd", "eventfd2",
+        "futex", "set_robust_list",
+        "nanosleep", "clock_nanosleep", "clock_gettime", "clock_getres",
+        "getpid", "gettid", "getppid", "getuid", "getgid", "geteuid", "getegid",
+        "getgroups", "getpgrp", "getpgid", "getsid",
+        "wait4", "waitid", "exit", "exit_group",
+        "getrandom", "prctl", "arch_prctl",
+        "sched_yield", "sched_getaffinity",
+        "fallocate", "fsync", "fdatasync",
+        "timerfd_create", "timerfd_settime", "timerfd_gettime",
+        "uname", "getrlimit", "prlimit64", "getrusage", "times", "gettimeofday"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}

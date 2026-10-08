@@ -1,0 +1,6 @@
+{
+  "name": "base",
+  "abi": 3,
+  "readOnly": ["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc/ld.so.cache", "/etc/ld.so.conf"],
+  "readWrite": ["${workspace}", "/tmp"]
+}
