@@ -25,6 +25,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.core.config import settings
+from app.core.startup_guards import is_production
 from app.db.models import (
     ApiKey,
     DeviceCode,
@@ -233,12 +235,9 @@ async def get_or_create_demo_key(db: AsyncSession) -> str:
 
 @router.post("/demo-token")
 async def issue_demo_token(db: AsyncSession = Depends(get_db)):
-    """Issue the fixed demo API key (demo-only; no real auth).
-
-    Creates the demo key + default project on first call; returns the same
-    raw key every time. The raw key is deterministic so the demo works
-    across control-plane restarts.
-    """
+    """Issue the fixed demo API key (development only; no real auth)."""
+    if is_production(settings):
+        raise HTTPException(status_code=404, detail="Demo-token issuance is disabled in production")
     api_key = await get_or_create_demo_key(db)
     return {"api_key": api_key}
 
