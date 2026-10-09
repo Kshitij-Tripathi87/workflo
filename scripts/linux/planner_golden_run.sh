@@ -66,13 +66,39 @@ class Handler(BaseHTTPRequestHandler):
 HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 EOF
 
+# Keep this test's credentials/configuration isolated from the host user's config.
+export WORKFLO_CONFIG_DIR="$WORK/config"
+mkdir -p "$WORKFLO_CONFIG_DIR"
+
 /opt/workflo/venv/bin/python fake_llm.py 9998 &
 LLM_PID=$!
-sleep 1
+# Ensure the server process cannot leak on an early test failure.
+trap 'kill "$LLM_PID" 2>/dev/null || true' EXIT
 
-# --- Configure the CLI's LLM endpoint (the planner activates for deep tiers) ---
-workflo config set-llm --base-url "http://127.0.0.1:9998" --api-key "golden-test-key" --model "scripted-planner" >/dev/null 2>&1 \
-  || workflo config set-llm "http://127.0.0.1:9998" "golden-test-key" >/dev/null 2>&1 || true
+# Wait for the fake OpenAI-compatible server to be ready; do not rely on a
+# fixed sleep or silently fall back to an unconfigured planner.
+READY=0
+for _ in $(seq 1 50); do
+  if /opt/workflo/venv/bin/python -c \
+    'import urllib.request; urllib.request.urlopen("http://127.0.0.1:9998/models", timeout=0.5).close()' \
+    >/dev/null 2>&1; then
+    READY=1
+    break
+  fi
+  sleep 0.2
+done
+if [ "$READY" -ne 1 ]; then
+  echo "PLANNER GOLDEN FAILED: fake model server did not become ready" >&2
+  exit 1
+fi
+
+# --- Configure and verify the CLI's LLM endpoint. Configuration failure is fatal. ---
+workflo config set-llm \
+  --base-url "http://127.0.0.1:9998" \
+  --api-key "golden-test-key" \
+  --model "scripted-planner" \
+  >/dev/null
+workflo config test-llm
 
 echo "==> workflo run --deep-test (LLM planner mode)"
 set +e
