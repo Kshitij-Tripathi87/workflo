@@ -53,6 +53,17 @@ Record the actual hourly price (or a clearly labelled internal amortized rate), 
 Before Day 2, confirm access to the target cloud project/account, GPU quota, secret manager/KMS, image registry, deployment environment, and GitHub Actions environments/secrets. Credentials must be supplied through the secret manager or protected GitHub environment, never committed to Git.
 
 If GPU quota or endpoint access is unavailable by Day 2, continue with the non-GPU acceptance work but mark the release deadline at risk; a stub-server benchmark is not real-model acceptance.
+ 
+### B4. Inference architecture documents disagree
+
+The code has a hosted gateway in `apps/control-plane/app/api/v1/inference.py` and a host-side gateway mode in `packages/sandbox-runtime/src/sandbox_runtime/planner.py`. The gateway is designed to accept bounded observations, construct prompts server-side, reject source-bearing fields/text, and return provenance. The sandbox itself can remain `--network none`; the host/control plane—not the sandbox—makes the upstream request.
+
+However, `docs/workflo/sandbox_contract.md` and `workflo-ai-integration/README.md` still contain older claims that shared inference is not implemented, and the adapter router is not wired into the real worker. These must not be conflated:
+- **Release candidate path:** exercise the existing observation-only gateway mode, only if its real endpoint and privacy tests pass; keep sandbox egress denied.
+- **Not in this release:** switching the sandbox onto a non-isolated/custom inference network, integrating untrained LoRA adapters, or claiming the model-router adapter path is live.
+- On Day 1, record the chosen execution mode (local Ollama or host-side gateway), model artifact/revision, exact base URL semantics, and evidence that the planner is actually configured for that mode. Documentation must match what the CLI executes.
+
+The deadline is at risk if the deployment needs new in-sandbox network semantics rather than the existing host-side gateway.
 
 ## 14-day execution schedule
 
