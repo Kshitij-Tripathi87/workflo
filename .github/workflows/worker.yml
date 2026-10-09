@@ -6,9 +6,17 @@ on:
       - "apps/worker-engine/**"
       - "packages/workflo-schema/**"
       - "packages/workflo-utils/**"
+      - "packages/probe-engine/**"
+      - "packages/sandbox-runtime/**"
+      - ".github/workflows/worker.yml"
   pull_request:
     paths:
       - "apps/worker-engine/**"
+      - "packages/workflo-schema/**"
+      - "packages/workflo-utils/**"
+      - "packages/probe-engine/**"
+      - "packages/sandbox-runtime/**"
+      - ".github/workflows/worker.yml"
 
 jobs:
   test:
@@ -22,6 +30,9 @@ jobs:
         run: |
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/workflo-utils
+          # Local project dependency must be installed before workflo-worker
+          # asks pip to resolve the internal distribution name.
+          pip install -e ./packages/probe-engine
           pip install -e ./apps/worker-engine
       - name: Run tests
         run: |
