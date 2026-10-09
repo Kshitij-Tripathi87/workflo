@@ -13,7 +13,9 @@ COPY package.json package-lock.json* ./
 RUN npm ci --include=dev
 
 COPY . .
-RUN npm run build
+# `public/` is optional in Next.js; create it so the runtime COPY works
+# even when this application ships no public assets yet.
+RUN mkdir -p public && npm run build
 
 # --- Runtime stage ---
 FROM node:20-alpine AS runtime
