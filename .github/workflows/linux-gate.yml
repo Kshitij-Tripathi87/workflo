@@ -155,14 +155,30 @@ jobs:
       - name: Planner golden run (scripted LLM planner)
         run: sudo -E bash scripts/linux/planner_golden_run.sh
 
+      # Copy root-owned receipts into the workspace first. Artifact actions
+      # run as the hosted runner user and cannot traverse /root (mode 0700).
+      - name: Collect golden run receipts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/golden-runs"
+          for base in wf-golden wf-agent-golden wf-planner-golden; do
+            source_dir="/root/$base/.workflo/runs"
+            target_dir="$GITHUB_WORKSPACE/artifacts/golden-runs/$base"
+            mkdir -p "$target_dir"
+            if sudo test -d "$source_dir"; then
+              sudo find "$source_dir" -type f -name receipt.json -exec cp -t "$target_dir" {} +
+            fi
+          done
+          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/artifacts/golden-runs"
+
       # Upload golden run artifacts for verification
       - name: Upload golden run receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: golden-run-receipts
-          path: |
-            /root/wf-golden/.workflo/runs/*/receipt.json
-            /root/wf-agent-golden/.workflo/runs/*/receipt.json
-            /root/wf-planner-golden/.workflo/runs/*/receipt.json
+          path: artifacts/golden-runs/**/*.json
+          if-no-files-found: warn
           retention-days: 30
