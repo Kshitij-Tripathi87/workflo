@@ -52,47 +52,50 @@ A run produces one thing: a `SandboxRunResult` (see
 | P7 | The signed receipt verifies against a published public key | `verify_receipt_signature()` is standalone; no signer needed |
 | P8 | The teardown proof fails closed | `verify_container_gone()` returns False on any error |
 
-## Not Claimed (Post-Demo)
+## Inference deployment boundaries (current implementation)
 
-The following are **designed but not implemented**. They must not be
-demoed, mentioned as working, or enabled via any flag before Aug 25.
-If any of this shows up in code before then, that is a bug in the
-process, not a feature.
+This contract's original post-demo section predates the host-side inference
+gateway. Do not apply its old "no external model service exists" wording to
+the newer gateway code without qualification.
 
-- **Shared inference service.** `--deep-test` uses the embedded model
-  only (Ollama + Qwen2.5-Coder inside the sandbox, weights never leave
-  the container, teardown wipes `~/.ollama`). There is no external
-  model service, no allowlisted destination, and no network exception
-  to P1/P3 above.
-- **`NetworkMode.INFERENCE_ONLY`.** Does not exist. `ContainerConfig.network_mode`
-  has exactly one live value: `"none"`.
-- **Any Docker network other than the default isolated one.** No sandbox
-  attaches to a custom or `--internal` network. No `vllm-openai`
-  container runs anywhere in this stack.
-- **`SharedInferenceAttestation` on the receipt.** Not a field. Adding
-  an attestation field that's always empty, or that depends on a
-  service that doesn't exist, is worse than not having the field —
-  it's a claim the receipt can't back up.
-- **A dual-canary check.** `workflo verify` treats Claim P3 as
-  "canary request failed." A receipt requiring a *successful* inference
-  health check alongside a *failed* general-egress check does not exist,
-  and must not be added under demo pressure — it would either break
-  verification for every existing receipt or require a verifier change
-  that hasn't been reviewed.
+### What remains a hard sandbox invariant
 
-**What the demo may say instead:** the sandbox is `--network none`.
-The canary to `example.com` fails, every time, by design. `--deep-test`
-runs entirely inside that same sealed container. That is the strongest
-isolation story available today, and it is the one that's actually
-built.
+- The sandbox container keeps `network_mode="none"` by default.
+- The sandbox itself has **no network exception** to reach an external model.
+  `NetworkMode.INFERENCE_ONLY` is not implemented.
+- Source snapshots remain in the sandbox execution environment. They must not
+  be forwarded to a hosted model or included in inference prompts.
+- The host-side planner may receive only bounded, sanitized observations. The
+  control-plane gateway builds the upstream prompt itself, rejects source-bearing
+  fields/text, and emits provenance hashes. See
+  `packages/sandbox-runtime/src/sandbox_runtime/planner.py` and
+  `apps/control-plane/app/api/v1/inference.py`.
+- Tool authorization remains in the runtime. A model completion is a proposal,
+  not authority to execute a tool or proof that a finding is true.
 
-**First post-demo ticket, when this resumes:** `NetworkMode.INFERENCE_ONLY`
-alone — a dedicated `--internal` Docker network and three reachability
-tests (inference-service reachable, general egress blocked, blocked
-even from the host), repeated ten times with no flakiness. No client,
-no vLLM, no receipt fields, no CLI flag, until that's boring. Steps 2–6
-follow only after that, in order, with the default `--deep-test` tier
-switching to shared inference as the *last* change, not the first.
+### Supported path vs unimplemented path
+
+| Path | Status | Release rule |
+|---|---|---|
+| Local/embedded inference within the current isolated execution setup | Existing path; verify on the exact CLI invocation used for release | Must preserve teardown and receipt guarantees |
+| Host-side planner in `direct` mode | Code path exists | Endpoint/key live on the host; use only for controlled tests and document its data flow |
+| Host-side planner in `gateway` mode through `/v1/inference/plan` | Code and fake-upstream privacy tests exist | Real upstream deployment and real-model end-to-end run are still required; gateway must remain observation-only |
+| `NetworkMode.INFERENCE_ONLY` or sandbox-attached model network | **Not implemented** | Out of scope for this release; do not enable or claim |
+| LoRA adapter routing in `workflo-ai-integration` | Scaffolding/mocks exist; not wired into the real worker and trained adapters are absent | Do not describe the adapters as a live runtime feature |
+| `infra/vllm/docker-compose.yml` as a tested deployment | Reference manifest only; its model/runtime target must be reconciled | Do not deploy unchanged without model/accelerator compatibility validation |
+
+### Release claims and evidence
+
+A gateway unit test with a fake upstream proves the request contract, not real
+model serving. P4 hosted-inference acceptance requires a real configured model,
+authenticated requests, bounded prompts, token usage, a controlled timeout or
+unavailable-model result, and receipt-bound inference provenance. It must also
+prove with an automated test that source-bearing request fields are rejected.
+
+The older section below called "first post-demo ticket" refers to adding an
+inference-only network **inside the sandbox**. That remains a separate,
+post-release project. It is not a prerequisite for the host-side gateway and is
+not permission to weaken the default `--network none` isolation boundary.
 
 ## Sandbox Lifecycle
 
