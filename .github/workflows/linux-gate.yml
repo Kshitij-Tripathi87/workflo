@@ -226,6 +226,22 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/artifacts/golden-runs"
           mkdir -p "$ROOT"
 
+          # Copies from the root-owned sandbox preserve restrictive ownership
+          # and modes. Keep the collector usable by the runner even if any later
+          # assertion fails, so diagnostics can still be uploaded.
+          RUN_UID="$(id -u)"
+          RUN_GID="$(id -g)"
+          normalize_artifact_permissions() {
+            status=$?
+            trap - EXIT
+            if sudo test -d "$ROOT"; then
+              sudo chown -R "$RUN_UID:$RUN_GID" "$ROOT" 2>/dev/null || true
+              sudo chmod -R u+rwX "$ROOT" 2>/dev/null || true
+            fi
+            exit "$status"
+          }
+          trap normalize_artifact_permissions EXIT
+
           for base in wf-golden wf-agent-golden wf-planner-golden; do
             source_dir="/root/$base/.workflo/runs"
             target_dir="$ROOT/$base"
@@ -264,6 +280,10 @@ jobs:
                 exit 1
               fi
               sudo cp -a "$evidence_source" "$run_target/evidence"
+              # cp -a preserves root ownership/modes; normalize immediately
+              # before the subsequent unprivileged find/verifier traverses it.
+              sudo chown -R "$RUN_UID:$RUN_GID" "$run_target/evidence"
+              sudo chmod -R u+rwX "$run_target/evidence"
             done < <(sudo find "$source_dir" -type f -name receipt.json -print0)
 
             # Preserve producer and in-run verifier logs; these are diagnostics,
