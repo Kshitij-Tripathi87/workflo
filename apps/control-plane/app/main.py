@@ -20,19 +20,25 @@ from app.api.v1.inference import router as inference_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.orgs import router as orgs_router
 from app.api.oauth import router as oauth_router
-from app.db.database import init_db, get_db
+from app.db.database import init_db, get_db, verify_production_database
 from app.db.queue import run_queue
 from app.db.models import DeviceCode
 from app.core.config import settings
 from app.core.crypto import utc_now
 from app.core.security import verify_bearer_token
-from app.core.startup_guards import enforce_production_config
+from app.core.startup_guards import enforce_production_config, is_production
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables (dev mode) + connect queue
-    await init_db()
+    # The dev/test path may auto-create tables. Production requires the
+    # explicit one-off bootstrap to run with a schema-owner account first;
+    # the API runtime then verifies actual PostgreSQL RLS state using its
+    # separate non-owner, non-superuser role before accepting any traffic.
+    if is_production(settings):
+        await verify_production_database()
+    else:
+        await init_db()
     if settings.redis_url:
         run_queue.connect_redis(settings.redis_url)
     yield
