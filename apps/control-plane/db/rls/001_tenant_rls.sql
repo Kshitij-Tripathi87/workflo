@@ -52,6 +52,16 @@ CREATE POLICY tenant_isolation_api_keys ON api_keys
     USING (project_id = NULLIF(current_setting('app.current_project_id', true), ''))
     WITH CHECK (project_id = NULLIF(current_setting('app.current_project_id', true), ''));
 
+-- The raw API key identifies a project only AFTER its hash is validated.
+-- Permit SELECT during the tightly scoped transaction-local authenticator
+-- lookup, then the application turns this GUC off and binds the project ID
+-- before decrypting/updating any candidate key. This policy grants SELECT
+-- only; all writes remain subject to tenant_isolation_api_keys WITH CHECK.
+DROP POLICY IF EXISTS api_key_auth_lookup ON api_keys;
+CREATE POLICY api_key_auth_lookup ON api_keys
+    FOR SELECT
+    USING (current_setting('app.api_key_lookup', true) = 'on');
+
 -- test_runs: scoped by project_id.
 DROP POLICY IF EXISTS tenant_isolation_test_runs ON test_runs;
 CREATE POLICY tenant_isolation_test_runs ON test_runs
