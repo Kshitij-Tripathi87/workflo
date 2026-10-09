@@ -49,10 +49,14 @@ def _extract_api_key(request: Request) -> str:
 
 async def require_api_key(request: Request, db: AsyncSession = Depends(get_db)) -> ApiKey:
     """FastAPI dependency: extract and validate the API key header."""
-    from app.db.database import set_tenant_context
+    from app.db.database import set_api_key_lookup_mode, set_tenant_context
 
     raw_key = _extract_api_key(request)
     service = ApiKeyService(db)
+    # The hashed key is the only identity known before authentication. Permit
+    # the service's key lookup, then it immediately disables this transaction-
+    # local mode and switches to the candidate key's project context.
+    await set_api_key_lookup_mode(db, enabled=True)
     record = await service.validate_key(raw_key)
     if not record:
         raise HTTPException(
