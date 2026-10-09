@@ -168,7 +168,11 @@ jobs:
             target_dir="$GITHUB_WORKSPACE/artifacts/golden-runs/$base"
             mkdir -p "$target_dir"
             if sudo test -d "$source_dir"; then
-              sudo find "$source_dir" -type f -name receipt.json -exec cp -t "$target_dir" {} +
+              while IFS= read -r -d '' receipt; do
+                relative="${receipt#"$source_dir"/}"
+                mkdir -p "$target_dir/$(dirname "$relative")"
+                sudo cp "$receipt" "$target_dir/$relative"
+              done < <(sudo find "$source_dir" -type f -name receipt.json -print0)
             fi
           done
           sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/artifacts/golden-runs"
