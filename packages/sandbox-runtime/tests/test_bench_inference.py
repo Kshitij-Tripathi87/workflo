@@ -103,7 +103,7 @@ def test_direct_mode_against_stub(stub_server, tmp_path):
         "--mode", "direct",
         "--base-url", stub_server,
         "--model", "stub",
-        "--gpu-hourly-usd", "1.00",  # explicit test assumption; not a measured GPU price
+        "--instance-hourly-usd", "1.00",  # explicit test assumption; not a measured host rate
         "--levels", "1,4",
         "--requests-per-level", "8",
         "--timeout", "10",

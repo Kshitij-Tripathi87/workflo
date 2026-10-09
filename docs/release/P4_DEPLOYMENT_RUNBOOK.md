@@ -27,33 +27,34 @@ The sandbox remains isolated using its existing `network_mode="none"`. The host-
 
 Do not enable `NetworkMode.INFERENCE_ONLY`, add a sandbox network attachment, or relax default egress denial as a shortcut.
 
-## 2. Resolve the serving artifact before provisioning
+## 2. Selected target and serving artifacts
 
-There are inconsistent candidates in the repository:
-- CLI, planner, and control-plane defaults use `qwen3-4b-4bit`.
-- `infra/vllm/docker-compose.yml` names `Qwen/Qwen2.5-Coder-7B-AWQ` and uses an ARM64-tagged vLLM image with AWQ/GPU flags.
-- `workflo-ai-integration/serving/docker-compose.llamacpp.yml` refers to local GGUF base/adapter paths; the adapters are placeholders and the router is not integrated into the worker.
+The selected release direction is llama.cpp with GGUF, CPU-first. GPU quota is not a prerequisite for that baseline. The infra/vllm/docker-compose.yml manifest is an optional GPU experiment, not the primary deployment contract.
 
-Do not treat these as interchangeable. The release owner must record one canonical choice:
-1. exact model/artifact identifier and immutable revision or SHA-256;
-2. actual quantization/container format (e.g. AWQ vs GGUF; do not infer it from "4-bit");
-3. accelerator instance, GPU and memory, runtime image digest, max context, max concurrent sequences;
-4. tokenizer/chat template, stop/JSON behavior, and licensing provenance;
-5. measured startup time and peak GPU memory.
+The current adapter compose file workflo-ai-integration/serving/docker-compose.llamacpp.yml is not ready to deploy unchanged. It expects a base GGUF plus three adapter GGUFs that are not present in the repository, uses a floating image tag, and the adapter router is not wired into the active runtime. Do not claim the adapter path is live just because mocked router tests pass.
 
-The current reference manifests are not proof that any one combination runs. Build and test the selected serving image in the chosen target architecture before deploying it.
+Before provisioning, record the base GGUF and each adapter’s source, model/version, license, SHA-256, tokenizer/chat template, quantization, and intended role. Pin the llama.cpp server image to an immutable digest for the selected architecture. Do not copy an AMD64 digest to ARM64 or use the optional vLLM image as a drop-in substitute.
 
-## 3. Provision the model endpoint
+The two model paths must stay distinct:
 
-1. Use a dedicated staging environment and a GPU-compatible instance/runner if required by the selected artifact. GPU quota and billing must be confirmed before launch.
-2. Put the model host in a private subnet. Do not assign a public inference endpoint. Permit ingress only from the control-plane security identity / private subnet and the explicitly approved staging runner for benchmarks.
-3. Install a pinned NVIDIA driver/container runtime and compatible serving image. Record its digest; do not deploy `latest` as the release identifier.
-4. Mount weights read-only from an access-controlled location. Verify the downloaded artifact checksum. Keep caches, logs, request bodies, prompts, and repository content out of customer-source mounts.
-5. Configure the server behind private HTTPS or service-to-service TLS with authentication. Store the server credential in the cloud secret manager. Never put it in compose YAML or process arguments that will be copied into logs.
-6. Configure health/readiness checks. Readiness is true only after the selected model is loaded and a non-stub completion can be produced.
-7. Set explicit max-context, timeout, concurrency, and memory limits. Start with concurrency 1; increase only after benchmark and memory stability.
+- The host-side planner/inference gateway accepts only bounded, sanitized observations and receives planning completions from a private OpenAI-compatible endpoint. The sandbox remains network-isolated.
+- The adapter-backed test-generation/reasoning/reporting path uses model_router and safety_gate. It is not active in the real worker yet, and all three adapter GGUFs are missing. Wiring the call site plus real llama-server testing remains a release blocker.
 
-The control-plane setting `UPSTREAM_LLM_BASE_URL` should identify the OpenAI-compatible API base ending in `/v1`, because the gateway appends `/chat/completions`. For the benchmark workflow, `WORKFLO_MODEL_BASE_URL` is the origin without `/v1`, because the harness appends `/v1/chat/completions`. Verify actual routing using a live request before collecting benchmark figures.
+Do not count a base-model completion as proof that adapter-backed deep-test features work. If any adapter artifact is unavailable, report that feature as blocked rather than silently using a stub or a fake adapter.
+
+
+## 3. Provision the private llama.cpp endpoint
+
+1. Use a dedicated private staging CPU host for the selected CPU-first image. No GPU quota is required for this baseline; GPU acceleration is a later optimization.
+2. Place the service in a private network. Do not assign a public model endpoint. Permit ingress only from the control-plane identity/private subnet and the specifically approved staging runner.
+3. Deploy a pinned llama.cpp server image by immutable digest and architecture. Keep model weights and adapters in versioned, read-only storage and validate their SHA-256 checksums before startup. Do not deploy the current floating :server tag unchanged.
+4. Mount static GGUF weights read-only. Do not persist request/prompt caches, logs, or writable state under a customer-repository path. Preserve the sandbox teardown boundary; do not add a model network to the sandbox.
+5. Put the server behind authenticated private HTTPS/service-to-service TLS. Keep credentials in the secret manager, not Compose YAML or command-line arguments.
+6. Set readiness only after the selected model is loaded and an authenticated non-stub completion succeeds.
+7. Start at concurrency 1. Set explicit context/output-token limits, timeout, memory constraints and queue/concurrency caps; increase only after real benchmark and stability evidence.
+
+The control-plane setting UPSTREAM_LLM_BASE_URL should identify the OpenAI-compatible API base ending in /v1, because the gateway appends /chat/completions. For the benchmark workflow, WORKFLO_MODEL_BASE_URL is the HTTPS origin without /v1, because the harness appends /v1/chat/completions. Verify the actual path and served model identifier with a live request before collecting benchmark figures.
+
 
 ## 4. Configure the control plane safely
 
@@ -163,7 +164,7 @@ Create a protected GitHub Actions environment named `p4-staging`. Restrict who m
 |---|---|---|
 | `WORKFLO_MODEL_BASE_URL` | Variable | HTTPS origin of the model endpoint, without `/v1` |
 | `WORKFLO_MODEL_NAME` | Variable | Exact served model name |
-| `WORKFLO_GPU_HOURLY_USD` | Variable | Explicit hourly rate / amortized cost assumption, numeric and finite |
+| `WORKFLO_INSTANCE_HOURLY_USD` | Variable | Explicit CPU/GPU serving-instance hourly cost assumption, numeric and finite |
 | `WORKFLO_MODEL_API_KEY` | Secret | Endpoint bearer credential |
 
 The real-model workflow intentionally requires the typed confirmation `RUN-REAL-MODEL-TEST` and runs on a trusted runner labelled `p4-staging`. Provision that runner in the private route to the endpoint, lock its access down, and do not allow untrusted pull-request code to run on it. Requests can incur costs.
@@ -185,13 +186,13 @@ A gateway fake-upstream test does not satisfy items 1 or 7.
 
 ## 8. Benchmark protocol and cost reporting
 
-Use the manually triggered P4 workflow after staging is healthy. Run at concurrency 1, 2 and 4 with warmup requests; repeat the benchmark at least three times on the same deployed revision. Preserve:
+Use the manually triggered P4 workflow after the private llama.cpp endpoint and gateway are healthy. Run at concurrency 1, 2 and 4 with warmup requests; repeat the benchmark at least three times on the same deployed revision. Preserve:
 - git commit and run ID;
 - model identifier/revision, image digest, accelerator SKU/GPU/VRAM, region and quantization;
 - context/token limits, actual request count and concurrency;
 - success/failure count, p50/p95/max latency, requests/s and output tokens/s;
 - declared hourly cost assumption and estimated request cost;
-- GPU utilization/memory and any throttling/restarts.
+- CPU utilization/memory (and GPU metrics if a later GPU backend is tested), plus throttling/restarts.
 
 The hourly price supplied to the harness is an **assumption**, not an observed cloud bill. Compare the estimate with actual cloud billing separately. Never use a stub endpoint's output as a production benchmark.
 
@@ -209,7 +210,7 @@ Rollback is required before production-candidate approval.
 ## 10. Release evidence checklist
 
 - [ ] Artifact identifier, immutable revision/checksum, quantization and serving-image digest recorded.
-- [ ] GPU/instance SKU, region, network rule set and hourly price assumption recorded.
+- [ ] CPU host/instance SKU, region, network rule set, model/adapter checksums, image digest and hourly price assumption recorded.
 - [ ] Control-plane production startup guard passes with safe config; unsafe config fails closed.
 - [ ] Database schema and tenant/RLS checks verified.
 - [ ] Model endpoint private, authenticated, healthy and producing non-stub completions.

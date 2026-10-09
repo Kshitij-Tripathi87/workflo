@@ -5,18 +5,19 @@ Answers the two questions that decide whether the hosted edition's per-request
 cost works: *how many requests per second does one serving instance sustain*,
 and *what does a request cost at that rate*.
 
-It drives any OpenAI-compatible ``/v1/chat/completions`` endpoint, so the same
-command benchmarks the local vLLM deployment (``infra/vllm``) and the hosted
-inference gateway.
+It drives any OpenAI-compatible ``/v1/chat/completions`` endpoint, including
+the selected CPU-first llama.cpp/GGUF path and the hosted inference gateway.
+The optional vLLM manifest is a separate GPU experiment, not the release default.
 
-    # local vLLM (infra/vllm/docker-compose.yml), the deployment target
+    # llama.cpp server with a local GGUF model
     python bench/model-serving/bench_inference.py \
-        --base-url http://localhost:8000 --model Qwen/Qwen2.5-Coder-7B-AWQ \
+        --base-url http://localhost:8080 --model <served-model-id> \
+        --instance-hourly-usd <measured-or-amortized-host-rate> \
         --levels 1,2,4 --requests-per-level 32 \
-        --out bench/results/vllm.json --md bench/results/vllm.md
+        --out bench/results/llama-cpp.json --md bench/results/llama-cpp.md
 
 Cost is an *assumption*, never a measurement: pass the real amortized rate for
-the serving instance via ``--gpu-hourly-usd``. Every report records the value
+the serving instance via ``--instance-hourly-usd``. Every report records the value
 used, and the JSON/Markdown output label the cost fields as estimates derived
 from it, so a report can never be mistaken for measured spend.
 
@@ -102,18 +103,18 @@ class LevelResult:
             return 0.0
         return self.completion_tokens / self.wall_s
 
-    def cost_per_request_usd(self, gpu_hourly_usd: float) -> float:
+    def cost_per_request_usd(self, instance_hourly_usd: float) -> float:
         """Estimated marginal cost of one request at this concurrency.
 
-        A serving instance costs ``gpu_hourly_usd`` per hour whether it is idle
+        A serving instance costs ``instance_hourly_usd`` per hour whether it is idle
         or saturated, so the cost of a request is the cost of the wall time it
-        occupies: ``gpu_hourly / (rps * 3600)``.
+        occupies: ``instance_hourly / (rps * 3600)``.
         """
         if self.rps <= 0:
             return 0.0
-        return gpu_hourly_usd / (self.rps * 3600.0)
+        return instance_hourly_usd / (self.rps * 3600.0)
 
-    def to_dict(self, gpu_hourly_usd: float) -> dict[str, Any]:
+    def to_dict(self, instance_hourly_usd: float) -> dict[str, Any]:
         return {
             "concurrency": self.concurrency,
             "requests": self.requested,
@@ -130,7 +131,7 @@ class LevelResult:
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "completion_tokens_per_second": round(self.completion_tokens_per_s, 2),
-            "cost_per_request_usd": round(self.cost_per_request_usd(gpu_hourly_usd), 8),
+            "cost_per_request_usd": round(self.cost_per_request_usd(instance_hourly_usd), 8),
             "errors": self.errors[:5],
         }
 
@@ -326,8 +327,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.append(
         f"Derived from an **assumed** instance cost of "
-        f"${assumptions['gpu_hourly_usd']:.2f}/hour — not a measured spend. "
-        "Override with `--gpu-hourly-usd` using your real rate."
+        f"${assumptions['instance_hourly_usd']:.2f}/hour — not a measured spend. "
+        "Override with `--instance-hourly-usd` using your real rate."
     )
     lines.append("")
     lines.append("| concurrency | est. cost/request (USD) | est. cost/1k requests (USD) |")
@@ -401,17 +402,17 @@ def run_benchmark(args: argparse.Namespace) -> int:
         "timeout_seconds": args.timeout,
         "started_at": args.started_at,
         "finished_at": datetime.now(UTC).isoformat(),
-        "levels": [r.to_dict(args.gpu_hourly_usd) for r in results],
+        "levels": [r.to_dict(args.instance_hourly_usd) for r in results],
         "economics": {
             str(r.concurrency): {
                 "rps": round(r.rps, 3),
-                "cost_per_request_usd": round(r.cost_per_request_usd(args.gpu_hourly_usd), 8),
-                "assumption_gpu_hourly_usd": args.gpu_hourly_usd,
+                "cost_per_request_usd": round(r.cost_per_request_usd(args.instance_hourly_usd), 8),
+                "assumption_instance_hourly_usd": args.instance_hourly_usd,
             }
             for r in results
         },
         "assumptions": {
-            "gpu_hourly_usd": args.gpu_hourly_usd,
+            "instance_hourly_usd": args.instance_hourly_usd,
             "note": (
                 "Cost figures are ESTIMATES derived from this assumed hourly "
                 "instance cost, not measured spend."
@@ -449,10 +450,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="bench_inference.py",
         description="Benchmark an OpenAI-compatible inference endpoint.",
     )
-    # Only "direct" is implemented: point --base-url/--path at whatever serves
-    # the model (vLLM locally, or the control-plane inference gateway). The
-    # argument exists so additional topologies (sandbox-executed, multi-replica)
-    # can be added without changing the invocation contract.
+    # Only "direct" is implemented: point --base-url/--path at an
+    # OpenAI-compatible chat-completions endpoint (local llama.cpp, the optional
+    # vLLM path, or the control-plane inference gateway). This harness measures
+    # that HTTP contract; it does not prove that the separate LoRA ModelRouter
+    # path (/completion + /lora-adapters) is wired into the worker.
     parser.add_argument("--mode", default="direct", choices=["direct"])
     parser.add_argument("--base-url", required=True, help="e.g. http://localhost:8000")
     parser.add_argument("--path", default=DEFAULT_PATH, help="completions path")
@@ -469,12 +471,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=60.0, help="per-request timeout (s)")
     parser.add_argument("--warmup", type=int, default=1, help="excluded warmup requests per level")
     parser.add_argument(
-        "--gpu-hourly-usd",
+        "--instance-hourly-usd", "--gpu-hourly-usd",
+        dest="instance_hourly_usd",
         type=float,
         required=True,
         help=(
-            "required assumed amortized cost of the serving instance in USD/hour; "
-            "all cost output is estimated from this explicit input"
+            "required assumed amortized cost of the serving instance (CPU or GPU) "
+            "in USD/hour; all cost output is estimated from this explicit input"
         ),
     )
     parser.add_argument("--out", default=None, help="write the JSON report here")
@@ -491,8 +494,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.requests_per_level < 1:
         parser.error("--requests-per-level must be >= 1")
-    if not math.isfinite(args.gpu_hourly_usd) or args.gpu_hourly_usd < 0:
-        parser.error("--gpu-hourly-usd must be a finite number >= 0")
+    if not math.isfinite(args.instance_hourly_usd) or args.instance_hourly_usd < 0:
+        parser.error("--instance-hourly-usd must be a finite number >= 0")
     try:
         parse_levels(args.levels)
     except ValueError as e:

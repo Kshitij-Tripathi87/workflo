@@ -1,7 +1,7 @@
 name: P4 Real Model Acceptance
 
 # Deliberately manual and isolated from pull-request code: this job makes real
-# inference requests and may incur GPU cost. Run only on a trusted, private
+# inference requests and may incur compute cost. Run only on a trusted, private
 # staging runner with network access to the protected model endpoint.
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
     env:
       WORKFLO_MODEL_BASE_URL: ${{ vars.WORKFLO_MODEL_BASE_URL }}
       WORKFLO_MODEL_NAME: ${{ vars.WORKFLO_MODEL_NAME }}
-      WORKFLO_GPU_HOURLY_USD: ${{ vars.WORKFLO_GPU_HOURLY_USD }}
+      WORKFLO_INSTANCE_HOURLY_USD: ${{ vars.WORKFLO_INSTANCE_HOURLY_USD }}
       WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
       WORKFLO_GATEWAY_BASE_URL: ${{ vars.WORKFLO_GATEWAY_BASE_URL }}
       WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
@@ -40,7 +40,7 @@ jobs:
             echo "::error::Real-model test not confirmed. Type RUN-REAL-MODEL-TEST in workflow_dispatch."
             exit 1
           fi
-          for name in WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME WORKFLO_GPU_HOURLY_USD WORKFLO_MODEL_API_KEY WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY; do
+          for name in WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME WORKFLO_INSTANCE_HOURLY_USD WORKFLO_MODEL_API_KEY WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Required p4-staging environment value is missing: $name"
               exit 1
@@ -56,13 +56,13 @@ jobs:
           esac
           python3 - <<'PY'
           import math, os, sys
-          raw = os.environ["WORKFLO_GPU_HOURLY_USD"]
+          raw = os.environ["WORKFLO_INSTANCE_HOURLY_USD"]
           try:
               rate = float(raw)
           except ValueError:
-              sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be numeric")
+              sys.exit("::error::WORKFLO_INSTANCE_HOURLY_USD must be numeric")
           if not math.isfinite(rate) or rate < 0:
-              sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be finite and >= 0")
+              sys.exit("::error::WORKFLO_INSTANCE_HOURLY_USD must be finite and >= 0")
           print(f"Cost assumption accepted: ${rate:.4f}/hour (estimate input, not cloud billing data)")
           PY
 
@@ -80,7 +80,7 @@ jobs:
           python3 bench/model-serving/bench_inference.py \
             --base-url "$WORKFLO_MODEL_BASE_URL" \
             --model "$WORKFLO_MODEL_NAME" \
-            --gpu-hourly-usd "$WORKFLO_GPU_HOURLY_USD" \
+            --instance-hourly-usd "$WORKFLO_INSTANCE_HOURLY_USD" \
             --levels 1,2,4 \
             --requests-per-level 32 \
             --warmup 2 \
