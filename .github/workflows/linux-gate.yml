@@ -242,12 +242,15 @@ jobs:
               mkdir -p "$run_target"
 
               sudo cp "$receipt" "$run_target/receipt.json"
-              fingerprint="$(sudo python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["public_key_fingerprint"])' "$receipt")"
-              # The producer now stores a public-key sidecar next to each receipt.
-              # Fall back to a home-directory search for runs produced by older scripts.
+              fingerprint="$(sudo python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("receipt", d)["public_key_fingerprint"])' "$receipt")"
+              # Prefer the producer-side sidecar. Older runs or custom HOME /
+              # WORKFLO_CONFIG_DIR settings may keep the key elsewhere, so fall
+              # back to a filesystem search by exact fingerprint filename.
               key_source="$(dirname "$receipt")/receipt-key.pub.pem"
               if ! sudo test -s "$key_source"; then
-                key_source="$(sudo find /root /home -type f -path "*/.config/workflo/keys/${fingerprint}.pub.pem" -print -quit 2>/dev/null || true)"
+                key_source="$(sudo find / -type f -name "${fingerprint}.pub.pem" \
+                  -not -path '/proc/*' -not -path '/sys/*' -not -path '/dev/*' \
+                  -print -quit 2>/dev/null || true)"
               fi
               if [ -z "$key_source" ] || ! sudo test -s "$key_source"; then
                 echo "::error::Missing signing public key for receipt fingerprint $fingerprint"
