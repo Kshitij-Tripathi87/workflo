@@ -1,0 +1,90 @@
+name: P4 Real Model Acceptance
+
+# Deliberately manual and isolated from pull-request code: this job makes real
+# inference requests and may incur GPU cost. Run only on a trusted, private
+# staging runner with network access to the protected model endpoint.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_real_run:
+        description: "Type RUN-REAL-MODEL-TEST to confirm billed real-model requests"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  model-acceptance:
+    runs-on: [self-hosted, linux, p4-staging]
+    environment: p4-staging
+    timeout-minutes: 60
+    env:
+      WORKFLO_MODEL_BASE_URL: ${{ vars.WORKFLO_MODEL_BASE_URL }}
+      WORKFLO_MODEL_NAME: ${{ vars.WORKFLO_MODEL_NAME }}
+      WORKFLO_GPU_HOURLY_USD: ${{ vars.WORKFLO_GPU_HOURLY_USD }}
+      WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
+    steps:
+      - name: Checkout exact release candidate
+        uses: actions/checkout@8f4b7f84864484a7bf31730abe267c3f869a2437 # v4.1.8
+
+      - name: Validate explicit confirmation and staging configuration
+        env:
+          CONFIRMATION: ${{ inputs.confirm_real_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "RUN-REAL-MODEL-TEST" ]]; then
+            echo "::error::Real-model test not confirmed. Type RUN-REAL-MODEL-TEST in workflow_dispatch."
+            exit 1
+          fi
+          for name in WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME WORKFLO_GPU_HOURLY_USD WORKFLO_MODEL_API_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required p4-staging environment value is missing: $name"
+              exit 1
+            fi
+          done
+          case "$WORKFLO_MODEL_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::WORKFLO_MODEL_BASE_URL must use HTTPS"; exit 1 ;;
+          esac
+          python3 - <<'PY'
+          import math, os, sys
+          raw = os.environ["WORKFLO_GPU_HOURLY_USD"]
+          try:
+              rate = float(raw)
+          except ValueError:
+              sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be numeric")
+          if not math.isfinite(rate) or rate < 0:
+              sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be finite and >= 0")
+          print(f"Cost assumption accepted: ${rate:.4f}/hour (estimate input, not cloud billing data)")
+          PY
+
+      - name: Run real-model benchmark at concurrency 1, 2, and 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/p4-${GITHUB_RUN_ID}"
+          mkdir -p "$OUT"
+          python3 bench/model-serving/bench_inference.py \
+            --base-url "$WORKFLO_MODEL_BASE_URL" \
+            --model "$WORKFLO_MODEL_NAME" \
+            --gpu-hourly-usd "$WORKFLO_GPU_HOURLY_USD" \
+            --levels 1,2,4 \
+            --requests-per-level 32 \
+            --warmup 2 \
+            --max-tokens 128 \
+            --timeout 90 \
+            --out "$OUT/model-benchmark.json" \
+            --md "$OUT/model-benchmark.md"
+          git rev-parse HEAD > "$OUT/commit.txt"
+          python3 --version > "$OUT/python-version.txt"
+
+      - name: Upload report even when a request fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p4-model-acceptance-${{ github.run_id }}
+          path: artifacts/p4-${{ github.run_id }}/
+          if-no-files-found: warn
+          retention-days: 30
