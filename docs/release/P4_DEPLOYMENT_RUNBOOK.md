@@ -69,12 +69,44 @@ Set values in the environment/secret manager, not in a committed `.env`:
 - `UPSTREAM_LLM_TIMEOUT`: bounded timeout appropriate to the run policy
 - `TRANSPARENCY_LOG_PATH`: persistent append-only path for the staging transparency log if the current deployment uses the file-backed log
 
-The startup guard must reject unsafe production settings. Do not disable it to get the container running. The present code supports a static KEK; do not claim managed KMS integration until an actual KEK provider exists and is tested. Treat this as a restricted staging/release-candidate deployment until key rotation, backup/restore, and operational access control are verified.
+The startup guard must reject unsafe production settings. In addition, the production lifespan no longer treats `RLS_ENABLED=true` as proof: it verifies that the database is PostgreSQL, the runtime role is neither SUPERUSER nor BYPASSRLS, each required table has ENABLE and FORCE ROW LEVEL SECURITY, the tables are owned by a separate schema-owner role, and all seven expected policies exist. A broken schema blocks startup. Do not disable the guard to get the container running.
+
+### One-time schema bootstrap and runtime-role separation
+
+The Control Plane currently ships a reviewed SQLAlchemy metadata bootstrap rather than a versioned Alembic migration history. Run the one-off bootstrap with a **schema-owner/admin DSN** against the target database before starting the production API:
+
+```bash
+# Run inside the Control Plane image/repo with the control-plane package installed.
+# Use the schema-owner DSN only for this one-off command; do not use it as the API DSN.
+DATABASE_URL="postgresql+asyncpg://<schema-owner>:<password>@<private-db-host>:5432/<database>" \
+  python -m app.db.bootstrap_schema
+```
+
+The bootstrap creates any missing metadata tables and applies `apps/control-plane/db/rls/001_tenant_rls.sql`. The policy script is repeatable for the named policies. It is not a substitute for versioned schema migrations when the data model changes; add and verify the migration path before repeated schema evolution.
+
+Create/use a separate runtime role with no superuser or RLS bypass privilege and no ownership of the protected tables. Example for a freshly provisioned database (run as the database administrator; replace all placeholder values):
+
+```sql
+CREATE ROLE workflo_runtime LOGIN PASSWORD '<strong-runtime-password>'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+GRANT CONNECT ON DATABASE <database> TO workflo_runtime;
+GRANT USAGE ON SCHEMA public TO workflo_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO workflo_runtime;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO workflo_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE <schema-owner> IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO workflo_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE <schema-owner> IN SCHEMA public
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO workflo_runtime;
+```
+
+Set the service's `DATABASE_URL` to the runtime-role DSN only after the bootstrap and grants complete. Verify that the runtime role is not the table owner and run the service's startup validation. Keep the schema-owner DSN in a separate protected deployment secret; never place it in the runtime environment.
+
+The present code supports a static KEK; do not claim managed KMS integration until an actual KEK provider exists and is tested. Treat this as a restricted staging/release-candidate deployment until key rotation, backup/restore, and operational access control are verified.
 
 Before exposing the control plane:
-1. Apply the actual supported schema/migration path and verify RLS policies on PostgreSQL.
-2. Verify tenant-scoped read/write denial, API-key scope enforcement, audit events, and secret redaction.
-3. Verify the service health/readiness endpoints.
+1. Run the one-off schema bootstrap with the separate schema-owner role, then start the app with the restricted runtime role and `RLS_ENABLED=true`.
+2. Confirm startup passes its live catalog/policy verification; verify tenant-scoped read/write denial, API-key scope enforcement, audit events, and secret redaction.
+3. Verify the liveness/readiness endpoints.
 4. Ensure the database, Redis (if enabled), and model endpoint are private; terminate public TLS at an approved ingress.
 5. Verify logs do not contain API keys, request bodies, observation content, source snippets, or model secrets.
 
