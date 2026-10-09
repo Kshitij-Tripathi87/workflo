@@ -69,7 +69,7 @@ Set values in the environment/secret manager, not in a committed `.env`:
 - `UPSTREAM_LLM_TIMEOUT`: bounded timeout appropriate to the run policy
 - `TRANSPARENCY_LOG_PATH`: persistent append-only path for the staging transparency log if the current deployment uses the file-backed log
 
-The startup guard must reject unsafe production settings. In addition, the production lifespan no longer treats `RLS_ENABLED=true` as proof: it verifies that the database is PostgreSQL, the runtime role is neither SUPERUSER nor BYPASSRLS, each required table has ENABLE and FORCE ROW LEVEL SECURITY, the tables are owned by a separate schema-owner role, and all seven expected policies exist. A broken schema blocks startup. Do not disable the guard to get the container running.
+The startup guard must reject unsafe production settings. In addition, the production lifespan no longer treats `RLS_ENABLED=true` as proof: it verifies that the database is PostgreSQL, the runtime role is neither SUPERUSER nor BYPASSRLS, each required table has ENABLE and FORCE ROW LEVEL SECURITY, the tables are owned by a separate schema-owner role, and all eight expected policies exist. A broken schema blocks startup. Do not disable the guard to get the container running.
 
 ### One-time schema bootstrap and runtime-role separation
 
@@ -102,6 +102,29 @@ ALTER DEFAULT PRIVILEGES FOR ROLE <schema-owner> IN SCHEMA public
 ```
 
 Set the service's `DATABASE_URL` to the runtime-role DSN only after the bootstrap and grants complete. Verify that the runtime role is not the table owner and run the service's startup validation. Keep the schema-owner DSN in a separate protected deployment secret; never place it in the runtime environment.
+
+### Provision the first scoped client key
+
+The unauthenticated development key endpoints are disabled once production posture is set. Create the first least-privilege key with the one-off provisioning module, using the schema-owner DSN and a short-lived protected output mount:
+
+```bash
+install -d -m 700 /run/workflo-bootstrap
+# Ensure the host directory is writable only by the deployment operator and
+# is owned by the image's non-root UID (10001) for this one-off container.
+chown 10001:10001 /run/workflo-bootstrap
+
+docker run --rm --network <private-db-network> \
+  --mount type=bind,src=/run/workflo-bootstrap,dst=/run/bootstrap \
+  -e DATABASE_URL="postgresql+asyncpg://<schema-owner>:<password>@<private-db-host>:5432/<database>" \
+  -e RLS_ENABLED=true \
+  -e MASTER_KEK_HEX="<64-hex-character-secret>" \
+  -e WORKFLO_BOOTSTRAP_PROJECT_ID=default \
+  -e WORKFLO_BOOTSTRAP_KEY_SCOPES=run_tests,read_reports \
+  -e WORKFLO_BOOTSTRAP_KEY_FILE=/run/bootstrap/initial-key.txt \
+  <control-plane-image-digest> python -m app.db.bootstrap_api_key
+```
+
+The command writes the raw API key to a mode-0600 file and reports only its metadata; it does not print the secret. Move that file's value into the approved secret manager, configure the staging client's `WORKFLO_GATEWAY_API_KEY`, verify an authenticated request, then delete the temporary file. Do not provision an `admin` scope for the model gateway.
 
 The present code supports a static KEK; do not claim managed KMS integration until an actual KEK provider exists and is tested. Treat this as a restricted staging/release-candidate deployment until key rotation, backup/restore, and operational access control are verified.
 
