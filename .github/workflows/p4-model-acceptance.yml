@@ -24,6 +24,8 @@ jobs:
       WORKFLO_MODEL_NAME: ${{ vars.WORKFLO_MODEL_NAME }}
       WORKFLO_GPU_HOURLY_USD: ${{ vars.WORKFLO_GPU_HOURLY_USD }}
       WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
+      WORKFLO_GATEWAY_BASE_URL: ${{ vars.WORKFLO_GATEWAY_BASE_URL }}
+      WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
     steps:
       - name: Checkout exact release candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, commit resolved by current GitHub runner
@@ -38,7 +40,7 @@ jobs:
             echo "::error::Real-model test not confirmed. Type RUN-REAL-MODEL-TEST in workflow_dispatch."
             exit 1
           fi
-          for name in WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME WORKFLO_GPU_HOURLY_USD WORKFLO_MODEL_API_KEY; do
+          for name in WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME WORKFLO_GPU_HOURLY_USD WORKFLO_MODEL_API_KEY WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Required p4-staging environment value is missing: $name"
               exit 1
@@ -47,6 +49,10 @@ jobs:
           case "$WORKFLO_MODEL_BASE_URL" in
             https://*) ;;
             *) echo "::error::WORKFLO_MODEL_BASE_URL must use HTTPS"; exit 1 ;;
+          esac
+          case "$WORKFLO_GATEWAY_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::WORKFLO_GATEWAY_BASE_URL must use HTTPS"; exit 1 ;;
           esac
           python3 - <<'PY'
           import math, os, sys
@@ -59,6 +65,11 @@ jobs:
               sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be finite and >= 0")
           print(f"Cost assumption accepted: ${rate:.4f}/hour (estimate input, not cloud billing data)")
           PY
+
+      - name: Exercise real-model privacy gateway and source rejection
+        env:
+          WORKFLO_GATEWAY_SMOKE_OUT: artifacts/p4-${{ github.run_id }}/gateway-smoke.json
+        run: python3 scripts/release/gateway_smoke.py
 
       - name: Run real-model benchmark at concurrency 1, 2, and 4
         shell: bash
