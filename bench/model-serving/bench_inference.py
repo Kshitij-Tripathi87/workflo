@@ -174,12 +174,57 @@ def one_request(
         )
 
     latency = time.perf_counter() - started
-    usage = body.get("usage") or {}
+    if not isinstance(body, dict):
+        return RequestResult(
+            latency_s=latency,
+            ok=False,
+            error="invalid OpenAI response: JSON root must be an object",
+        )
+
+    choices = body.get("choices")
+    if (
+        not isinstance(choices, list)
+        or not choices
+        or not isinstance(choices[0], dict)
+        or not isinstance(choices[0].get("message"), dict)
+    ):
+        return RequestResult(
+            latency_s=latency,
+            ok=False,
+            error="invalid OpenAI response: expected non-empty choices with a message",
+        )
+
+    usage = body.get("usage")
+    if not isinstance(usage, dict) or not {
+        "prompt_tokens",
+        "completion_tokens",
+    }.issubset(usage):
+        return RequestResult(
+            latency_s=latency,
+            ok=False,
+            error="invalid OpenAI response: usage.prompt_tokens and usage.completion_tokens are required",
+        )
+    try:
+        prompt_tokens = int(usage["prompt_tokens"])
+        completion_tokens = int(usage["completion_tokens"])
+    except (TypeError, ValueError):
+        return RequestResult(
+            latency_s=latency,
+            ok=False,
+            error="invalid OpenAI response: token usage fields must be integers",
+        )
+    if prompt_tokens < 0 or completion_tokens < 0:
+        return RequestResult(
+            latency_s=latency,
+            ok=False,
+            error="invalid OpenAI response: token usage fields must be non-negative",
+        )
+
     return RequestResult(
         latency_s=latency,
         ok=True,
-        prompt_tokens=int(usage.get("prompt_tokens") or 0),
-        completion_tokens=int(usage.get("completion_tokens") or 0),
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )
 
 
