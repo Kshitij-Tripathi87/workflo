@@ -176,7 +176,13 @@ class TestPlannerLoop:
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
                 if plan_path.exists():
-                    plan = json.loads(plan_path.read_text())
+                    try:
+                        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, OSError):
+                        # Mirror the real agent runner: retry if a producer has
+                        # not finished publishing a protocol file yet.
+                        time.sleep(0.05)
+                        continue
                     if plan.get("seq", 0) > last_seq:
                         last_seq = plan["seq"]
                         observations = [execute_step(gw, s) for s in plan.get("steps", [])]
