@@ -58,7 +58,7 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
     try:
         with tmp_path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, sort_keys=True)
-            handle.write("\\n")
+            handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_path, path)
