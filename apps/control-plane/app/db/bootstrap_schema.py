@@ -49,9 +49,15 @@ async def bootstrap_schema() -> None:
     print("required tenant RLS policies. Production startup verifies those facts.")
 
 
+async def _main_async() -> None:
+    try:
+        await bootstrap_schema()
+    finally:
+        await engine.dispose()
+
+
 def main() -> None:
-    asyncio.run(bootstrap_schema())
-    asyncio.run(engine.dispose())
+    asyncio.run(_main_async())
 
 
 if __name__ == "__main__":
