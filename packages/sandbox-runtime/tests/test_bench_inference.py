@@ -103,6 +103,7 @@ def test_direct_mode_against_stub(stub_server, tmp_path):
         "--mode", "direct",
         "--base-url", stub_server,
         "--model", "stub",
+        "--gpu-hourly-usd", "1.00",  # explicit test assumption; not a measured GPU price
         "--levels", "1,4",
         "--requests-per-level", "8",
         "--timeout", "10",
@@ -129,3 +130,11 @@ def test_direct_mode_against_stub(stub_server, tmp_path):
     assert econ["1"]["cost_per_request_usd"] > 0
     md = out_md.read_text()
     assert "| concurrency |" in md
+
+
+def test_benchmark_requires_explicit_cost_assumption(stub_server):
+    """Unit economics must never silently inherit an invented hourly price."""
+    bench = _load_bench_module()
+    with pytest.raises(SystemExit) as error:
+        bench.main(["--base-url", stub_server, "--model", "stub"])
+    assert error.value.code == 2
