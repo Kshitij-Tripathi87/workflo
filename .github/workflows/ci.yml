@@ -169,7 +169,10 @@ jobs:
       # the product-boundary decisions in CODE_REVIEW.md).
       - name: Smoke test dev dependencies
         run: |
-          docker compose up -d --wait
+          # Only these services are part of this readiness assertion. The
+          # object-store container has its own image/runtime contract and is
+          # not exercised by this database/Redis smoke test.
+          docker compose up -d --wait db redis
           ready=""
           for _ in 1 2 3 4 5; do
             if docker compose exec -T db pg_isready -U workflo; then ready=1; break; fi
