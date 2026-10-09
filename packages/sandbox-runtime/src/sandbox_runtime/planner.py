@@ -46,6 +46,29 @@ DEFAULT_MAX_TOOL_CALLS = 40
 OBSERVATION_WAIT_TIMEOUT = 120.0
 OBSERVATION_POLL_INTERVAL = 0.25
 
+def _atomic_write_json(path: Path, payload: dict) -> None:
+    """Atomically publish a complete protocol JSON document to a shared bind.
+
+    Readers can poll these files from another process/container. Rewriting the
+    destination in place exposes a zero-byte or partial JSON window.
+    """
+    tmp_path = path.with_name(
+        f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    )
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 SYSTEM_PROMPT = (
     "You are a QA testing agent operating a running web application "
     "through governed tools inside an isolated sandbox.\n"
@@ -427,11 +450,11 @@ def run_planner_loop(plan_dir: Path, app_url: str,
 
         seq += 1
         steps = plan.get("steps", [])
-        plan_path.write_text(json.dumps({
+        _atomic_write_json(plan_path, {
             "seq": seq,
             "done": bool(plan.get("done")) or batch == max_batches - 1,
             "steps": steps,
-        }, sort_keys=True))
+        })
         _note("planner batch written", {"seq": seq, "steps": len(steps)})
 
         if not steps and plan.get("done"):
@@ -448,8 +471,7 @@ def run_planner_loop(plan_dir: Path, app_url: str,
 
     # Final done-plan so the waiting agent exits promptly
     seq += 1
-    plan_path.write_text(json.dumps({"seq": seq, "done": True, "steps": []},
-                                    sort_keys=True))
+    _atomic_write_json(plan_path, {"seq": seq, "done": True, "steps": []})
     return {
         "batches": seq,
         "planner": "llm",
