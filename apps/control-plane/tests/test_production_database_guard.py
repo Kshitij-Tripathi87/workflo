@@ -13,6 +13,7 @@ RLS_TABLES = (
 RLS_POLICIES = (
     ("projects", "tenant_isolation_projects"),
     ("api_keys", "tenant_isolation_api_keys"),
+    ("api_keys", "api_key_auth_lookup"),
     ("test_runs", "tenant_isolation_test_runs"),
     ("test_results", "tenant_isolation_test_results"),
     ("artifacts", "tenant_isolation_artifacts"),
@@ -72,7 +73,7 @@ async def test_production_database_guard_accepts_fully_protected_schema(monkeypa
     result = await database.verify_production_database()
     assert result["status"] == "verified"
     assert result["runtime_role"] == "workflo_runtime"
-    assert result["rls_policies"] == 7
+    assert result["rls_policies"] == 8
     assert set(result["rls_tables"]) == set(RLS_TABLES)
 
 
