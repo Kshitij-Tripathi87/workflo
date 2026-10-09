@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import statistics
 import sys
 import time
@@ -456,7 +457,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", required=True, help="e.g. http://localhost:8000")
     parser.add_argument("--path", default=DEFAULT_PATH, help="completions path")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--api-key", default=None, help="bearer token, if the endpoint needs one")
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("WORKFLO_MODEL_API_KEY"),
+        help="bearer token, if the endpoint needs one (or WORKFLO_MODEL_API_KEY env var)",
+    )
     parser.add_argument("--levels", default="1,4", help="concurrency levels, e.g. 1,4")
     parser.add_argument("--requests-per-level", type=int, default=16)
     parser.add_argument("--max-tokens", type=int, default=64)
