@@ -92,7 +92,7 @@ authenticated requests, bounded prompts, token usage, a controlled timeout or
 unavailable-model result, and receipt-bound inference provenance. It must also
 prove with an automated test that source-bearing request fields are rejected.
 
-The older section below called "first post-demo ticket" refers to adding an
+The original contract's "first post-demo ticket" referred to adding an
 inference-only network **inside the sandbox**. That remains a separate,
 post-release project. It is not a prerequisite for the host-side gateway and is
 not permission to weaken the default `--network none` isolation boundary.
