@@ -74,3 +74,5 @@ class TestPolicySqlShipsAndIsReferenced:
             )
         assert "FORCE ROW LEVEL SECURITY" in sql
         assert "current_setting('app.current_project_id', true)" in sql
+        assert "api_key_auth_lookup" in sql
+        assert "current_setting('app.api_key_lookup', true) = 'on'" in sql
