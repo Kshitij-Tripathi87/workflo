@@ -54,6 +54,25 @@ PLANNER_POLL_TIMEOUT = float(os.environ.get("WORKFLO_AGENT_PLANNER_TIMEOUT", "90
 PLANNER_POLL_INTERVAL = 0.2
 
 
+def _atomic_write_json(path: Path, payload: dict) -> None:
+    """Publish a complete JSON document to the host through the shared bind."""
+    tmp_path = path.with_name(
+        f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    )
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True)
+            handle.write("\\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def load_task(path: Path) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"agent task spec not found: {path}")
@@ -210,12 +229,12 @@ def _run_planner_mode() -> int:
             observations.append(observation)
 
         # Report observations for this batch back to the host planner
-        OBSERVATIONS_PATH.write_text(json.dumps({
+        _atomic_write_json(OBSERVATIONS_PATH, {
             "seq": last_seq,
             "tool_calls": gateway.tool_calls,
             "denied_attempts": gateway.denied_attempts,
             "observations": observations[:MAX_OBSERVATIONS],
-        }, sort_keys=True))
+        })
 
         if plan.get("done"):
             note = "planner finished"
