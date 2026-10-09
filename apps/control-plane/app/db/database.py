@@ -67,6 +67,7 @@ async def set_tenant_context(session: AsyncSession, project_id: str | None) -> N
 _PRODUCTION_RLS_POLICIES = {
     ("projects", "tenant_isolation_projects"),
     ("api_keys", "tenant_isolation_api_keys"),
+    ("api_keys", "api_key_auth_lookup"),
     ("test_runs", "tenant_isolation_test_runs"),
     ("test_results", "tenant_isolation_test_results"),
     ("artifacts", "tenant_isolation_artifacts"),
