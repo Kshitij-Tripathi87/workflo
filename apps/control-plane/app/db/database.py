@@ -75,6 +75,29 @@ _PRODUCTION_RLS_POLICIES = {
 }
 
 
+async def set_api_key_lookup_mode(session: AsyncSession, enabled: bool) -> None:
+    """Temporarily allow the API-key authenticator to find a key before its
+    project ID is known.
+
+    The setting is transaction-local and is used only around the API-key
+    SELECT. The authenticator must switch it off immediately after
+    materializing the rows, then bind the candidate project before reading
+    its DEK or updating last_used. This is the narrow authentication bootstrap
+    exception to the normal project-scoped api_keys policy.
+    """
+    if not settings.rls_enabled:
+        return
+    bind = session.bind
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text
+
+    await session.execute(
+        text("SELECT set_config('app.api_key_lookup', :mode, true)"),
+        {"mode": "on" if enabled else "off"},
+    )
+
+
 async def verify_production_database() -> dict:
     """Fail closed unless PostgreSQL RLS is enabled, forced, and policy-backed.
 
