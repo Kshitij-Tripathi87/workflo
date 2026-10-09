@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 import sys
 import time
@@ -39,10 +40,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# Placeholder amortized instance cost, USD/hour. Override with the real rate;
-# the deployment target (Oracle Ampere A1, docs/validation.md) is a free tier,
-# so the meaningful number for hosted unit economics is the operator's own.
-DEFAULT_GPU_HOURLY_USD = 1.00
+# The operator must supply the hourly cost assumption explicitly. There is no
+# safe default: an invented rate would make estimated unit economics misleading.
 DEFAULT_PATH = "/v1/chat/completions"
 DEFAULT_PROMPT = (
     "Return exactly this JSON and nothing else: "
@@ -422,10 +421,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gpu-hourly-usd",
         type=float,
-        default=DEFAULT_GPU_HOURLY_USD,
+        required=True,
         help=(
-            "assumed amortized cost of the serving instance in USD/hour; all "
-            f"cost output is derived from it (default {DEFAULT_GPU_HOURLY_USD:.2f})"
+            "required assumed amortized cost of the serving instance in USD/hour; "
+            "all cost output is estimated from this explicit input"
         ),
     )
     parser.add_argument("--out", default=None, help="write the JSON report here")
@@ -442,8 +441,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.requests_per_level < 1:
         parser.error("--requests-per-level must be >= 1")
-    if args.gpu_hourly_usd < 0:
-        parser.error("--gpu-hourly-usd must be >= 0")
+    if not math.isfinite(args.gpu_hourly_usd) or args.gpu_hourly_usd < 0:
+        parser.error("--gpu-hourly-usd must be a finite number >= 0")
     try:
         parse_levels(args.levels)
     except ValueError as e:
