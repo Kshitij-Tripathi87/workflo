@@ -18,7 +18,8 @@ services:
       - "6379:6379"
 
   minio:
-    image: minio/minio:latest
+    # The upstream Docker Hub image is no longer published/maintained; use the public Chainguard image.
+    image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
