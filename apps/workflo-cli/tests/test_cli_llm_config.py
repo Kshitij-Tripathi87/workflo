@@ -130,3 +130,90 @@ class TestDeepTestPlaceholderFailFast:
         assert plan["llm"]["configured"] is True
         assert plan["llm"]["is_placeholder"] is False
         assert "wf_live_secret123" not in result.output
+
+
+class TestGatewayModeEndpointValidation:
+    def test_gateway_mode_uses_gateway_health_and_api_key_header(
+        self, clean_llm_config, monkeypatch
+    ):
+        """Gateway keys must use X-API-Key and the gateway's health route."""
+        import httpx
+
+        seen = {}
+
+        class Response:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {"status": "configured", "model": "qa-model"}
+
+        class Client:
+            def __init__(self, timeout):
+                seen["timeout"] = timeout
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def get(self, url, headers):
+                seen["url"] = url
+                seen["headers"] = headers
+                return Response()
+
+        monkeypatch.setattr(httpx, "Client", Client)
+        cfg = clean_llm_config.LLMConfig(
+            base_url="https://control.example.test",
+            gateway_url="https://gateway.example.test",
+            model="qa-model",
+            timeout_seconds=10,
+            api_key="wf_gateway_key",
+            mode="gateway",
+        )
+
+        ok, message = clean_llm_config.validate_llm_key(cfg)
+
+        assert ok is True
+        assert "200" in message
+        assert seen["url"] == "https://gateway.example.test/v1/inference/health"
+        assert seen["headers"] == {"X-API-Key": "wf_gateway_key"}
+        assert "Authorization" not in seen["headers"]
+
+    def test_gateway_mode_fails_closed_when_key_is_rejected(
+        self, clean_llm_config, monkeypatch
+    ):
+        import httpx
+
+        class Response:
+            status_code = 401
+
+        class Client:
+            def __init__(self, timeout):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def get(self, url, headers):
+                return Response()
+
+        monkeypatch.setattr(httpx, "Client", Client)
+        cfg = clean_llm_config.LLMConfig(
+            base_url="https://control.example.test",
+            gateway_url=None,
+            model="qa-model",
+            timeout_seconds=10,
+            api_key="bad-key",
+            mode="gateway",
+        )
+
+        ok, message = clean_llm_config.validate_llm_key(cfg)
+
+        assert ok is False
+        assert "rejected" in message
+        assert "401" in message
