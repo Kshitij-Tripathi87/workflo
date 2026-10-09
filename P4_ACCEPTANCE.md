@@ -3,7 +3,7 @@
 > Status: **specification**. Nothing in this document is claimed as passing
 > unless its row says PROVEN and names the command that was run.
 >
-> Baseline: `a2cc6cb` (stabilization). P0–P3 established *repo* integrity:
+> Baseline: `5ca61a4` (latest stabilization handoff). P0–P3 established *repo* integrity:
 > clean builds, reproducible installs, real type checking, fail-closed
 > production config, isolated tests, documented boundaries. P4 is the first
 > gate that tests the **product claim** — that Workflo runs untrusted code in a
