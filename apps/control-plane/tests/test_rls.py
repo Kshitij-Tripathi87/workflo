@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.config import settings
-from app.db.database import set_tenant_context
+from app.db.database import set_tenant_context, set_api_key_lookup_mode
 
 
 def _session(dialect: str):
@@ -55,6 +55,35 @@ class TestSetTenantContext:
         await set_tenant_context(session, None)
         _stmt, params = session.execute.await_args.args
         assert params == {"pid": ""}
+
+
+    async def test_api_key_lookup_mode_is_transaction_local_on_postgres(self, monkeypatch):
+        monkeypatch.setattr(settings, "rls_enabled", True)
+        session = _session("postgresql")
+        await set_api_key_lookup_mode(session, enabled=True)
+        session.execute.assert_awaited_once()
+        stmt, params = session.execute.await_args.args
+        assert "set_config('app.api_key_lookup'" in str(stmt)
+        assert ", true)" in str(stmt)
+        assert params == {"mode": "on"}
+
+    async def test_api_key_lookup_mode_is_disabled_after_key_scan(self, monkeypatch):
+        monkeypatch.setattr(settings, "rls_enabled", True)
+        session = _session("postgresql")
+        await set_api_key_lookup_mode(session, enabled=False)
+        _stmt, params = session.execute.await_args.args
+        assert params == {"mode": "off"}
+
+    async def test_api_key_lookup_mode_is_noop_when_disabled_or_non_postgres(self, monkeypatch):
+        monkeypatch.setattr(settings, "rls_enabled", False)
+        session = _session("postgresql")
+        await set_api_key_lookup_mode(session, enabled=True)
+        session.execute.assert_not_called()
+
+        monkeypatch.setattr(settings, "rls_enabled", True)
+        session = _session("sqlite")
+        await set_api_key_lookup_mode(session, enabled=True)
+        session.execute.assert_not_called()
 
 
 class TestPolicySqlShipsAndIsReferenced:
