@@ -50,6 +50,7 @@ jobs:
       # /opt/workflo/venv, and creates the /root/wf-fixture repo.
       # JUSTIFIED: Root required for cgroup/netns setup on Linux.
       - name: Provision isolation stack
+        id: provision
         run: sudo bash scripts/linux/setup_env.sh
 
       # NOTE: this suite imports sibling packages (workflo_worker,
@@ -127,36 +128,90 @@ jobs:
           executed = total - skipped
           print(f"collected={total} executed={executed} skipped={skipped} failed={failed}")
 
+          # Expand each skip into a concrete test name and reason. This is
+          # diagnostic only: every skip still fails the authoritative gate.
+          import os
+          skipped_cases = []
+          for suite in suites:
+              for case in suite.findall(".//testcase"):
+                  skipped_node = case.find("skipped")
+                  if skipped_node is not None:
+                      reason = (skipped_node.get("message") or "").strip()
+                      body = (skipped_node.text or "").strip()
+                      if body:
+                          reason = f"{reason}: {body}" if reason else body
+                      skipped_cases.append((
+                          case.get("classname", "<unknown>"),
+                          case.get("name", "<unnamed>"),
+                          reason or "no skip reason recorded",
+                      ))
+
           problems = []
           if skipped:
               problems.append(
                   f"{skipped} integration test(s) skipped, so the isolation claims were "
-                  "never exercised. Check that scripts/linux/setup_env.sh provisioned "
-                  "bwrap/ip/nft/dnsmasq and the runtime image, that the step runs as root, "
-                  "and that the kernel provides Landlock. Fix the environment or record an "
-                  "explicit decision - do not let the gate report success."
+                  "not fully exercised. Every skipped test must be investigated."
               )
           if executed < MIN_EXECUTED:
               problems.append(f"only {executed} tests executed (expected >= {MIN_EXECUTED})")
           if failed:
               problems.append(f"{failed} test(s) failed")
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          summary = [
+              "## Linux isolation integration gate",
+              "",
+              f"- Collected: **{total}**",
+              f"- Executed: **{executed}**",
+              f"- Skipped: **{skipped}**",
+              f"- Failed/errors: **{failed}**",
+              "",
+          ]
+          if skipped_cases:
+              summary += ["### Skipped tests (gate failure)", ""]
+              for cls, name, reason in skipped_cases:
+                  entry = f"- `{cls}::{name}` — {reason}"
+                  print("SKIPPED TEST: " + entry)
+                  summary.append(entry)
+          if problems:
+              summary += ["", "### Gate failures", ""] + [f"- {p}" for p in problems]
+          else:
+              summary.append("All required integration tests executed without skips.")
+
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as handle:
+                  handle.write("\n".join(summary) + "\n")
+
           if problems:
               for problem in problems:
-                  print(f"::error::{problem}")
+                  escaped = (problem.replace("%", "%25").replace("\r", "%0D")
+                                    .replace("\n", "%0A").replace(":", "%3A").replace(",", "%2C"))
+                  print(f"::error title=Linux isolation gate::{escaped}")
+              for cls, name, reason in skipped_cases:
+                  detail = f"{cls}::{name}: {reason}"
+                  escaped = (detail.replace("%", "%25").replace("\r", "%0D")
+                                   .replace("\n", "%0A").replace(":", "%3A").replace(",", "%2C"))
+                  print(f"::error title=Skipped security test::{escaped}")
               sys.exit(1)
           print(f"[ok] isolation gate executed: {executed} tests, no skips")
           PY
 
+      # These runs continue after an integration assertion failure, provided
+      # provisioning succeeded, so a failed gate still emits diagnostic receipts.
+      # A failed gate remains failed; this does not bypass the release criterion.
       # JUSTIFIED: Root required for bwrap + namespace isolation.
       - name: Namespaces golden run (tests tier)
+        if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/golden_run.sh
 
       # JUSTIFIED: Root required for deep-tier app + governed agent isolation.
       - name: "Agent golden run (deep tier: app + governed agent)"
+        if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/agent_golden_run.sh
 
       # JUSTIFIED: Root required for planner-mode isolation with real LLM.
       - name: Planner golden run (scripted LLM planner)
+        if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/planner_golden_run.sh
 
       # Copy root-owned receipts into the workspace first. Artifact actions
