@@ -402,13 +402,21 @@ decode throughput, and unit cost across concurrency levels, against any
 OpenAI-compatible endpoint — `infra/vllm` locally). The test no longer skips; a
 missing harness is a hard failure.
 
-Two things it deliberately does *not* do: invent a cost figure (the hourly
-instance rate is a required, recorded assumption — every cost number in the
-report is labelled an estimate, because no infra cost exists anywhere in the
-repo), and only test the happy path. Verified: stub-server test passes; an
-independent CLI run reached 19/39/77 rps at concurrency 1/2/4 with linear cost
-scaling; a dead endpoint exits 1 with the report retained (the "model
-unavailable" negative path, N8 in `P4_ACCEPTANCE.md`).
+Two deliberate choices. It does not invent a cost figure: the hourly instance
+rate is a required, recorded assumption, and every cost number is labelled an
+estimate, because no infra cost exists anywhere in the repo. And it exercises
+failure paths, not just the happy path.
+
+What has been verified: the test passes against a local stub server, and a dead
+endpoint exits 1 with the partial report retained (the "model unavailable"
+negative path, N8 in `P4_ACCEPTANCE.md`).
+
+The stub answers after a fixed 50 ms. The throughput printed during that check
+(about 19 / 39 / 77 rps at concurrency 1 / 2 / 4) therefore validates the
+harness's arithmetic and nothing else. It is **not a model measurement**. Cost
+per request is `hourly / (rps x 3600)`, so it scales inversely with throughput
+by construction. The first real figures come from running the harness against
+vLLM (P4 item 6).
 
 ### Blocker 2 — quarantine disposition
 
