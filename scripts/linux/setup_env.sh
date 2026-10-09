@@ -42,7 +42,7 @@ PIP="$VENV/bin/pip"
 
 # --- Runtime image ---
 WORKFLO_REPO_ROOT="$REPO_ROOT" WORKFLO_PIP="$PIP" \
-  "$REPO_ROOT/scripts/linux/build_runtime_image.sh"
+  bash "$REPO_ROOT/scripts/linux/build_runtime_image.sh"
 
 # --- Fixture repo: a tiny git repo whose own tests prove, from inside
 # the sandbox, that isolation holds (egress blocked, DNS blocked,
