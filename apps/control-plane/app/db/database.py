@@ -60,6 +60,100 @@ async def set_tenant_context(session: AsyncSession, project_id: str | None) -> N
     )
 
 
+# These are the tables covered by apps/control-plane/db/rls/001_tenant_rls.sql.
+# The policy names are checked too: ENABLE ROW LEVEL SECURITY alone is not enough
+# if a required table has no policy and the effective behavior is not the intended
+# tenant contract.
+_PRODUCTION_RLS_POLICIES = {
+    ("projects", "tenant_isolation_projects"),
+    ("api_keys", "tenant_isolation_api_keys"),
+    ("test_runs", "tenant_isolation_test_runs"),
+    ("test_results", "tenant_isolation_test_results"),
+    ("artifacts", "tenant_isolation_artifacts"),
+    ("audit_events", "tenant_isolation_audit_select"),
+    ("audit_events", "tenant_isolation_audit_insert"),
+}
+
+
+async def verify_production_database() -> dict:
+    """Fail closed unless PostgreSQL RLS is enabled, forced, and policy-backed.
+
+    This check intentionally requires a non-superuser, non-BYPASSRLS runtime
+    role that does not own the protected tables. The setup/migration role must
+    be separate. Production never treats the RLS_ENABLED flag by itself as
+    proof that the database was actually provisioned safely.
+    """
+    from sqlalchemy import text
+
+    if engine.dialect.name != "postgresql":
+        raise RuntimeError(
+            "production requires PostgreSQL; SQLite and other dialects are development-only"
+        )
+
+    async with engine.connect() as conn:
+        role_result = await conn.execute(text(
+            "SELECT current_user, r.rolsuper, r.rolbypassrls "
+            "FROM pg_roles AS r WHERE r.rolname = current_user"
+        ))
+        role = role_result.first()
+        if role is None:
+            raise RuntimeError("could not verify the PostgreSQL runtime role")
+        runtime_role = str(role[0])
+        if bool(role[1]) or bool(role[2]):
+            raise RuntimeError(
+                "production database role must not be SUPERUSER or BYPASSRLS"
+            )
+
+        table_result = await conn.execute(text(
+            "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, "
+            "pg_get_userbyid(c.relowner) "
+            "FROM pg_class AS c "
+            "JOIN pg_namespace AS n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = current_schema() AND c.relkind = 'r' "
+            "AND c.relname IN "
+            "('projects', 'api_keys', 'test_runs', 'test_results', 'artifacts', 'audit_events')"
+        ))
+        table_rows = {
+            str(row[0]): (bool(row[1]), bool(row[2]), str(row[3]))
+            for row in table_result.all()
+        }
+        required_tables = {
+            "projects", "api_keys", "test_runs", "test_results", "artifacts", "audit_events"
+        }
+        missing_tables = sorted(required_tables - set(table_rows))
+        invalid_tables = sorted(
+            name for name, (enabled, forced, owner) in table_rows.items()
+            if not enabled or not forced or owner == runtime_role
+        )
+        if missing_tables or invalid_tables:
+            problems = []
+            if missing_tables:
+                problems.append("missing tables: " + ", ".join(missing_tables))
+            if invalid_tables:
+                problems.append(
+                    "RLS/FORCE RLS must be enabled and tables must be owned by a separate role: "
+                    + ", ".join(invalid_tables)
+                )
+            raise RuntimeError("production database RLS validation failed (" + "; ".join(problems) + ")")
+
+        policy_result = await conn.execute(text(
+            "SELECT tablename, policyname FROM pg_policies "
+            "WHERE schemaname = current_schema()"
+        ))
+        present_policies = {(str(row[0]), str(row[1])) for row in policy_result.all()}
+        missing_policies = sorted(_PRODUCTION_RLS_POLICIES - present_policies)
+        if missing_policies:
+            formatted = ", ".join(f"{table}/{policy}" for table, policy in missing_policies)
+            raise RuntimeError("production database lacks required tenant RLS policies: " + formatted)
+
+    return {
+        "status": "verified",
+        "runtime_role": runtime_role,
+        "rls_tables": sorted(required_tables),
+        "rls_policies": len(_PRODUCTION_RLS_POLICIES),
+    }
+
+
 async def init_db():
     """Create all tables. Used for dev/testing without Alembic."""
     from app.db.base import Base
