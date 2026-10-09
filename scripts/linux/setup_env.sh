@@ -28,6 +28,9 @@ PIP="$VENV/bin/pip"
   pytest pytest-asyncio pytest-json-report
 
 "$PIP" install --quiet -e "$REPO_ROOT/packages/workflo-schema"
+# worker-engine declares workflo-utils as a dependency; install the local
+# package before the worker so pip never tries to resolve it from PyPI.
+"$PIP" install --quiet -e "$REPO_ROOT/packages/workflo-utils"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/sandbox-isolation"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/probe-engine"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/cortex-auth"
