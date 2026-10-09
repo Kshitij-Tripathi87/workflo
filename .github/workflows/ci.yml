@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    branches: [main, develop]
+    branches: [main, develop, "p4/**"]
   # On-demand runs for validating a branch that is not main/develop.
   workflow_dispatch:
 
