@@ -1,9 +1,10 @@
 """RLS defense-in-depth tests (SOC 2 CC6.1).
 
-The policies live in db/rls/001_tenant_rls.sql (applied by ops). Here we
-lock the application contract that feeds them: set_tenant_context binds
-the session GUC on Postgres, and is a strict no-op elsewhere — including
-when rls_enabled is False (default dev/test posture).
+The policies live in db/rls/001_tenant_rls.sql and are installed by the
+one-off schema bootstrap using a separate schema-owner role. Here we lock
+the application contract that feeds them: set_tenant_context binds the
+session GUC on Postgres, and is a strict no-op elsewhere — including when
+rls_enabled is False (default dev/test posture).
 """
 
 from unittest.mock import AsyncMock, MagicMock
