@@ -31,9 +31,17 @@ async def bootstrap_schema() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    sql_path = Path(__file__).resolve().parents[2] / "db" / "rls" / "001_tenant_rls.sql"
-    if not sql_path.is_file():
-        raise FileNotFoundError(f"required tenant RLS SQL file missing: {sql_path}")
+    # In a source checkout, the SQL is next to the control-plane project.
+    # In the container image, the package is installed into site-packages and
+    # the SQL is copied to /app/db/rls; check the working directory first.
+    sql_candidates = (
+        Path.cwd() / "db" / "rls" / "001_tenant_rls.sql",
+        Path(__file__).resolve().parents[2] / "db" / "rls" / "001_tenant_rls.sql",
+    )
+    sql_path = next((candidate for candidate in sql_candidates if candidate.is_file()), None)
+    if sql_path is None:
+        tried = ", ".join(str(candidate) for candidate in sql_candidates)
+        raise FileNotFoundError(f"required tenant RLS SQL file missing; tried: {tried}")
 
     sql = sql_path.read_text(encoding="utf-8")
     # asyncpg supports executing a multi-statement SQL script when no bind
