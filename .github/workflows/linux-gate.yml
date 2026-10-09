@@ -216,32 +216,147 @@ jobs:
 
       # Copy root-owned receipts into the workspace first. Artifact actions
       # run as the hosted runner user and cannot traverse /root (mode 0700).
-      - name: Collect golden run receipts
+      # Preserve the public key and the sibling evidence bundle so verification
+      # can run offline from a clean environment, independently of the producer.
+      - name: Collect golden run receipt bundles
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/artifacts/golden-runs"
+          ROOT="$GITHUB_WORKSPACE/artifacts/golden-runs"
+          mkdir -p "$ROOT"
+
           for base in wf-golden wf-agent-golden wf-planner-golden; do
             source_dir="/root/$base/.workflo/runs"
-            target_dir="$GITHUB_WORKSPACE/artifacts/golden-runs/$base"
+            target_dir="$ROOT/$base"
             mkdir -p "$target_dir"
-            if sudo test -d "$source_dir"; then
-              while IFS= read -r -d '' receipt; do
-                relative="${receipt#"$source_dir"/}"
-                mkdir -p "$target_dir/$(dirname "$relative")"
-                sudo cp "$receipt" "$target_dir/$relative"
-              done < <(sudo find "$source_dir" -type f -name receipt.json -print0)
+
+            if ! sudo test -d "$source_dir"; then
+              echo "::error::Missing golden-run output directory: $source_dir"
+              exit 1
+            fi
+
+            while IFS= read -r -d '' receipt; do
+              relative="${receipt#"$source_dir"/}"
+              run_target="$target_dir/$(dirname "$relative")"
+              mkdir -p "$run_target"
+
+              sudo cp "$receipt" "$run_target/receipt.json"
+              fingerprint="$(sudo python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["public_key_fingerprint"])' "$receipt")"
+              key_source="/root/.config/workflo/keys/${fingerprint}.pub.pem"
+              if ! sudo test -s "$key_source"; then
+                echo "::error::Missing signing public key for receipt fingerprint $fingerprint"
+                exit 1
+              fi
+              sudo cp "$key_source" "$run_target/receipt-key.pub.pem"
+
+              evidence_source="$(dirname "$receipt")/evidence"
+              if ! sudo test -s "$evidence_source/manifest.json" || ! sudo test -s "$evidence_source/events.jsonl"; then
+                echo "::error::Missing or incomplete evidence bundle next to $receipt"
+                exit 1
+              fi
+              sudo cp -a "$evidence_source" "$run_target/evidence"
+            done < <(sudo find "$source_dir" -type f -name receipt.json -print0)
+
+            # Preserve producer and in-run verifier logs; these are diagnostics,
+            # not substitutes for the clean-environment verification below.
+            for name in run.stdout run.stderr verify.stdout verify.stderr; do
+              if sudo test -f "/root/$base/$name"; then
+                sudo cp "/root/$base/$name" "$target_dir/$name"
+              fi
+            done
+          done
+
+          mkdir -p "$ROOT/diagnostics"
+          for report in /tmp/linux-gate-unit.xml /tmp/linux-gate-integration.xml; do
+            if sudo test -s "$report"; then
+              sudo cp "$report" "$ROOT/diagnostics/"
+            else
+              echo "::error::Expected JUnit report missing or empty: $report"
+              exit 1
             fi
           done
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/artifacts/golden-runs"
 
-      # Upload golden run artifacts for verification
-      - name: Upload golden run receipts
+          count="$(find "$ROOT" -type f -name receipt.json | wc -l)"
+          if [ "$count" -ne 3 ]; then
+            echo "::error::Expected 3 golden receipts; collected $count"
+            exit 1
+          fi
+          sudo chown -R "$(id -u):$(id -g)" "$ROOT"
+
+      # Verify from the collected bundle using explicit public-key and evidence
+      # paths. This does not rely on the producer's ~/.config/workflo/keys.
+      - name: Independent receipt and evidence verification
+        if: always() && steps.provision.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/artifacts/golden-runs"
+          mapfile -d '' receipts < <(find "$ROOT" -type f -name receipt.json -print0 | sort -z)
+          if [ "${#receipts[@]}" -ne 3 ]; then
+            echo "::error::Expected 3 receipts for independent verification; found ${#receipts[@]}"
+            exit 1
+          fi
+
+          mkdir -p "$ROOT/verification"
+          for receipt in "${receipts[@]}"; do
+            run_dir="$(dirname "$receipt")"
+            pubkey="$run_dir/receipt-key.pub.pem"
+            evidence="$run_dir/evidence"
+            log="$ROOT/verification/$(basename "$(dirname "$run_dir")")-$(basename "$run_dir").log"
+
+            test -s "$pubkey" || { echo "::error::Public key missing for $receipt"; exit 1; }
+            test -s "$evidence/manifest.json" || { echo "::error::Evidence manifest missing for $receipt"; exit 1; }
+            test -s "$evidence/events.jsonl" || { echo "::error::Evidence event ledger missing for $receipt"; exit 1; }
+
+            echo "==> Independent verification: $receipt"
+            /opt/workflo/venv/bin/workflo verify \
+              --receipt "$receipt" \
+              --pubkey "$pubkey" \
+              --evidence "$evidence" >"$log" 2>&1 || {
+                cat "$log"
+                echo "::error::Independent receipt/evidence verification failed: $receipt"
+                exit 1
+              }
+            cat "$log"
+          done
+
+          # Negative control: a modified signed field must be rejected by a
+          # separate verifier process. This catches accidentally permissive
+          # signature verification in the release candidate.
+          original="${receipts[0]}"
+          run_dir="$(dirname "$original")"
+          tampered="$ROOT/verification/tampered-receipt.json"
+          python3 - "$original" "$tampered" <<'PY'
+          import json, sys
+          src, dst = sys.argv[1:3]
+          doc = json.load(open(src, encoding="utf-8"))
+          receipt = doc.get("receipt", doc)
+          report = receipt.get("run_report") or {}
+          report["duration_seconds"] = float(report.get("duration_seconds") or 0) + 1.0
+          receipt["run_report"] = report
+          with open(dst, "w", encoding="utf-8") as f:
+              json.dump(doc, f, sort_keys=True)
+              f.write("\n")
+          PY
+
+          if /opt/workflo/venv/bin/workflo verify \
+            --receipt "$tampered" \
+            --pubkey "$run_dir/receipt-key.pub.pem" \
+            --evidence "$run_dir/evidence" >"$ROOT/verification/tampered-receipt.log" 2>&1; then
+            cat "$ROOT/verification/tampered-receipt.log"
+            echo "::error::Tampered receipt was accepted by independent verifier"
+            exit 1
+          fi
+          echo "Tamper negative control: rejected as expected"
+
+      # Upload receipts, public keys, evidence bundles, test reports, and
+      # independent-verifier logs for inspection from outside the runner.
+      - name: Upload golden run proof bundles
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: golden-run-receipts
-          path: artifacts/golden-runs/**/*.json
-          if-no-files-found: warn
+          name: golden-run-proof-bundles
+          path: artifacts/golden-runs/
+          if-no-files-found: error
           retention-days: 30
