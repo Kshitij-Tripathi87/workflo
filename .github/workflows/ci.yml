@@ -148,20 +148,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Authenticate to Docker Hub when credentials are configured
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -u
+          if [[ -n "${DOCKERHUB_USERNAME:-}" && -n "${DOCKERHUB_TOKEN:-}" ]]; then
+            if printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin; then
+              echo "::notice::Docker Hub authentication configured."
+            else
+              echo "::warning::Docker Hub login did not complete; bounded registry retries remain enabled."
+            fi
+          else
+            echo "::notice::Docker Hub credentials are not configured; bounded retries will be used for anonymous pulls."
+          fi
+
       - name: Build backend image
-        run: docker build -t workflo-backend:${{ github.sha }} ./backend
+        run: bash scripts/ci/docker_build_retry.sh -t "workflo-backend:${{ github.sha }}" ./backend
 
       - name: Build frontend image
-        run: docker build -t workflo-frontend:${{ github.sha }} ./frontend
+        run: bash scripts/ci/docker_build_retry.sh -t "workflo-frontend:${{ github.sha }}" ./frontend
 
       # Build the active Workflo services from the repository-root context.
       # These were not covered by the original Docker matrix, which only built
       # the legacy backend/frontend pair.
       - name: Build Workflo control-plane image
-        run: docker build -t workflo-control-plane:${{ github.sha }} -f apps/control-plane/Dockerfile .
+        run: bash scripts/ci/docker_build_retry.sh -t "workflo-control-plane:${{ github.sha }}" -f apps/control-plane/Dockerfile .
 
       - name: Build Workflo worker-engine image
-        run: docker build -t workflo-worker-engine:${{ github.sha }} -f apps/worker-engine/Dockerfile .
+        run: bash scripts/ci/docker_build_retry.sh -t "workflo-worker-engine:${{ github.sha }}" -f apps/worker-engine/Dockerfile .
 
       - name: Validate compose file
         run: docker compose config -q

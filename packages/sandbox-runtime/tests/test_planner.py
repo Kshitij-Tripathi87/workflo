@@ -222,8 +222,11 @@ class TestPlannerLoop:
         assert gw.tool_calls == 3
         assert "http_get" in gw.tools_used
 
-    def test_budget_exhaustion_ends_loop(self, fake_llm, tmp_path):
+    def test_budget_exhaustion_ends_loop(self, fake_llm, tmp_path, monkeypatch):
         """The planner stops when the tool-call budget is exhausted."""
+        import sandbox_runtime.planner as planner_module
+        monkeypatch.setattr(planner_module, "OBSERVATION_WAIT_TIMEOUT", 0.05)
+
         FakeLLMHandler.plans = [
             {"done": False, "steps": [{"tool": "http_get", "args": {"url": "http://app.workflo.internal:1/x"}}]}
             for _ in range(10)
