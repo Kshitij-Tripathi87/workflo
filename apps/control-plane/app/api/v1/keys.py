@@ -9,6 +9,8 @@ from app.db.models import ApiKey
 from app.services.api_key_service import ApiKeyService
 from app.services.audit_service import record_event
 from app.core.security import require_api_key, require_scope
+from app.core.config import settings
+from app.core.startup_guards import is_production
 
 router = APIRouter(prefix="/keys", tags=["keys"])
 
@@ -48,6 +50,11 @@ async def _ensure_default_project(db: AsyncSession, api_key: ApiKey | None = Non
 @router.post("", response_model=CreateKeyResponse)
 async def create_key(req: CreateKeyRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Create a new API key. Returns the raw key once — store it securely."""
+    if is_production(settings):
+        raise HTTPException(
+            status_code=404,
+            detail="Unauthenticated API-key bootstrap is disabled in production; use app.db.bootstrap_api_key",
+        )
     # Allow creation without auth for bootstrapping (first key)
     await _ensure_default_project(db)
     service = ApiKeyService(db)
