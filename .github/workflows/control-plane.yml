@@ -4,11 +4,16 @@ on:
   push:
     paths:
       - "apps/control-plane/**"
+      - "apps/sandbox-executor/**"
       - "packages/workflo-schema/**"
       - "packages/workflo-utils/**"
+      - "packages/sandbox-isolation/**"
   pull_request:
     paths:
       - "apps/control-plane/**"
+      - "apps/sandbox-executor/**"
+      - "packages/sandbox-isolation/**"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -19,10 +24,16 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
+        # Order matters: the control plane depends on workflo-executor
+        # (apps/sandbox-executor), which depends on sandbox-isolation. None of
+        # these are on PyPI, so each must be installed from its local path first.
+        # [dev] supplies pytest; without it the test step cannot run.
         run: |
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/workflo-utils
-          pip install -e ./apps/control-plane
+          pip install -e ./packages/sandbox-isolation
+          pip install -e ./apps/sandbox-executor
+          pip install -e "./apps/control-plane[dev]"
       - name: Run tests
         run: |
           cd apps/control-plane && pytest -v
