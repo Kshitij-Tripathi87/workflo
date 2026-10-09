@@ -73,12 +73,14 @@ The startup guard must reject unsafe production settings. In addition, the produ
 
 ### One-time schema bootstrap and runtime-role separation
 
-The Control Plane currently ships a reviewed SQLAlchemy metadata bootstrap rather than a versioned Alembic migration history. Run the one-off bootstrap with a **schema-owner/admin DSN** against the target database before starting the production API:
+The Control Plane currently ships a reviewed SQLAlchemy metadata bootstrap rather than a versioned Alembic migration history. Run the one-off bootstrap with a **schema-owner/admin DSN** against the target database before starting the production API. Inside the published container, run from `/app` so the checked-in RLS SQL under `/app/db/rls` is available:
 
 ```bash
-# Run inside the Control Plane image/repo with the control-plane package installed.
-# Use the schema-owner DSN only for this one-off command; do not use it as the API DSN.
-DATABASE_URL="postgresql+asyncpg://<schema-owner>:<password>@<private-db-host>:5432/<database>" \
+# One-off operation from the private deployment runner; do not bake this DSN
+# into the runtime service's environment or deployment manifest.
+docker run --rm --network <private-db-network> \
+  -e DATABASE_URL="postgresql+asyncpg://<schema-owner>:<password>@<private-db-host>:5432/<database>" \
+  -w /app <control-plane-image-digest> \
   python -m app.db.bootstrap_schema
 ```
 
