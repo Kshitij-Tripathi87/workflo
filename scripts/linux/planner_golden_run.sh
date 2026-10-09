@@ -120,7 +120,11 @@ fi
 echo
 echo "==> workflo verify (independent)"
 set +e
-workflo verify --receipt "$RECEIPT" >verify.stdout 2>verify.stderr
+bash "$REPO_ROOT/scripts/linux/package_receipt_key.sh" "$RECEIPT"
+PUBKEY="$(dirname "$RECEIPT")/receipt-key.pub.pem"
+EVIDENCE="$(dirname "$RECEIPT")/evidence"
+
+workflo verify --receipt "$RECEIPT" --pubkey "$PUBKEY" --evidence "$EVIDENCE" >verify.stdout 2>verify.stderr
 VERIFY_EXIT=$?
 set -e
 cat verify.stderr
