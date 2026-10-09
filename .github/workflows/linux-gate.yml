@@ -1,5 +1,9 @@
 name: linux-gate
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Gate 3 of the launch candidate: the REAL sandbox path.
 # The unit/mock suite proves logic on every platform; THIS workflow proves
 # kernel-level isolation (bwrap + cgroups v2 + netns + seccomp + Landlock)
