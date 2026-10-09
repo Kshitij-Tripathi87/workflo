@@ -8,7 +8,7 @@ name: linux-gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, "p4/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
