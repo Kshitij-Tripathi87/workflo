@@ -15,6 +15,12 @@ class ApiKeyService:
 
     async def create_key(self, project_id: str, label: str = "", scopes: list[str] | None = None) -> tuple[str, ApiKey]:
         """Create a new API key. Returns (raw_key, api_key_record)."""
+        from app.db.database import set_tenant_context
+
+        # Under production FORCE RLS, the project must be bound before looking
+        # it up or inserting it. For a new project the known target ID is the
+        # tenant context; for an existing project this scopes the query.
+        await set_tenant_context(self.db, project_id)
         # Ensure the project exists FIRST so the key's hash can be sealed
         # under the owning org's DEK (project → org resolution).
         project = await self.db.get(Project, project_id)
