@@ -41,27 +41,32 @@ ALTER TABLE audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_events FORCE ROW LEVEL SECURITY;
 
 -- projects: the row IS the tenant.
+DROP POLICY IF EXISTS tenant_isolation_projects ON projects;
 CREATE POLICY tenant_isolation_projects ON projects
     USING (id = NULLIF(current_setting('app.current_project_id', true), ''))
     WITH CHECK (id = NULLIF(current_setting('app.current_project_id', true), ''));
 
 -- api_keys: scoped by project_id.
+DROP POLICY IF EXISTS tenant_isolation_api_keys ON api_keys;
 CREATE POLICY tenant_isolation_api_keys ON api_keys
     USING (project_id = NULLIF(current_setting('app.current_project_id', true), ''))
     WITH CHECK (project_id = NULLIF(current_setting('app.current_project_id', true), ''));
 
 -- test_runs: scoped by project_id.
+DROP POLICY IF EXISTS tenant_isolation_test_runs ON test_runs;
 CREATE POLICY tenant_isolation_test_runs ON test_runs
     USING (project_id = NULLIF(current_setting('app.current_project_id', true), ''))
     WITH CHECK (project_id = NULLIF(current_setting('app.current_project_id', true), ''));
 
 -- test_results / artifacts: scoped through their parent run.
+DROP POLICY IF EXISTS tenant_isolation_test_results ON test_results;
 CREATE POLICY tenant_isolation_test_results ON test_results
     USING (run_id IN (SELECT id FROM test_runs
                       WHERE project_id = NULLIF(current_setting('app.current_project_id', true), '')))
     WITH CHECK (run_id IN (SELECT id FROM test_runs
                            WHERE project_id = NULLIF(current_setting('app.current_project_id', true), '')));
 
+DROP POLICY IF EXISTS tenant_isolation_artifacts ON artifacts;
 CREATE POLICY tenant_isolation_artifacts ON artifacts
     USING (run_id IN (SELECT id FROM test_runs
                       WHERE project_id = NULLIF(current_setting('app.current_project_id', true), '')))
@@ -71,10 +76,12 @@ CREATE POLICY tenant_isolation_artifacts ON artifacts
 -- audit_events: reads are tenant-scoped; inserts are allowed from any
 -- authenticated session (rows are attributed server-side, and a denied
 -- cross-tenant attempt must still be writable as an audit event).
+DROP POLICY IF EXISTS tenant_isolation_audit_select ON audit_events;
 CREATE POLICY tenant_isolation_audit_select ON audit_events
     FOR SELECT
     USING (project_id = NULLIF(current_setting('app.current_project_id', true), ''));
 
+DROP POLICY IF EXISTS tenant_isolation_audit_insert ON audit_events;
 CREATE POLICY tenant_isolation_audit_insert ON audit_events
     FOR INSERT
     WITH CHECK (true);
