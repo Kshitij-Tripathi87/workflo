@@ -24,7 +24,7 @@ The core trust boundary remains unchanged:
 
 1. Correctness and security gates for active Workflo packages.
 2. Real Linux isolation, egress-denial, application-boot, and teardown evidence.
-3. A real-model Explorer run through the observation-only inference path.
+3. A real-model Explorer run through the observation-only inference path, plus the selected local llama.cpp/GGUF path for any adapter-backed features included in the release.
 4. Receipt, signature, transparency, and independent-verifier acceptance.
 5. Model-serving deployment, health checks, metrics, secrets, cost guardrails, and rollback.
 6. Staging acceptance, install/quickstart verification, operator runbook, and versioned release artifacts.
@@ -61,16 +61,20 @@ The benchmark accepts a required --instance-hourly-usd assumption for CPU or GPU
 Before Day 2, confirm access to the private staging environment, model artifact storage, image registry, secret manager, deployment environment, and GitHub Actions environment/secrets. A GPU is not required for the selected CPU-first llama.cpp path, but the base GGUF, the release-scoped adapter artifacts, and a compatible CPU host are required. If the real GGUF artifacts or a private endpoint are unavailable by Day 2, mark the release date at risk; a stub endpoint is not real-model acceptance.
 
 
-### B4. Inference architecture documents disagree
+### B4. Local adapter inference and hosted observation-only planning are different paths
 
-The code has a hosted gateway in `apps/control-plane/app/api/v1/inference.py` and a host-side gateway mode in `packages/sandbox-runtime/src/sandbox_runtime/planner.py`. The gateway is designed to accept bounded observations, construct prompts server-side, reject source-bearing fields/text, and return provenance. The sandbox itself can remain `--network none`; the host/control plane—not the sandbox—makes the upstream request.
+The code has a hosted gateway in apps/control-plane/app/api/v1/inference.py and a host-side gateway mode in packages/sandbox-runtime/src/sandbox_runtime/planner.py. This path receives bounded observations, builds prompts server-side, rejects source-bearing inputs, and returns provenance. The sandbox remains network-isolated.
 
-However, `docs/workflo/sandbox_contract.md` and `workflo-ai-integration/README.md` still contain older claims that shared inference is not implemented, and the adapter router is not wired into the real worker. These must not be conflated:
-- **Release candidate path:** exercise the existing observation-only gateway mode, only if its real endpoint and privacy tests pass; keep sandbox egress denied.
-- **Not in this release:** switching the sandbox onto a non-isolated/custom inference network, integrating untrained LoRA adapters, or claiming the model-router adapter path is live.
-- On Day 1, record the chosen execution mode (local Ollama or host-side gateway), model artifact/revision, exact base URL semantics, and evidence that the planner is actually configured for that mode. Documentation must match what the CLI executes.
+Separately, workflo-ai-integration contains the llama.cpp GGUF adapter router and safety gate intended for local deep-test/test-generation capabilities. The adapter router is not imported by active runtime code, and its base/adapter GGUF artifacts are missing. This work is in scope if the release claims adapter-backed deep-test/reasoning/reporting; it cannot be called complete without actual artifacts and a real runtime call path.
 
-The deadline is at risk if the deployment needs new in-sandbox network semantics rather than the existing host-side gateway.
+Required decisions:
+- Keep the default sandbox network mode as none. Do not introduce a new in-sandbox network just to reach a model endpoint.
+- Keep hosted planning observation-only; source code must not enter the gateway request or remote model prompt.
+- Wire model_router through the real local worker path and safety_gate, using actual GGUF assets. If those assets are unavailable, mark adapter-backed functionality BLOCKED and do not describe it as live.
+- Update docs to distinguish local source-aware inference from hosted observation-only planning.
+
+The date is at risk until the GGUF artifacts, router call site, and both model paths have been tested in their intended environments.
+
 
 ## 14-day execution schedule
 
