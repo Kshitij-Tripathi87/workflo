@@ -2,7 +2,7 @@ name: workflo CLI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "p4/**"]
     paths:
       - "apps/workflo-cli/**"
       - "apps/sandbox-executor/**"
@@ -47,6 +47,7 @@ jobs:
         # cannot even be collected.
         run: |
           pip install -e ./packages/workflo-schema
+          pip install -e ./packages/workflo-utils
           pip install -e ./packages/sandbox-isolation
           pip install -e ./packages/sandbox-runtime
           pip install -e ./supervisor
