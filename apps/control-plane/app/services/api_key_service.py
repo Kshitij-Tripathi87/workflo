@@ -50,9 +50,18 @@ class ApiKeyService:
         under the owning org's DEK before the PBKDF2 check. Legacy
         plaintext hashes verify unchanged.
         """
+        from app.db.database import set_api_key_lookup_mode, set_tenant_context
+
         stmt = select(ApiKey)
         result = await self.db.execute(stmt)
-        for record in result.scalars():
+        # Materialize rows while the dedicated lookup policy is enabled, then
+        # disable it before processing candidates. The remaining table/DEK
+        # access and the last_used update are constrained to one project at a
+        # time using the normal transaction-local tenant context.
+        records = list(result.scalars())
+        await set_api_key_lookup_mode(self.db, enabled=False)
+        for record in records:
+            await set_tenant_context(self.db, record.project_id)
             stored_hash = await envelope.reveal_for_project(
                 self.db, record.project_id, record.key_hash
             )
