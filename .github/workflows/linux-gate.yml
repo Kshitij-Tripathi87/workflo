@@ -284,6 +284,12 @@ jobs:
               # before the subsequent unprivileged find/verifier traverses it.
               sudo chown -R "$RUN_UID:$RUN_GID" "$run_target/evidence"
               sudo chmod -R u+rwX "$run_target/evidence"
+              # GitHub artifact ZIPs omit empty directories. Preserve the full
+              # evidence tree (including empty logs/traces) in a nested tarball.
+              # The tar sits beside, not inside, evidence, so it does not change
+              # the receipt-bound directory hashes.
+              tar -cf "$run_target/evidence.tar" -C "$run_target" evidence
+              test -s "$run_target/evidence.tar"
             done < <(sudo find "$source_dir" -type f -name receipt.json -print0)
 
             # Preserve producer and in-run verifier logs; these are diagnostics,
@@ -378,9 +384,22 @@ jobs:
           fi
           echo "Tamper negative control: rejected as expected"
 
-      # Upload receipts, public keys, evidence bundles, test reports, and
+          # The raw evidence directories have been verified in this workspace.
+          # Ship the lossless tar representation only: Actions ZIP upload omits
+          # empty directories, which are significant to the current hash scheme.
+          for receipt in "${receipts[@]}"; do
+            run_dir="$(dirname "$receipt")"
+            test -s "$run_dir/evidence.tar" || {
+              echo "::error::Portable evidence archive missing for $receipt"
+              exit 1
+            }
+            rm -rf "$run_dir/evidence"
+          done
+
+      # Upload receipts, portable evidence archives, test reports, and
       # independent-verifier logs for inspection from outside the runner.
       - name: Upload golden run proof bundles
+        id: upload_proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -388,3 +407,47 @@ jobs:
           path: artifacts/golden-runs/
           if-no-files-found: error
           retention-days: 30
+
+      # Validate the artifact as users actually receive it. The nested tar must
+      # restore empty directories before the evidence hashes are recomputed.
+      - name: Download uploaded proof bundle for portability check
+        if: ${{ always() && steps.upload_proof.outcome == 'success' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: golden-run-proof-bundles
+          path: ${{ runner.temp }}/workflo-proof-roundtrip
+
+      - name: Verify proof bundles after artifact download and extraction
+        if: ${{ always() && steps.upload_proof.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ runner.temp }}/workflo-proof-roundtrip"
+          mapfile -d '' receipts < <(find "$ROOT" -type f -name receipt.json -print0 | sort -z)
+          if [ "${#receipts[@]}" -ne 3 ]; then
+            echo "::error::Downloaded artifact must contain 3 receipts; found ${#receipts[@]}"
+            exit 1
+          fi
+
+          for receipt in "${receipts[@]}"; do
+            run_dir="$(dirname "$receipt")"
+            pubkey="$run_dir/receipt-key.pub.pem"
+            archive="$run_dir/evidence.tar"
+            test -s "$pubkey" || { echo "::error::Public key missing for $receipt"; exit 1; }
+            test -s "$archive" || { echo "::error::Portable evidence archive missing for $receipt"; exit 1; }
+
+            extract_dir="$RUNNER_TEMP/workflo-evidence-roundtrip-$(basename "$run_dir")"
+            rm -rf "$extract_dir"
+            mkdir -p "$extract_dir"
+            tar -xf "$archive" -C "$extract_dir"
+            evidence="$extract_dir/evidence"
+            test -s "$evidence/manifest.json" || { echo "::error::Extracted manifest missing for $receipt"; exit 1; }
+            test -s "$evidence/events.jsonl" || { echo "::error::Extracted events ledger missing for $receipt"; exit 1; }
+
+            echo "==> Verifying downloaded/extracted proof: $receipt"
+            /opt/workflo/venv/bin/workflo verify \
+              --receipt "$receipt" \
+              --pubkey "$pubkey" \
+              --evidence "$evidence"
+          done
+          echo "Downloaded proof portability check passed for all 3 receipts."
