@@ -450,10 +450,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="bench_inference.py",
         description="Benchmark an OpenAI-compatible inference endpoint.",
     )
-    # Only "direct" is implemented: point --base-url/--path at whatever serves
-    # the model (vLLM locally, or the control-plane inference gateway). The
-    # argument exists so additional topologies (sandbox-executed, multi-replica)
-    # can be added without changing the invocation contract.
+    # Only "direct" is implemented: point --base-url/--path at an
+    # OpenAI-compatible chat-completions endpoint (local llama.cpp, the optional
+    # vLLM path, or the control-plane inference gateway). This harness measures
+    # that HTTP contract; it does not prove that the separate LoRA ModelRouter
+    # path (/completion + /lora-adapters) is wired into the worker.
     parser.add_argument("--mode", default="direct", choices=["direct"])
     parser.add_argument("--base-url", required=True, help="e.g. http://localhost:8000")
     parser.add_argument("--path", default=DEFAULT_PATH, help="completions path")
