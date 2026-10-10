@@ -76,7 +76,13 @@ def main() -> int:
         action="store_true",
         help="require WORKFLO_LLAMACPP_* runtime values to exactly match the manifest",
     )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        help="write a source-free machine-readable verification report",
+    )
     args = parser.parse_args()
+    document: dict = {}
     try:
         document = json.loads(args.manifest.read_text(encoding="utf-8"))
         if document.get("version") != 1:
@@ -99,8 +105,48 @@ def main() -> int:
         if args.check_env:
             verify_runtime_env(document, root)
     except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+        if args.report:
+            args.report.parent.mkdir(parents=True, exist_ok=True)
+            args.report.write_text(
+                json.dumps(
+                    {
+                        "passed": False,
+                        "failure_class": type(exc).__name__,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         print(f"artifact manifest verification failed: {exc}", file=sys.stderr)
         return 1
+    if args.report:
+        entries = {"base": document["model"], **document["adapters"]}
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(
+            json.dumps(
+                {
+                    "passed": True,
+                    "manifest_version": document["version"],
+                    "model_id": document["model"]["id"],
+                    "llama_cpp_image": document["llama_cpp_image"],
+                    "artifact_count": len(entries),
+                    "artifacts": {
+                        name: {
+                            "source": entry["source"],
+                            "sha256": entry["sha256"],
+                        }
+                        for name, entry in sorted(entries.items())
+                    },
+                    "environment_binding_verified": bool(args.check_env),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     print("artifact manifest verified: image + base GGUF + three adapters")
     return 0
 

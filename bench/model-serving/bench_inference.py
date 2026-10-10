@@ -28,9 +28,11 @@ report is still written — a partial run is still evidence), 2 bad usage.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
+import secrets
 import statistics
 import sys
 import time
@@ -53,12 +55,18 @@ DEFAULT_PROMPT = (
 
 @dataclass
 class RequestResult:
-    """One request's outcome. `ok` is False for transport/HTTP errors."""
+    """One request's redacted outcome.
+
+    Response content and canary values are inspected in memory and deliberately
+    discarded. Only counts, timings, and classified outcomes reach evidence.
+    """
 
     latency_s: float
     ok: bool
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    canary_verified: bool = False
+    leakage_detected: bool = False
     error: str | None = None
 
 
@@ -74,6 +82,8 @@ class LevelResult:
     latencies_s: list[float] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    canaries_verified: int = 0
+    leakage_failures: int = 0
     errors: list[str] = field(default_factory=list)
 
     # ---- derived ----------------------------------------------------------
@@ -131,17 +141,31 @@ class LevelResult:
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "completion_tokens_per_second": round(self.completion_tokens_per_s, 2),
+            "canaries_verified": self.canaries_verified,
+            "leakage_failures": self.leakage_failures,
             "cost_per_request_usd": round(self.cost_per_request_usd(instance_hourly_usd), 8),
             "errors": self.errors[:5],
         }
 
 
-def build_payload(model: str, prompt: str, max_tokens: int) -> bytes:
-    """OpenAI-compatible chat-completions body. temperature=0 keeps runs comparable."""
+def build_payload(
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    canary: str | None = None,
+) -> bytes:
+    """Build one OpenAI request, optionally carrying an isolation canary."""
+    request_prompt = prompt
+    if canary:
+        request_prompt = (
+            f"{prompt}\nRequest isolation marker: {canary}\n"
+            "Include that exact marker once in the response. Do not include any "
+            "marker from another request."
+        )
     return json.dumps(
         {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": request_prompt}],
             "max_tokens": max_tokens,
             "temperature": 0,
         }
@@ -149,9 +173,14 @@ def build_payload(model: str, prompt: str, max_tokens: int) -> bytes:
 
 
 def one_request(
-    url: str, payload: bytes, timeout_s: float, api_key: str | None
+    url: str,
+    payload: bytes,
+    timeout_s: float,
+    api_key: str | None,
+    expected_canary: str | None = None,
+    foreign_canaries: tuple[str, ...] = (),
 ) -> RequestResult:
-    """POST one completion and time it end-to-end (connection + full body read)."""
+    """POST one completion and validate its per-request isolation marker."""
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -161,18 +190,21 @@ def one_request(
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as response:
             body = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        detail = e.read()[:200].decode("utf-8", "replace") if e.fp else ""
+    except urllib.error.HTTPError as exc:
+        # Never retain an upstream response body: it can contain prompts,
+        # credentials, or generated text. The status class is sufficient.
         return RequestResult(
             latency_s=time.perf_counter() - started,
             ok=False,
-            error=f"HTTP {e.code}: {detail}",
+            error=f"http_status_{exc.code}",
         )
-    except Exception as e:  # noqa: BLE001 - reported, never fatal
+    except Exception as exc:  # noqa: BLE001 - classified, never fatal
+        # Exception messages can contain credential-bearing URLs. Keep only
+        # the exception identity in reports.
         return RequestResult(
             latency_s=time.perf_counter() - started,
             ok=False,
-            error=f"{type(e).__name__}: {e}",
+            error=f"transport_{type(exc).__name__}",
         )
 
     latency = time.perf_counter() - started
@@ -195,6 +227,31 @@ def one_request(
             ok=False,
             error="invalid OpenAI response: expected non-empty choices with a message",
         )
+
+    content = choices[0]["message"].get("content")
+    if not isinstance(content, str):
+        return RequestResult(
+            latency_s=latency,
+            ok=False,
+            error="invalid_openai_message_content",
+        )
+
+    if expected_canary:
+        foreign_leak = any(marker in content for marker in foreign_canaries)
+        own_marker_present = expected_canary in content
+        if foreign_leak:
+            return RequestResult(
+                latency_s=latency,
+                ok=False,
+                leakage_detected=True,
+                error="cross_request_leakage",
+            )
+        if not own_marker_present:
+            return RequestResult(
+                latency_s=latency,
+                ok=False,
+                error="isolation_marker_missing",
+            )
 
     usage = body.get("usage")
     if not isinstance(usage, dict) or not {
@@ -227,39 +284,57 @@ def one_request(
         ok=True,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
+        canary_verified=bool(expected_canary),
     )
 
 
 def run_level(
     url: str,
-    payload: bytes,
+    model: str,
+    prompt: str,
+    max_tokens: int,
     concurrency: int,
     requests_count: int,
     timeout_s: float,
     api_key: str | None,
     warmup: int,
 ) -> LevelResult:
-    """Fire `requests_count` requests with `concurrency` workers; time the batch.
+    """Run one level with a unique, response-validated marker per request.
 
-    Warmup requests run first and are excluded from every metric, so the first
-    request's connection setup / model warmup cannot skew a low-concurrency
-    level (which is exactly where it would hurt most).
+    Canary values and response bodies never leave memory. Each response must
+    contain its own marker and no marker assigned to another concurrent request.
     """
     for _ in range(max(0, warmup)):
-        one_request(url, payload, timeout_s, api_key)
+        marker = f"WFISO-{secrets.token_hex(16)}"
+        one_request(
+            url,
+            build_payload(model, prompt, max_tokens, marker),
+            timeout_s,
+            api_key,
+            marker,
+        )
 
     result = LevelResult(concurrency=concurrency, requested=requests_count)
     if requests_count <= 0:
         return result
 
+    canaries = tuple(f"WFISO-{secrets.token_hex(16)}" for _ in range(requests_count))
+
+    def send(index: int) -> RequestResult:
+        own = canaries[index]
+        foreign = canaries[:index] + canaries[index + 1 :]
+        return one_request(
+            url,
+            build_payload(model, prompt, max_tokens, own),
+            timeout_s,
+            api_key,
+            own,
+            foreign,
+        )
+
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-        outcomes = list(
-            pool.map(
-                lambda _: one_request(url, payload, timeout_s, api_key),
-                range(requests_count),
-            )
-        )
+        outcomes = list(pool.map(send, range(requests_count)))
     result.wall_s = time.perf_counter() - started
 
     for outcome in outcomes:
@@ -268,8 +343,10 @@ def run_level(
             result.latencies_s.append(outcome.latency_s)
             result.prompt_tokens += outcome.prompt_tokens
             result.completion_tokens += outcome.completion_tokens
+            result.canaries_verified += int(outcome.canary_verified)
         else:
             result.failed += 1
+            result.leakage_failures += int(outcome.leakage_detected)
             if outcome.error:
                 result.errors.append(outcome.error)
 
@@ -299,7 +376,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("# Model-serving benchmark")
     lines.append("")
     lines.append(f"- **Mode:** {report['mode']}")
-    lines.append(f"- **Endpoint:** {report['base_url']}{report['path']}")
+    lines.append(f"- **Endpoint SHA-256:** `{report['endpoint_sha256']}`")
     lines.append(f"- **Model:** {report['model']}")
     lines.append(f"- **Started:** {report['started_at']}")
     lines.append(f"- **Requests per level:** {report['requests_per_level']}")
@@ -309,14 +386,15 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("## Throughput and latency")
     lines.append("")
     lines.append(
-        "| concurrency | succeeded | failed | wall (s) | rps | p50 (ms) | p95 (ms) | "
-        "max (ms) | completion tok/s |"
+        "| concurrency | succeeded | failed | canaries | leaks | wall (s) | rps | "
+        "p50 (ms) | p95 (ms) | max (ms) | completion tok/s |"
     )
-    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for level in report["levels"]:
         latency = level["latency_ms"]
         lines.append(
             f"| {level['concurrency']} | {level['succeeded']} | {level['failed']} | "
+            f"{level['canaries_verified']} | {level['leakage_failures']} | "
             f"{level['wall_seconds']} | {level['rps']} | {latency['p50']} | "
             f"{latency['p95']} | {latency['max']} | {level['completion_tokens_per_second']} |"
         )
@@ -364,17 +442,22 @@ def render_markdown(report: dict[str, Any]) -> str:
 def run_benchmark(args: argparse.Namespace) -> int:
     """Execute every level, write both reports, return the process exit code."""
     url = args.base_url.rstrip("/") + args.path
-    payload = build_payload(args.model, args.prompt, args.max_tokens)
+    endpoint_sha256 = hashlib.sha256(url.encode("utf-8")).hexdigest()
     levels = parse_levels(args.levels)
 
     if not args.quiet:
-        print(f"[bench] {args.mode} -> {url} (model={args.model})")
+        print(
+            f"[bench] {args.mode} endpoint_sha256={endpoint_sha256} "
+            f"(model={args.model})"
+        )
 
     results: list[LevelResult] = []
     for concurrency in levels:
         result = run_level(
             url=url,
-            payload=payload,
+            model=args.model,
+            prompt=args.prompt,
+            max_tokens=args.max_tokens,
             concurrency=concurrency,
             requests_count=args.requests_per_level,
             timeout_s=args.timeout,
@@ -393,8 +476,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
     report: dict[str, Any] = {
         "mode": args.mode,
-        "base_url": args.base_url.rstrip("/"),
-        "path": args.path,
+        "endpoint_sha256": endpoint_sha256,
         "model": args.model,
         "max_tokens": args.max_tokens,
         "requests_per_level": args.requests_per_level,

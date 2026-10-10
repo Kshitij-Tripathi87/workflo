@@ -40,8 +40,16 @@ def _manifest(tmp_path: Path) -> Path:
 
 def test_manifest_accepts_exact_artifacts(tmp_path, monkeypatch):
     manifest = _manifest(tmp_path)
-    monkeypatch.setattr("sys.argv", [str(SCRIPT), str(manifest)])
+    report = tmp_path / "report.json"
+    monkeypatch.setattr(
+        "sys.argv", [str(SCRIPT), str(manifest), "--report", str(report)]
+    )
     assert module.main() == 0
+    evidence = json.loads(report.read_text())
+    assert evidence["passed"] is True
+    assert evidence["artifact_count"] == 4
+    assert evidence["environment_binding_verified"] is False
+    assert "path" not in report.read_text()
 
 
 def _set_runtime_env(manifest: Path, monkeypatch) -> None:

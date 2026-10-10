@@ -269,6 +269,9 @@ def _merge_provenance(provenance: list[dict]) -> Optional[dict]:
     merged = dict(provenance[0])
     merged["requests"] = sum(p.get("requests", 0) for p in provenance)
     merged["observations_sent"] = sum(p.get("observations_sent", 0) for p in provenance)
+    merged["redactions_applied"] = sum(
+        p.get("redactions_applied", 0) for p in provenance
+    )
     merged["request_ids"] = [
         rid for p in provenance for rid in p.get("request_ids", [])
     ]

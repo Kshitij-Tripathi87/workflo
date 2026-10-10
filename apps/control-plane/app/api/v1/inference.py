@@ -151,6 +151,10 @@ async def create_plan(
     """Turn bounded runtime observations into a validated tool plan."""
     request_id = str(uuid.uuid4())
     observations = [obs.model_dump(mode="json") for obs in body.observations]
+    sanitized_input = canonical_json(
+        {"mission": body.mission, "observations": observations}
+    ).decode("utf-8")
+    redactions_applied = sanitized_input.count("<redacted>")
 
     messages = _build_messages(body)
     prompt_bytes = canonical_json(messages)
@@ -174,6 +178,7 @@ async def create_plan(
         model=settings.upstream_llm_model,
         requests=1,
         observations_sent=len(observations),
+        redactions_applied=redactions_applied,
         source_code_included=False,
         observation_sha256=sha256_json(observations),
         prompt_sha256=sha256_json(messages),

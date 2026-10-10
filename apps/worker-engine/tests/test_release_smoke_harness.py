@@ -149,5 +149,6 @@ def test_malformed_reporting_response_makes_smoke_fail(monkeypatch, tmp_path):
     assert worker_report["passed"] is False
     assert reporting_report["schema_valid"] is False
     assert reporting_report["teardown_verified"] is True
-    assert "GenerationValidationError" in reporting_report["error"]
+    assert reporting_report["error"] == "GenerationValidationError"
+    assert "schema validation failed" not in reporting_output.read_text()
     assert reporting_report["narrative_recorded"] is False

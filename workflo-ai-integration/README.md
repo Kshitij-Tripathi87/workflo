@@ -97,6 +97,7 @@ by `apps/worker-engine/Dockerfile.deep`, then build from the repository root:
 docker build -f apps/worker-engine/Dockerfile.deep \
   --build-arg LLAMACPP_IMAGE='ghcr.io/ggml-org/llama.cpp:server@sha256:<digest>' \
   --build-arg WORKFLO_LLAMACPP_MODEL_ID='<frozen-model-id>' \
+  --build-arg WORKFLO_RELEASE_COMMIT='<40-character-release-commit>' \
   --build-arg BASE_GGUF_SHA256='<sha256>' \
   --build-arg TEST_GEN_GGUF_SHA256='<sha256>' \
   --build-arg REASONING_GGUF_SHA256='<sha256>' \
@@ -123,14 +124,21 @@ pytest -q workflo-ai-integration/tests
 pytest -q apps/worker-engine/tests
 ```
 
-Mocks do not satisfy the real-model release gate. The manual
-`.github/workflows/p4-model-acceptance.yml` workflow must run on the protected
-`p4-staging` runner with the frozen manifest, real GGUFs, executable
-`llama-server`, HTTPS serving/gateway endpoints, protected API keys, and a real
-instance-hourly cost. It exercises the active aggressive worker route plus a
-structured-results-only reporting request, verifies teardown/provenance, checks
-missing-key authorization and source rejection, and benchmarks concurrency
-1/2/4. Its uploaded source-free reports are the acceptance evidence.
+Mocks do not satisfy the real-model release gate. Run the manual
+`.github/workflows/p4-gate4-real-artifacts.yml` workflow first on the protected
+`p4-staging` runner. It consumes the frozen manifest and real GGUFs, proves six
+negative builds, publishes an exact-commit deep image by registry digest, runs
+worker/reporting inference inside that image, and proves no network, no
+published port, no Ollama, and teardown.
 
-Until that workflow and the real deep-image build pass for supplied artifacts,
-the implementation is ready for acceptance but real serving is **not proven**.
+Configure that published digest as `WORKFLO_LLAMACPP_DEEP_IMAGE`, then run
+`.github/workflows/p4-model-acceptance.yml` with HTTPS serving/gateway origins,
+protected API keys, a real instance-hourly cost, and the previous immutable
+manifest/image pair. Gate 5 re-verifies the embedded executable/artifacts,
+checks missing/wrong-key and source rejection plus observed redaction, runs
+three canary-bearing concurrency 1/2/4 benchmarks, produces and independently
+verifies a metadata-only signed sandbox bundle without staging secrets, proves
+rollback, and asserts final teardown.
+
+Until both workflows pass for one exact commit and supplied real artifacts,
+the implementation is complete but real serving remains **unproven**.

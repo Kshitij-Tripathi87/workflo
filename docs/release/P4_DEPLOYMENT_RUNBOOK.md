@@ -157,20 +157,29 @@ Do not use `--mode direct` for the privacy acceptance run. Direct mode is a sepa
 
 ## 6. GitHub Actions staging environment
 
-Create a protected GitHub Actions environment named `p4-staging`. Restrict who may run deployments and real-model benchmarks. The workflow `.github/workflows/p4-model-acceptance.yml` expects the following environment values:
+Create a protected GitHub Actions environment named `p4-staging`, require a reviewer, and restrict deployments to `p4/14-day-release` and the temporary release implementation branch. Both real workflows use a single non-cancelling concurrency group and a dedicated runner with labels `[self-hosted, linux, p4-staging]`. Do not let untrusted pull-request jobs target that runner.
 
-| Name | Type | Requirement |
-|---|---|---|
-| `WORKFLO_MODEL_BASE_URL` | Variable | HTTPS origin of the model endpoint, without `/v1` |
-| `WORKFLO_MODEL_NAME` | Variable | Exact served model name |
-| `WORKFLO_GPU_HOURLY_USD` | Variable | Explicit hourly rate / amortized cost assumption, numeric and finite |
-| `WORKFLO_MODEL_API_KEY` | Secret | Endpoint bearer credential |
+Configure these **environment variables** (values stay out of Git and chat):
 
-The real-model workflow intentionally requires the typed confirmation `RUN-REAL-MODEL-TEST` and runs on a trusted runner labelled `p4-staging`. Provision that runner in the private route to the endpoint, lock its access down, and do not allow untrusted pull-request code to run on it. Requests can incur costs.
+- endpoint: `WORKFLO_MODEL_BASE_URL`, `WORKFLO_MODEL_NAME`,
+  `WORKFLO_INSTANCE_HOURLY_USD`, `WORKFLO_GATEWAY_BASE_URL`;
+- candidate artifact set: `WORKFLO_LLAMACPP_MANIFEST`,
+  `WORKFLO_LLAMACPP_MODEL_ID`, `WORKFLO_LLAMACPP_IMAGE`, the base plus
+  `TEST_GEN`/`REASONING`/`REPORTING` `*_GGUF` and `*_SHA256` pairs;
+- Gate 4 output: `WORKFLO_LLAMACPP_DEEP_IMAGE` as a registry digest; and
+- rollback set: `WORKFLO_PREVIOUS_LLAMACPP_MANIFEST`,
+  `WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE`, and
+  `WORKFLO_PREVIOUS_RELEASE_COMMIT`.
+
+Configure only these **environment secrets**: `WORKFLO_MODEL_API_KEY` and
+`WORKFLO_GATEWAY_API_KEY`. Never place either value in repository variables,
+workflow inputs, logs, artifacts, or chat.
+
+Run `.github/workflows/p4-gate4-real-artifacts.yml` first with the exact dispatch SHA and `BUILD-REAL-GGUF-IMAGE`. After recording its published deep-image digest in the environment, run `.github/workflows/p4-model-acceptance.yml` at the same SHA with `RUN-REAL-MODEL-TEST`. Both reject a typed commit that differs from the selected dispatch ref. Requests and image publication can incur costs.
 
 ## 7. Required deployment smoke tests
 
-Run these in order; preserve stdout/stderr and correlation IDs while redacting sensitive payloads.
+Run these in order. Retain only identities, hashes, counts, timings, correlation IDs, and outcomes; do not retain raw stdout/stderr when it can contain source, prompts, generated output, credentials, endpoints, or model narrative.
 
 1. **Model readiness:** authenticated `GET /health` and a minimal authenticated completion; record the real model/revision and token usage.
 2. **Gateway authentication:** missing/invalid key → 401/403; valid `run_tests` key → accepted.

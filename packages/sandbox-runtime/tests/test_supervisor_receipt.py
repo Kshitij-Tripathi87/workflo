@@ -168,6 +168,38 @@ class TestSupervisorReceipt:
         assert result.receipt_path.name == "receipt.unsigned.json"
         assert json.loads(result.receipt_path.read_text())["sandbox_id"] == "sbx-test-001"
 
+    def test_metadata_only_run_retains_commitments_not_payload_strings(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("WORKFLO_EVIDENCE_METADATA_ONLY", "1")
+        config = _make_config(tmp_path)
+        source_canary = "customer-source-canary-do-not-retain"
+        config.repo_path = tmp_path / source_canary
+        config.repo_path.mkdir()
+        supervisor = Supervisor(config)
+        (tmp_path / "cgroup" / "sbx").mkdir(parents=True)
+
+        result = _run_supervisor(supervisor, tmp_path)
+
+        assert result.success is True, result.error
+        from workflo_schema.sandbox import SignedReceipt
+        SignedReceipt(**result.receipt_payload)
+        evidence_dir = tmp_path / "runs" / "sbx-test-001" / "evidence"
+        assert verify_evidence_bundle(evidence_dir) is True
+        retained = result.receipt_path.read_text() + "".join(
+            path.read_text(errors="replace")
+            for path in evidence_dir.rglob("*")
+            if path.is_file()
+        )
+        assert source_canary not in retained
+        created = next(
+            event for event in result.receipt_payload["lifecycle_events"]
+            if event["event"] == "created"
+        )
+        commitment = created["detail"]["config"]["repo_path"]
+        assert set(commitment) == {"sha256", "bytes"}
+        assert len(commitment["sha256"]) == 64
+
     def test_tampered_evidence_fails_binding_verification(self, tmp_path):
         config = _make_config(tmp_path)
         supervisor = Supervisor(config)

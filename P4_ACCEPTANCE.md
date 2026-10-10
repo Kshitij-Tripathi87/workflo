@@ -1,6 +1,6 @@
 # P4 production-readiness acceptance
 
-> Status as of 2026-10-10. A gate is marked proven only when its corresponding
+> Status as of 2026-10-11. A gate is marked proven only when its corresponding
 > workflow or real execution has passed. Unit tests and scripted golden runs do
 > not substitute for real-model acceptance.
 
@@ -18,8 +18,8 @@ before that newer commit can be released.
 | 1 | Linux isolation, no skipped security checks, and verified teardown | **PROVEN at `e912905`** | `linux-gate.yml` run `37997223801` |
 | 2 | Three portable proof bundles independently verify; receipt/evidence tampering is rejected | **PROVEN at `e912905`** | `golden-run-proof-bundles` from run `37997223801` |
 | 3 | Planner protocol repeats the governed three-call behavior | **PROVEN at `e912905`** | planner/golden stages in run `37997223801` |
-| 4 | Real llama.cpp/GGUF serving with immutable identities, exact adapters, active-worker routing, validation, and fail-closed handling | **IMPLEMENTED LOCALLY; REAL BUILD/RUN OPEN** | Tests cover the path; no release GGUF/image inputs have been supplied and no real image has been built |
-| 5 | Protected staging preserves privacy, authorization, teardown, provenance, metrics, reproducibility, rollback, and failure handling during representative real inference | **OPEN** | `.github/workflows/p4-model-acceptance.yml` is implemented but not configured or run |
+| 4 | Real llama.cpp/GGUF serving with immutable identities, exact adapters, active-worker routing, validation, and fail-closed handling | **IMPLEMENTATION COMPLETE; REAL-ARTIFACT EXECUTION UNPROVEN** | `.github/workflows/p4-gate4-real-artifacts.yml` now builds/publishes the bound image and asserts real evidence; no release GGUF/image inputs have been supplied and no real run has passed |
+| 5 | Protected staging preserves privacy, authorization, teardown, provenance, metrics, reproducibility, rollback, and failure handling during representative real inference | **IMPLEMENTATION COMPLETE; PROTECTED RUN OPEN** | `.github/workflows/p4-model-acceptance.yml` fails closed on the full contract; environment values, runner, real artifacts, and a passing run remain external prerequisites |
 
 Repository CI and Docker CI also passed for `e912905` in run `37997223627`.
 These results do not prove gates 4–5 for later model-serving code.
@@ -60,6 +60,7 @@ The deep image is built from the repository root:
 docker build -f apps/worker-engine/Dockerfile.deep \
   --build-arg LLAMACPP_IMAGE='<image@sha256:digest>' \
   --build-arg WORKFLO_LLAMACPP_MODEL_ID='<frozen-model-id>' \
+  --build-arg WORKFLO_RELEASE_COMMIT='<40-character-release-commit>' \
   --build-arg BASE_GGUF_SHA256='<sha256>' \
   --build-arg TEST_GEN_GGUF_SHA256='<sha256>' \
   --build-arg REASONING_GGUF_SHA256='<sha256>' \
@@ -72,39 +73,53 @@ not acceptance evidence.
 
 ## Gate 5 protected staging
 
-Dispatch `.github/workflows/p4-model-acceptance.yml` with
-`confirm_real_run=RUN-REAL-MODEL-TEST`. The protected `p4-staging` environment
-and `[self-hosted, linux, p4-staging]` runner must provide:
+First dispatch `.github/workflows/p4-gate4-real-artifacts.yml` with the exact
+`release_commit` and `confirm_real_run=BUILD-REAL-GGUF-IMAGE`. It verifies the
+real manifest, proves six negative builds fail closed, builds and publishes the
+deep image by registry digest, binds its embedded `llama-server` and GGUF hashes
+to the exact commit, runs real worker/reporting inference without a network or
+published port, and asserts explicit teardown/no-Ollama evidence.
 
-- `WORKFLO_LLAMACPP_MANIFEST`, executable `WORKFLO_LLAMACPP_BINARY`, frozen
-  model ID/image, and base/adapter paths plus hashes;
-- HTTPS `WORKFLO_MODEL_BASE_URL`, model name, protected API key, and a finite
-  non-negative instance-hourly cost;
-- HTTPS observation-only planner gateway and protected API key.
+Then configure the resulting digest as `WORKFLO_LLAMACPP_DEEP_IMAGE` and
+dispatch `.github/workflows/p4-model-acceptance.yml` with the same exact
+`release_commit` and `confirm_real_run=RUN-REAL-MODEL-TEST`. The protected
+`p4-staging` environment and `[self-hosted, linux, p4-staging]` runner provide:
 
-The workflow must fail unless all of the following complete:
+- the current manifest, base llama.cpp image/model identity, all four GGUF paths
+  and hashes, and the registry-pinned candidate deep image;
+- HTTPS model and observation-only gateway origins, model identity, protected
+  API keys, and a finite non-negative instance-hourly cost assumption; and
+- `WORKFLO_PREVIOUS_LLAMACPP_MANIFEST`,
+  `WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE`, and
+  `WORKFLO_PREVIOUS_RELEASE_COMMIT` for the rollback drill.
 
-1. the manifest, runtime environment, executable, paths, hashes, image pin, and
-   cost assumption validate;
-2. the representative calculator application runs through the active
-   aggressive worker route (`reasoning` then `test-gen`), and a separate
-   structured-results-only request returns a schema-valid reporting response;
-3. generated tests pass structural/path/compile validation;
-4. both llama.cpp lifecycles verify process/state teardown and their redacted
-   provenance reports have no inference error;
-5. a missing gateway key is rejected with HTTP 401/403;
-6. an authorized observation-only request returns model/request/hash/token and
-   latency provenance without source;
-7. a source-bearing gateway request is rejected without echoing its canary;
-8. the real endpoint benchmark completes at concurrency 1, 2, and 4 and records
-   latency, throughput, failures, token usage, cost assumption, commit, and
-   runtime version; and
-9. redacted reports upload even when a request fails, preserving failure
-   evidence for diagnosis and rollback.
+The workflow fails unless all of the following complete:
 
-Rollback means returning deployment configuration to the last accepted frozen
-manifest/image pair. Never mutate a release manifest in place; create a new
-versioned manifest, rerun the deep-image build, and rerun protected acceptance.
+1. the selected dispatch SHA, checked-out SHA, candidate labels, embedded
+   executable, embedded GGUF hashes, manifests, and environment agree;
+2. the immutable candidate image runs the active aggressive worker route
+   (`reasoning` then `test-gen`) and a separate schema-valid reporting request;
+3. generated tests pass structural/path/compile validation and both model
+   lifecycles prove process/state teardown;
+4. missing and wrong gateway keys are rejected, four source-bearing request
+   forms are rejected without canary echo, and a secret-like observation has a
+   positive pre-dispatch redaction count;
+5. three endpoint benchmark repeats complete at concurrency 1, 2, and 4 with a
+   unique marker verified per request, zero cross-request leakage, complete
+   timing/token/cost evidence, and no endpoint or response content retained;
+6. real hardened Linux isolation produces a full gateway-backed signed receipt
+   whose retained evidence contains only hashes, sizes, counts, timings,
+   identities, and outcomes;
+7. a separate verifier process with all staging API-key variables removed
+   returns `VALID` for the receipt, public key, and evidence bundle;
+8. the previous manifest/image pair is independently bound, run, and left as
+   the final verified local serving pair; and
+9. candidate/rollback containers are absent and the required-evidence index
+   passes before the always-upload step retains the source-free report bundle.
+
+The workflows share one non-cancelling concurrency group, so Gate 4 and Gate 5
+cannot overlap. Never mutate a release manifest in place: create a versioned
+manifest, publish an immutable deep image, and rerun both protected workflows.
 
 ## Required negative paths
 

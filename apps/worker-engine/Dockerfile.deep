@@ -6,6 +6,7 @@
 # Example (values must come from the frozen release manifest):
 #   docker build -f apps/worker-engine/Dockerfile.deep \
 #     --build-arg LLAMACPP_IMAGE='ghcr.io/ggml-org/llama.cpp:server@sha256:...' \
+#     --build-arg WORKFLO_RELEASE_COMMIT='<40-character-sha>' \
 #     --build-arg BASE_GGUF_SHA256=... \
 #     --build-arg TEST_GEN_GGUF_SHA256=... \
 #     --build-arg REASONING_GGUF_SHA256=... \
@@ -23,8 +24,32 @@ ARG TEST_GEN_GGUF_SHA256
 ARG REASONING_GGUF_SHA256
 ARG REPORTING_GGUF_SHA256
 ARG WORKFLO_LLAMACPP_MODEL_ID
+ARG WORKFLO_RELEASE_COMMIT
+
+LABEL org.opencontainers.image.base.name="${LLAMACPP_IMAGE}" \
+      org.opencontainers.image.revision="${WORKFLO_RELEASE_COMMIT}" \
+      dev.workflo.model.id="${WORKFLO_LLAMACPP_MODEL_ID}" \
+      dev.workflo.model.base.sha256="${BASE_GGUF_SHA256}" \
+      dev.workflo.adapter.test-gen.sha256="${TEST_GEN_GGUF_SHA256}" \
+      dev.workflo.adapter.reasoning.sha256="${REASONING_GGUF_SHA256}" \
+      dev.workflo.adapter.reporting.sha256="${REPORTING_GGUF_SHA256}"
 
 WORKDIR /app
+
+# Reject malformed release identity before package installation or large model
+# layers. Content mismatches are checked again after the GGUF files are copied.
+RUN set -eu; \
+    case "$LLAMACPP_IMAGE" in *@sha256:*) ;; \
+      *) echo "LLAMACPP_IMAGE must be pinned by sha256 digest" >&2; exit 1 ;; esac; \
+    image_digest="${LLAMACPP_IMAGE##*@sha256:}"; \
+    echo "$image_digest" | grep -Eq '^[0-9a-f]{64}$'; \
+    test -n "$WORKFLO_LLAMACPP_MODEL_ID"; \
+    echo "$WORKFLO_RELEASE_COMMIT" | grep -Eq '^[0-9a-f]{40}$'; \
+    for value in \
+      "$BASE_GGUF_SHA256" "$TEST_GEN_GGUF_SHA256" \
+      "$REASONING_GGUF_SHA256" "$REPORTING_GGUF_SHA256"; do \
+      echo "$value" | grep -Eq '^[0-9a-f]{64}$'; \
+    done
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates git curl \
@@ -40,6 +65,7 @@ COPY packages/probe-engine/ /app/packages/probe-engine/
 COPY workflo-ai-integration/ /app/workflo-ai-integration/
 COPY apps/worker-engine/pyproject.toml /app/worker-engine/pyproject.toml
 COPY apps/worker-engine/src/ /app/worker-engine/src/
+COPY scripts/release/llamacpp_worker_smoke.py /app/scripts/release/llamacpp_worker_smoke.py
 
 RUN pip install --no-cache-dir \
       /app/packages/workflo-schema \
@@ -72,6 +98,7 @@ RUN set -eu; \
     echo "$REASONING_GGUF_SHA256  /adapters/reasoning.gguf" | sha256sum -c -; \
     echo "$REPORTING_GGUF_SHA256  /adapters/reporting.gguf" | sha256sum -c -; \
     test -n "$WORKFLO_LLAMACPP_MODEL_ID"; \
+    echo "$WORKFLO_RELEASE_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || { echo "invalid release commit" >&2; exit 1; }; \
     chmod 0444 /models/base.gguf /adapters/*.gguf
 
 ENV PATH="/opt/llamacpp:${PATH}" \

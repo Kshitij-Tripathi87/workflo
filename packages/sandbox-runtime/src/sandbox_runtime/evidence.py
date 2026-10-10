@@ -5,11 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from datetime import datetime, UTC
-from typing import Optional, List
 from threading import Lock
+from typing import Any
 
 
 @dataclass
@@ -29,13 +29,32 @@ class EvidenceManifest:
     run_id: str
     sandbox_id: str
     started_at: str
-    completed_at: Optional[str]
+    completed_at: str | None
     events_count: int
     events_sha256: str
     logs_sha256: str
     http_traces_sha256: str
     filesystem_changes_sha256: str
     bundle_sha256: str
+
+
+def metadata_only_enabled() -> bool:
+    """Whether retained evidence must contain metadata rather than payload text."""
+    return os.environ.get("WORKFLO_EVIDENCE_METADATA_ONLY", "").strip() == "1"
+
+
+def metadata_only_value(value: Any) -> Any:
+    """Replace strings/bytes with length + digest while retaining outcomes/counts."""
+    if isinstance(value, str):
+        encoded = value.encode("utf-8")
+        return {"sha256": hashlib.sha256(encoded).hexdigest(), "bytes": len(encoded)}
+    if isinstance(value, bytes):
+        return {"sha256": hashlib.sha256(value).hexdigest(), "bytes": len(value)}
+    if isinstance(value, dict):
+        return {str(key): metadata_only_value(child) for key, child in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [metadata_only_value(child) for child in value]
+    return value
 
 
 class EvidenceCollector:
@@ -59,6 +78,8 @@ class EvidenceCollector:
     
     def write_event(self, event_type: str, data: dict) -> str:
         """Write event to JSONL ledger with hash chain."""
+        if metadata_only_enabled():
+            data = metadata_only_value(data)
         with self._lock:
             self._event_counter += 1
             event_id = f"evt_{self._event_counter:08d}"
@@ -112,8 +133,32 @@ class EvidenceCollector:
     def stop(self) -> None:
         """Mark collection end."""
         self.write_event("EVIDENCE_STOPPED", {})
+
+    def redact_retained_payloads(self) -> None:
+        """Irreversibly replace workload files with hash/size commitments.
+
+        Called only after every workload and attestation reader has consumed the
+        files. The final evidence manifest therefore binds the redacted bundle,
+        which remains independently verifiable without retaining source,
+        prompts, generated output, logs, or model narrative.
+        """
+        if not metadata_only_enabled():
+            return
+        for directory in (self.logs_dir, self.traces_dir, self.artifacts_dir):
+            for path in sorted(directory.rglob("*")):
+                if not path.is_file():
+                    continue
+                content = path.read_bytes()
+                commitment = {
+                    "bytes": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+                path.write_text(
+                    json.dumps(commitment, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
     
-    def finalize(self, lifecycle_events: List[dict], run_id: str, sandbox_id: str) -> Path:
+    def finalize(self, lifecycle_events: list[dict], run_id: str, sandbox_id: str) -> Path:
         """Finalize evidence collection and write manifest."""
         completed_at = datetime.now(UTC).isoformat()
         

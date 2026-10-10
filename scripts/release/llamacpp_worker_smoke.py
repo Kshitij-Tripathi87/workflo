@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -36,6 +37,23 @@ class _Streamer:
 
 def _append_error(current: str | None, message: str) -> str:
     return f"{current}; {message}" if current else message
+
+
+def _error_identity(error: str | None) -> str | None:
+    """Reduce a potentially sensitive exception message to its class identity."""
+    if not error:
+        return None
+    match = re.match(r"^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception))\b", error)
+    return match.group(1) if match else "inference_failure"
+
+
+def _source_free_provenance(provenance: dict | None) -> dict | None:
+    if provenance is None:
+        return None
+    retained = json.loads(json.dumps(provenance))
+    if retained.get("error"):
+        retained["error"] = _error_identity(str(retained["error"]))
+    return retained
 
 
 def _run_reporting_smoke() -> dict:
@@ -126,7 +144,7 @@ def _run_reporting_smoke() -> dict:
         "input_scope": "synthetic-structured-results-only",
         "source_code_included": False,
         "narrative_recorded": False,
-        "error": error,
+        "error": _error_identity(error),
         "identity": identity,
     }
 
@@ -190,10 +208,10 @@ def main() -> int:
         "reporting_passed": reporting_report["passed"],
         "reporting_report": reporting_out.name,
         "teardown_verified": teardown,
-        "error": error,
+        "error": _error_identity(error),
         "findings_count": len(findings),
         "generated_tests_count": generated_count,
-        "provenance": provenance,
+        "provenance": _source_free_provenance(provenance),
         "required_log_markers": required_markers,
     }
 

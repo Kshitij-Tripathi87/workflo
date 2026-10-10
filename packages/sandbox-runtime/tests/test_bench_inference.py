@@ -21,7 +21,13 @@ class _StubModelHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802 - stdlib API
         length = int(self.headers.get("Content-Length", "0"))
-        self.rfile.read(length)
+        request = json.loads(self.rfile.read(length))
+        prompt = request["messages"][0]["content"]
+        marker = next(
+            (line.removeprefix("Request isolation marker: ") for line in prompt.splitlines()
+             if line.startswith("Request isolation marker: ")),
+            "",
+        )
         time.sleep(self.latency_s)
         body = json.dumps({
             "id": "chatcmpl-stub",
@@ -30,7 +36,11 @@ class _StubModelHandler(BaseHTTPRequestHandler):
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": '{"done": true, "steps": []}',
+                    "content": json.dumps({
+                        "done": True,
+                        "steps": [],
+                        "isolation_marker": marker,
+                    }),
                 },
                 "finish_reason": "stop",
             }],
@@ -128,8 +138,14 @@ def test_direct_mode_against_stub(stub_server, tmp_path):
     assert set(econ.keys()) == {"1", "4"}
     assert econ["4"]["rps"] > econ["1"]["rps"]
     assert econ["1"]["cost_per_request_usd"] > 0
+    assert all(level["canaries_verified"] == 8 for level in report["levels"])
+    assert all(level["leakage_failures"] == 0 for level in report["levels"])
+    assert "base_url" not in report
+    assert len(report["endpoint_sha256"]) == 64
+    assert stub_server not in out_json.read_text()
     md = out_md.read_text()
     assert "| concurrency |" in md
+    assert stub_server not in md
 
 
 def test_benchmark_requires_explicit_cost_assumption(stub_server):
@@ -180,3 +196,49 @@ def test_benchmark_rejects_success_status_without_openai_usage():
 
     assert not result.ok
     assert "usage.prompt_tokens" in (result.error or "")
+
+
+def test_request_rejects_cross_request_canary_without_retaining_value():
+    bench = _load_bench_module()
+
+    class LeakingHandler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802 - stdlib API
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            body = json.dumps({
+                "choices": [{"message": {
+                    "role": "assistant",
+                    "content": "foreign-marker-value",
+                }}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LeakingHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        result = bench.one_request(
+            f"http://127.0.0.1:{server.server_address[1]}/v1/chat/completions",
+            bench.build_payload("stub", "ping", 8, "own-marker-value"),
+            timeout_s=5,
+            api_key=None,
+            expected_canary="own-marker-value",
+            foreign_canaries=("foreign-marker-value",),
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert result.ok is False
+    assert result.leakage_detected is True
+    assert result.error == "cross_request_leakage"
+    assert "marker-value" not in result.error

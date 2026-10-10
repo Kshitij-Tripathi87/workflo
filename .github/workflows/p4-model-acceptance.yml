@@ -1,39 +1,39 @@
-name: P4 Real Model Acceptance
+name: P4 Gate 5 Protected Model Acceptance
 
-# Manual, trusted-runner-only acceptance. This is the release gate that uses
-# real pinned GGUF artifacts and may incur serving cost; PR jobs remain mocked.
 on:
   workflow_dispatch:
     inputs:
+      release_commit:
+        description: "Exact 40-character commit SHA (must equal the dispatch ref HEAD)"
+        required: true
+        type: string
       confirm_real_run:
-        description: "Type RUN-REAL-MODEL-TEST to confirm real-model requests"
+        description: "Type RUN-REAL-MODEL-TEST to authorize real inference"
         required: true
         type: string
 
 permissions:
   contents: read
+  packages: read
+
+concurrency:
+  group: p4-real-model-release
+  cancel-in-progress: false
 
 jobs:
   model-acceptance:
     runs-on: [self-hosted, linux, p4-staging]
     environment: p4-staging
-    timeout-minutes: 90
+    timeout-minutes: 240
     env:
-      # Protected OpenAI-compatible serving endpoint used for throughput/cost.
       WORKFLO_MODEL_BASE_URL: ${{ vars.WORKFLO_MODEL_BASE_URL }}
       WORKFLO_MODEL_NAME: ${{ vars.WORKFLO_MODEL_NAME }}
       WORKFLO_INSTANCE_HOURLY_USD: ${{ vars.WORKFLO_INSTANCE_HOURLY_USD }}
-      WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
-      # Observation-only hosted planner gateway.
       WORKFLO_GATEWAY_BASE_URL: ${{ vars.WORKFLO_GATEWAY_BASE_URL }}
-      WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
-      # Local source-bearing worker inference. All paths are on the protected
-      # runner; the worker starts its own loopback-only llama-server process.
-      WORKFLO_MODEL_BACKEND: llamacpp
-      WORKFLO_LLAMACPP_BINARY: ${{ vars.WORKFLO_LLAMACPP_BINARY }}
       WORKFLO_LLAMACPP_MANIFEST: ${{ vars.WORKFLO_LLAMACPP_MANIFEST }}
       WORKFLO_LLAMACPP_MODEL_ID: ${{ vars.WORKFLO_LLAMACPP_MODEL_ID }}
       WORKFLO_LLAMACPP_IMAGE: ${{ vars.WORKFLO_LLAMACPP_IMAGE }}
+      WORKFLO_LLAMACPP_DEEP_IMAGE: ${{ vars.WORKFLO_LLAMACPP_DEEP_IMAGE }}
       WORKFLO_LLAMACPP_BASE_GGUF: ${{ vars.WORKFLO_LLAMACPP_BASE_GGUF }}
       WORKFLO_LLAMACPP_BASE_SHA256: ${{ vars.WORKFLO_LLAMACPP_BASE_SHA256 }}
       WORKFLO_LLAMACPP_TEST_GEN_GGUF: ${{ vars.WORKFLO_LLAMACPP_TEST_GEN_GGUF }}
@@ -42,114 +42,288 @@ jobs:
       WORKFLO_LLAMACPP_REASONING_SHA256: ${{ vars.WORKFLO_LLAMACPP_REASONING_SHA256 }}
       WORKFLO_LLAMACPP_REPORTING_GGUF: ${{ vars.WORKFLO_LLAMACPP_REPORTING_GGUF }}
       WORKFLO_LLAMACPP_REPORTING_SHA256: ${{ vars.WORKFLO_LLAMACPP_REPORTING_SHA256 }}
+      WORKFLO_PREVIOUS_LLAMACPP_MANIFEST: ${{ vars.WORKFLO_PREVIOUS_LLAMACPP_MANIFEST }}
+      WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE: ${{ vars.WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE }}
+      WORKFLO_PREVIOUS_RELEASE_COMMIT: ${{ vars.WORKFLO_PREVIOUS_RELEASE_COMMIT }}
     steps:
       - name: Checkout exact release candidate
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 1
 
-      - name: Validate confirmation and staging configuration
+      - name: Validate exact checkout and staging configuration
         env:
           CONFIRMATION: ${{ inputs.confirm_real_run }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$CONFIRMATION" != "RUN-REAL-MODEL-TEST" ]]; then
-            echo "::error::Type RUN-REAL-MODEL-TEST to authorize this gate."
-            exit 1
-          fi
-          required=(
-            WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME
-            WORKFLO_INSTANCE_HOURLY_USD WORKFLO_MODEL_API_KEY
-            WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY
-            WORKFLO_LLAMACPP_BINARY WORKFLO_LLAMACPP_MANIFEST
-            WORKFLO_LLAMACPP_MODEL_ID WORKFLO_LLAMACPP_IMAGE
-            WORKFLO_LLAMACPP_BASE_GGUF WORKFLO_LLAMACPP_BASE_SHA256
-            WORKFLO_LLAMACPP_TEST_GEN_GGUF WORKFLO_LLAMACPP_TEST_GEN_SHA256
-            WORKFLO_LLAMACPP_REASONING_GGUF WORKFLO_LLAMACPP_REASONING_SHA256
-            WORKFLO_LLAMACPP_REPORTING_GGUF WORKFLO_LLAMACPP_REPORTING_SHA256
-          )
-          for name in "${required[@]}"; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Required p4-staging value is missing: $name"
-              exit 1
-            fi
-          done
-          case "$WORKFLO_MODEL_BASE_URL" in https://*) ;; *)
-            echo "::error::WORKFLO_MODEL_BASE_URL must use HTTPS"; exit 1;; esac
-          case "$WORKFLO_GATEWAY_BASE_URL" in https://*) ;; *)
-            echo "::error::WORKFLO_GATEWAY_BASE_URL must use HTTPS"; exit 1;; esac
-          case "$WORKFLO_LLAMACPP_IMAGE" in *@sha256:*) ;; *)
-            echo "::error::WORKFLO_LLAMACPP_IMAGE must be digest-pinned"; exit 1;; esac
-          if [[ ! -x "$WORKFLO_LLAMACPP_BINARY" ]]; then
-            echo "::error::WORKFLO_LLAMACPP_BINARY is not executable"
-            exit 1
-          fi
-          python3 - <<'PY'
-          import math, os, pathlib, re, sys
-          try:
-              rate = float(os.environ["WORKFLO_INSTANCE_HOURLY_USD"])
-          except ValueError:
-              sys.exit("::error::WORKFLO_INSTANCE_HOURLY_USD must be numeric")
-          if not math.isfinite(rate) or rate < 0:
-              sys.exit("::error::WORKFLO_INSTANCE_HOURLY_USD must be finite and >= 0")
-          for kind in ("BASE", "TEST_GEN", "REASONING", "REPORTING"):
-              path = pathlib.Path(os.environ[f"WORKFLO_LLAMACPP_{kind}_GGUF"])
-              digest = os.environ[f"WORKFLO_LLAMACPP_{kind}_SHA256"]
-              if not path.is_file():
-                  sys.exit(f"::error::{kind} GGUF missing on staging runner: {path}")
-              if not re.fullmatch(r"[0-9a-f]{64}", digest):
-                  sys.exit(f"::error::{kind} SHA-256 is malformed")
-          print(f"Cost assumption accepted: ${rate:.4f}/hour")
-          PY
-          python3 workflo-ai-integration/scripts/verify_artifact_manifest.py \
-            "$WORKFLO_LLAMACPP_MANIFEST" --check-env
-
-      - name: Install release candidate model path
-        run: |
-          python3 -m venv .model-acceptance-venv
-          .model-acceptance-venv/bin/pip install --quiet \
-            ./packages/workflo-schema \
-            ./packages/workflo-utils \
-            ./packages/probe-engine \
-            ./workflo-ai-integration \
-            ./apps/worker-engine
-
-      - name: Exercise active worker with pinned llama.cpp adapters
-        run: |
-          OUT="artifacts/p4-${GITHUB_RUN_ID}"
-          .model-acceptance-venv/bin/python scripts/release/llamacpp_worker_smoke.py \
-            --out "$OUT/llamacpp-worker-smoke.json" \
-            --reporting-out "$OUT/reporting-smoke.json"
-
-      - name: Exercise privacy gateway and source rejection
-        env:
-          WORKFLO_GATEWAY_SMOKE_OUT: artifacts/p4-${{ github.run_id }}/gateway-smoke.json
-        run: python3 scripts/release/gateway_smoke.py
-
-      - name: Benchmark real endpoint at concurrency 1, 2, and 4
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DISPATCH_COMMIT: ${{ github.sha }}
+          WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
+          WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           OUT="artifacts/p4-${GITHUB_RUN_ID}"
           mkdir -p "$OUT"
-          python3 bench/model-serving/bench_inference.py \
-            --base-url "$WORKFLO_MODEL_BASE_URL" \
-            --model "$WORKFLO_MODEL_NAME" \
-            --instance-hourly-usd "$WORKFLO_INSTANCE_HOURLY_USD" \
-            --levels 1,2,4 \
-            --requests-per-level 32 \
-            --warmup 2 \
-            --max-tokens 128 \
-            --timeout 90 \
-            --out "$OUT/model-benchmark.json" \
-            --md "$OUT/model-benchmark.md"
-          git rev-parse HEAD > "$OUT/commit.txt"
-          python3 --version > "$OUT/python-version.txt"
+          printf '%s\n' '{"passed":false,"failure_class":"configuration"}' >"$OUT/configuration-validation.json"
+          [[ "$CONFIRMATION" == "RUN-REAL-MODEL-TEST" ]] || {
+            echo "::error::Real-model confirmation is invalid"; exit 1; }
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::release_commit must be a full lowercase SHA"; exit 1; }
+          [[ "$RELEASE_COMMIT" == "$DISPATCH_COMMIT" ]] || {
+            echo "::error::release_commit must equal the selected dispatch ref HEAD"; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$RELEASE_COMMIT" ]] || {
+            echo "::error::checkout does not match release_commit"; exit 1; }
+          [[ -z "$(git status --porcelain --untracked-files=no)" ]] || {
+            echo "::error::tracked checkout is not clean"; exit 1; }
+          command -v docker >/dev/null || {
+            echo "::error::Docker is required on the p4-staging runner"; exit 1; }
+          required=(
+            WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME
+            WORKFLO_INSTANCE_HOURLY_USD WORKFLO_MODEL_API_KEY
+            WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY
+            WORKFLO_LLAMACPP_MANIFEST WORKFLO_LLAMACPP_MODEL_ID
+            WORKFLO_LLAMACPP_IMAGE WORKFLO_LLAMACPP_DEEP_IMAGE
+            WORKFLO_LLAMACPP_BASE_GGUF WORKFLO_LLAMACPP_BASE_SHA256
+            WORKFLO_LLAMACPP_TEST_GEN_GGUF WORKFLO_LLAMACPP_TEST_GEN_SHA256
+            WORKFLO_LLAMACPP_REASONING_GGUF WORKFLO_LLAMACPP_REASONING_SHA256
+            WORKFLO_LLAMACPP_REPORTING_GGUF WORKFLO_LLAMACPP_REPORTING_SHA256
+            WORKFLO_PREVIOUS_LLAMACPP_MANIFEST
+            WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE WORKFLO_PREVIOUS_RELEASE_COMMIT
+          )
+          for name in "${required[@]}"; do
+            [[ -n "${!name:-}" ]] || {
+              echo "::error::Required p4-staging value is missing: $name"; exit 1; }
+          done
+          [[ "$WORKFLO_MODEL_BASE_URL" == https://* ]] || {
+            echo "::error::WORKFLO_MODEL_BASE_URL must use HTTPS"; exit 1; }
+          [[ "$WORKFLO_GATEWAY_BASE_URL" == https://* ]] || {
+            echo "::error::WORKFLO_GATEWAY_BASE_URL must use HTTPS"; exit 1; }
+          [[ "$WORKFLO_LLAMACPP_DEEP_IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::candidate deep image must be digest-pinned"; exit 1; }
+          [[ "$WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::rollback deep image must be digest-pinned"; exit 1; }
+          [[ "$WORKFLO_PREVIOUS_RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::rollback release commit must be a full SHA"; exit 1; }
+          python3 - <<'PY'
+          import math, os
+          try:
+              rate = float(os.environ["WORKFLO_INSTANCE_HOURLY_USD"])
+          except ValueError as exc:
+              raise SystemExit("::error::instance-hourly cost must be numeric") from exc
+          if not math.isfinite(rate) or rate < 0:
+              raise SystemExit("::error::instance-hourly cost must be finite and non-negative")
+          PY
+          python3 workflo-ai-integration/scripts/verify_artifact_manifest.py \
+            "$WORKFLO_LLAMACPP_MANIFEST" --check-env \
+            --report "$OUT/manifest-verification.json"
+          printf '%s\n' '{"passed":true}' >"$OUT/configuration-validation.json"
 
-      - name: Upload report even when a request fails
+      - name: Bind candidate executable and artifacts to immutable deep image
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: |
+          python3 scripts/release/verify_deep_image.py \
+            --image "$WORKFLO_LLAMACPP_DEEP_IMAGE" \
+            --manifest "$WORKFLO_LLAMACPP_MANIFEST" \
+            --commit "$RELEASE_COMMIT" \
+            --report "artifacts/p4-${GITHUB_RUN_ID}/deep-image-binding.json"
+
+      - name: Exercise active worker and reporting adapters in candidate image
+        run: |
+          python3 scripts/release/run_deep_image_smoke.py \
+            --image "$WORKFLO_LLAMACPP_DEEP_IMAGE" \
+            --out-dir "artifacts/p4-${GITHUB_RUN_ID}" \
+            --name "workflo-gate5-candidate-${GITHUB_RUN_ID}" \
+            --isolation-report "artifacts/p4-${GITHUB_RUN_ID}/container-isolation.json"
+
+      - name: Exercise gateway authorization, privacy, and redaction
+        env:
+          WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
+          WORKFLO_GATEWAY_SMOKE_OUT: artifacts/p4-${{ github.run_id }}/gateway-smoke.json
+        run: python3 scripts/release/gateway_smoke.py
+
+      - name: Benchmark concurrency 1, 2, and 4 three times with leakage canaries
+        env:
+          WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/p4-${GITHUB_RUN_ID}"
+          for repeat in 1 2 3; do
+            python3 bench/model-serving/bench_inference.py \
+              --base-url "$WORKFLO_MODEL_BASE_URL" \
+              --model "$WORKFLO_MODEL_NAME" \
+              --instance-hourly-usd "$WORKFLO_INSTANCE_HOURLY_USD" \
+              --levels 1,2,4 \
+              --requests-per-level 32 \
+              --warmup 2 \
+              --max-tokens 128 \
+              --timeout 90 \
+              --out "$OUT/model-benchmark-${repeat}.json" \
+              --md "$OUT/model-benchmark-${repeat}.md"
+          done
+
+      - name: Provision real Linux isolation stack
+        run: sudo -E bash scripts/linux/setup_env.sh
+
+      - name: Produce full gateway-backed signed sandbox receipt
+        env:
+          WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export WORKFLO_LLM_BASE_URL="$WORKFLO_GATEWAY_BASE_URL"
+          export WORKFLO_LLM_GATEWAY_URL="$WORKFLO_GATEWAY_BASE_URL"
+          export WORKFLO_LLM_API_KEY="$WORKFLO_GATEWAY_API_KEY"
+          export WORKFLO_LLM_MODEL="$WORKFLO_MODEL_NAME"
+          export WORKFLO_LLM_MODE=gateway
+          export WORKFLO_LLM_TIMEOUT=90
+          export WORKFLO_EVIDENCE_METADATA_ONLY=1
+          sudo --preserve-env=WORKFLO_LLM_BASE_URL,WORKFLO_LLM_GATEWAY_URL,WORKFLO_LLM_API_KEY,WORKFLO_LLM_MODEL,WORKFLO_LLM_MODE,WORKFLO_LLM_TIMEOUT,WORKFLO_EVIDENCE_METADATA_ONLY \
+            bash scripts/linux/agent_golden_run.sh
+
+          OUT="artifacts/p4-${GITHUB_RUN_ID}/sandbox-receipt"
+          mkdir -p "$OUT"
+          receipt="$(sudo find /root/wf-agent-golden/.workflo/runs -type f -name receipt.json -print -quit)"
+          [[ -n "$receipt" ]] || { echo "::error::Signed sandbox receipt missing"; exit 1; }
+          run_dir="$(dirname "$receipt")"
+          sudo cp "$receipt" "$OUT/receipt.json"
+          sudo cp "$run_dir/receipt-key.pub.pem" "$OUT/receipt-key.pub.pem"
+          sudo cp -a "$run_dir/evidence" "$OUT/evidence"
+          sudo chown -R "$(id -u):$(id -g)" "$OUT"
+
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          root = pathlib.Path(f"artifacts/p4-{os.environ['GITHUB_RUN_ID']}/sandbox-receipt")
+          receipt = json.loads((root / "receipt.json").read_text())
+          receipt = receipt.get("receipt", receipt)
+          activity = receipt.get("agent_activity") or {}
+          provenance = activity.get("inference_provenance") or {}
+          if activity.get("mission") is not None or provenance.get("gateway_url") is not None:
+              sys.exit("::error::Receipt retained mission or gateway endpoint")
+          def contains_unredacted_string(value, key=""):
+              if isinstance(value, str):
+                  return key != "sha256"
+              if isinstance(value, dict):
+                  return any(contains_unredacted_string(child, str(child_key))
+                             for child_key, child in value.items())
+              if isinstance(value, list):
+                  return any(contains_unredacted_string(child, key) for child in value)
+              return False
+          for line in (root / "evidence/events.jsonl").read_text().splitlines():
+              if line and contains_unredacted_string(json.loads(line).get("data", {})):
+                  sys.exit("::error::Evidence event retained narrative text")
+          if any(contains_unredacted_string(event.get("detail", {}))
+                 for event in receipt.get("lifecycle_events", [])):
+              sys.exit("::error::Receipt lifecycle retained narrative text")
+          secret = os.environ["WORKFLO_GATEWAY_API_KEY"].encode()
+          for path in root.rglob("*"):
+              if path.is_file() and secret and secret in path.read_bytes():
+                  sys.exit("::error::Staging credential found in receipt bundle")
+          for directory in (root / "evidence" / "logs", root / "evidence" / "traces", root / "evidence" / "artifacts"):
+              for path in directory.rglob("*"):
+                  if not path.is_file():
+                      continue
+                  value = json.loads(path.read_text())
+                  if set(value) != {"bytes", "sha256"}:
+                      sys.exit("::error::Retained payload file is not a metadata commitment")
+          PY
+
+      - name: Independently verify receipt without staging credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="artifacts/p4-${GITHUB_RUN_ID}/sandbox-receipt"
+          env -u WORKFLO_MODEL_API_KEY -u WORKFLO_GATEWAY_API_KEY -u WORKFLO_LLM_API_KEY \
+            /opt/workflo/venv/bin/python scripts/release/verify_receipt_bundle.py \
+              --receipt "$ROOT/receipt.json" \
+              --pubkey "$ROOT/receipt-key.pub.pem" \
+              --evidence "$ROOT/evidence" \
+              --report "artifacts/p4-${GITHUB_RUN_ID}/independent-verification.json"
+
+      - name: Restore and verify previous immutable image and manifest pair
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/p4-${GITHUB_RUN_ID}"
+          python3 workflo-ai-integration/scripts/verify_artifact_manifest.py \
+            "$WORKFLO_PREVIOUS_LLAMACPP_MANIFEST" \
+            --report "$OUT/previous-manifest-verification.json"
+          python3 scripts/release/verify_deep_image.py \
+            --image "$WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE" \
+            --manifest "$WORKFLO_PREVIOUS_LLAMACPP_MANIFEST" \
+            --commit "$WORKFLO_PREVIOUS_RELEASE_COMMIT" \
+            --report "$OUT/rollback-image-binding.json"
+          python3 scripts/release/run_deep_image_smoke.py \
+            --image "$WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE" \
+            --out-dir "$OUT/rollback-smoke" \
+            --name "workflo-gate5-rollback-${GITHUB_RUN_ID}" \
+            --isolation-report "$OUT/rollback-smoke/container-isolation.json"
+          python3 - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path(f"artifacts/p4-{os.environ['GITHUB_RUN_ID']}")
+          manifest = json.loads((out / "previous-manifest-verification.json").read_text())
+          binding = json.loads((out / "rollback-image-binding.json").read_text())
+          worker = json.loads((out / "rollback-smoke/llamacpp-worker-smoke.json").read_text())
+          reporting = json.loads((out / "rollback-smoke/reporting-smoke.json").read_text())
+          isolation = json.loads((out / "rollback-smoke/container-isolation.json").read_text())
+          passed = all(doc.get("passed") is True for doc in (manifest, binding, worker, reporting, isolation))
+          (out / "rollback.json").write_text(json.dumps({
+              "passed": passed,
+              "restored_image": os.environ["WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE"],
+              "restored_commit": os.environ["WORKFLO_PREVIOUS_RELEASE_COMMIT"],
+              "manifest_verified": manifest.get("passed") is True,
+              "image_binding_verified": binding.get("passed") is True,
+              "smoke_passed": worker.get("passed") is True and reporting.get("passed") is True,
+              "teardown_verified": isolation.get("container_removed") is True,
+          }, indent=2, sort_keys=True) + "\n")
+          if not passed:
+              raise SystemExit("::error::Rollback pair verification failed")
+          PY
+
+      - name: Record explicit final teardown
         if: always()
-        uses: actions/upload-artifact@v4
+        shell: bash
+        run: |
+          set -u
+          OUT="artifacts/p4-${GITHUB_RUN_ID}"
+          candidate="workflo-gate5-candidate-${GITHUB_RUN_ID}"
+          rollback="workflo-gate5-rollback-${GITHUB_RUN_ID}"
+          docker rm -f "$candidate" "$rollback" >/dev/null 2>&1 || true
+          candidate_absent=false
+          rollback_absent=false
+          docker inspect "$candidate" >/dev/null 2>&1 || candidate_absent=true
+          docker inspect "$rollback" >/dev/null 2>&1 || rollback_absent=true
+          CANDIDATE_ABSENT="$candidate_absent" ROLLBACK_ABSENT="$rollback_absent" python3 - <<'PY'
+          import json, os, pathlib
+          candidate = os.environ["CANDIDATE_ABSENT"] == "true"
+          rollback = os.environ["ROLLBACK_ABSENT"] == "true"
+          out = pathlib.Path(f"artifacts/p4-{os.environ['GITHUB_RUN_ID']}/final-teardown.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps({
+              "passed": candidate and rollback,
+              "candidate_container_absent": candidate,
+              "rollback_container_absent": rollback,
+          }, indent=2, sort_keys=True) + "\n")
+          PY
+
+      - name: Assert all Gate 5 evidence is present and passing
+        if: always()
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: |
+          python3 scripts/release/assert_p4_evidence.py \
+            --gate gate5 \
+            --root "artifacts/p4-${GITHUB_RUN_ID}" \
+            --commit "$RELEASE_COMMIT" \
+            --model "$WORKFLO_MODEL_NAME" \
+            --out "artifacts/p4-${GITHUB_RUN_ID}/evidence-index.json"
+
+      - name: Upload protected acceptance evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: p4-model-acceptance-${{ github.run_id }}
           path: artifacts/p4-${{ github.run_id }}/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30

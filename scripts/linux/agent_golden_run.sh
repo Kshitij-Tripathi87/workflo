@@ -17,12 +17,16 @@ workflo run --path /root/wf-fixture --deep-test --start-command "python3 app.py"
 RUN_EXIT=$?
 set -e
 grep -E 'Tests:|Agent:|Canary|removed|terminated|gone|Signed receipt|Duration' run.stderr || true
-cat run.stdout | tail -5
+if [ "${WORKFLO_EVIDENCE_METADATA_ONLY:-0}" != "1" ]; then
+  tail -5 run.stdout
+fi
 
 RECEIPT=$(find .workflo/runs -name receipt.json -type f | head -1)
 if [ -z "$RECEIPT" ]; then
   echo "AGENT GOLDEN FAILED: no receipt" >&2
-  grep -E 'error|Supervisor' run.stderr >&2 | head -5
+  if [ "${WORKFLO_EVIDENCE_METADATA_ONLY:-0}" != "1" ]; then
+    grep -E 'error|Supervisor' run.stderr >&2 | head -5
+  fi
   exit 1
 fi
 

@@ -9,8 +9,7 @@ on:
       - "packages/workflo-utils/**"
       - "packages/probe-engine/**"
       - "packages/sandbox-runtime/**"
-      - "scripts/release/llamacpp_worker_smoke.py"
-      - "scripts/release/gateway_smoke.py"
+      - "scripts/release/**"
       - ".github/workflows/worker.yml"
   pull_request:
     paths:
@@ -20,8 +19,7 @@ on:
       - "packages/workflo-utils/**"
       - "packages/probe-engine/**"
       - "packages/sandbox-runtime/**"
-      - "scripts/release/llamacpp_worker_smoke.py"
-      - "scripts/release/gateway_smoke.py"
+      - "scripts/release/**"
       - ".github/workflows/worker.yml"
 
 jobs:
