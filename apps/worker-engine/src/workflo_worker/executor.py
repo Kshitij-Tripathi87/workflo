@@ -4,14 +4,14 @@ Reads PROBE_GROUPS environment variable to determine which probe groups
 to execute. Probe groups are composable: ["surface", "security"] etc.
 
 For deep-test / aggressive-test tiers, this also:
-  - Starts an in-container ModelServer (Ollama + Qwen2.5-Coder)
-  - Feeds the repo file tree to the model with a budget
-  - Parses the model's output into ProbeSpec objects (with one retry on parse failure)
-  - Generates a pytest file from those ProbeSpecs and runs it alongside the surface tests
-  - Stops the model server + wipes its on-disk state at teardown
+  - Verifies pinned GGUF base/adapter hashes and starts local llama.cpp
+  - Feeds a budgeted repo snapshot only to that loopback process
+  - Routes through task-specific adapters with strict schemas and compile gates
+  - Runs the validated generated pytest alongside surface tests
+  - Stops the server and verifies ephemeral state removal
 
 The model stage is gated behind the flag — plain --test / --security never
-boots Ollama. This keeps the base image small, fast, and free of model weights
+boots llama.cpp. This keeps the base image small, fast, and free of model weights
 for the 90% of runs that don't need them.
 """
 
@@ -22,11 +22,24 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
+import time
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
+from workflo_ai_integration import (
+    AdapterLoadError,
+    GenerationValidationError,
+    ModelRouter,
+    ProposeInvariantCall,
+    RouterConfig,
+    WriteTestCall,
+)
 from workflo_schema import RunSpec, RunSummary
+
 from workflo_worker.model import (
+    LlamaCppRuntime,
+    LlamaCppRuntimeConfig,
+    LlamaCppRuntimeError,
     ModelOutputInvalid,
     ModelServer,
     ModelServerConfig,
@@ -35,15 +48,13 @@ from workflo_worker.model import (
     generate_from_model_output,
     wipe_model_state,
 )
+from workflo_worker.security.stage import run_security_stage
 from workflo_worker.streamer import ResultStreamer
 from workflo_worker.web.stage import run_web_stage
-from workflo_worker.security.stage import run_security_stage
 
-
-# Repo file tree budget — how many source lines we send to the model.
-# This is the protection against "dump the whole repo into the prompt"
-# the plan calls out. Qwen2.5-Coder 7B has a 32k token context; we leave
-# plenty of headroom for the model's response and the system prompt.
+# Repo file tree budget — how many source lines enter local inference. The
+# release runtime has a separately configured context limit; keep deterministic
+# headroom for system instructions, structured output, and corrections.
 MAX_REPO_LINES_FOR_MODEL = 4000
 MAX_FILE_LINES_FOR_MODEL = 400
 MAX_TOTAL_BYTES_FOR_MODEL = 256 * 1024  # 256KB of source code max
@@ -83,7 +94,7 @@ def execute_run(spec_dict: dict, streamer: ResultStreamer) -> RunSummary:
     os.close(results_fd)  # pytest will reopen it
     results_path = Path(results_path_str)
 
-    streamer.log(f"Executing pytest with markers: (none — surface tier runs all tests)")
+    streamer.log("Executing pytest with markers: (none — surface tier runs all tests)")
     streamer.log(f"Probe groups: {probe_groups}")
 
     # NOTE: pytest must run INSIDE the cloned repo so it picks up the local
@@ -128,21 +139,27 @@ def execute_run(spec_dict: dict, streamer: ResultStreamer) -> RunSummary:
     model_inference_teardown: Optional[bool] = None
     model_inference_error: Optional[str] = None
     model_generated_tests_dir: Optional[Path] = None
+    model_provenance: Optional[dict] = None
     needs_model_stage = bool(set(probe_groups) & {"deep", "aggressive"})
 
     if needs_model_stage:
-        model_inference_teardown, model_inference_error, model_findings, model_generated_tests_dir = (
-            _run_model_stage(streamer, repo_path, probe_groups)
-        )
-        # Persist model stage status to host-side executor via stdout lines.
-        # The executor parses WORKFLO_MODEL_TEARDOWN to populate the receipt's
-        # model_inference_teardown field.
+        (
+            model_inference_teardown,
+            model_inference_error,
+            model_findings,
+            model_generated_tests_dir,
+            model_provenance,
+        ) = _run_model_stage(streamer, repo_path, probe_groups)
+        # Persist model stage status to the host-side executor. Both records are
+        # parsed into signed receipt fields; neither contains generated source.
         model_status = {
             "teardown": model_inference_teardown,
             "error": model_inference_error,
             "findings_count": len(model_findings),
         }
         streamer.log(f"WORKFLO_MODEL_TEARDOWN: {json.dumps(model_status)}")
+        if model_provenance is not None:
+            streamer.log(f"WORKFLO_LOCAL_MODEL_PROVENANCE: {json.dumps(model_provenance)}")
 
     # Use sys.executable -m pytest so pytest is found even when the
     # 'pytest' entry point isn't on PATH (common on Windows, and in
@@ -185,26 +202,35 @@ def execute_run(spec_dict: dict, streamer: ResultStreamer) -> RunSummary:
 
     summary = _parse_results(results_path)
 
+    # A requested model tier must never silently degrade to surface tests.
+    # Record the model failure as a collection error so the host marks the run
+    # failed while still producing a signed diagnostic receipt.
+    if needs_model_stage and model_inference_error:
+        summary.collection_error = f"model stage failed: {model_inference_error}"
+
     # Honest collection accounting: pytest exits 1 when tests FAIL (a valid
     # outcome), but exits >=2 on collection/internal errors, or nonzero with
     # nothing collected. In both latter cases the repo's tests never really
     # ran — say so instead of reporting a clean 0/0.
+    pytest_error: Optional[str] = None
     if proc is not None and proc.returncode >= 2:
-        summary.collection_error = (
-            f"pytest exited {proc.returncode} (collection/internal error)"
-        )
+        pytest_error = f"pytest exited {proc.returncode} (collection/internal error)"
     elif proc is not None and proc.returncode != 0 and summary.total == 0:
+        pytest_error = f"pytest exited {proc.returncode} with 0 tests collected"
+    if pytest_error:
         summary.collection_error = (
-            f"pytest exited {proc.returncode} with 0 tests collected"
+            f"{summary.collection_error}; {pytest_error}"
+            if summary.collection_error
+            else pytest_error
         )
     if summary.collection_error and install_error:
         summary.collection_error += f"; offline repo install failed: {install_error}"
     elif summary.collection_error and proc is not None and proc.stderr:
         summary.collection_error += f"; stderr: {proc.stderr[-300:].strip()}"
 
-    # Merge model findings into the report's findings so the receipt
-    # surfaces what the model proposed. Pure addition — surface pytest
-    # results stay in summary.
+    # Merge only the source-free model validation marker into the report.
+    # Model-authored text and generated code remain in the ephemeral repo;
+    # surface pytest results stay in the summary.
     if model_findings:
         summary.findings.extend(model_findings)
 
@@ -255,18 +281,179 @@ def _run_model_stage(
     streamer: ResultStreamer,
     repo_path: str,
     probe_groups: list[str],
-) -> tuple[Optional[bool], Optional[str], list[dict], Optional[Path]]:
-    """Run the model stage: start Ollama, get ProbeSpecs, stop + wipe.
+) -> tuple[Optional[bool], Optional[str], list[dict], Optional[Path], Optional[dict]]:
+    """Select the release model backend; llama.cpp is the fail-closed default."""
+    backend = (os.environ.get("WORKFLO_MODEL_BACKEND") or "llamacpp").strip().lower()
+    if backend == "llamacpp":
+        return _run_llamacpp_model_stage(streamer, repo_path, probe_groups)
+    if backend == "ollama":
+        # Temporary compatibility path for pre-release images. The release
+        # image sets llama.cpp explicitly; unsupported values never fall back.
+        teardown, error, findings, generated = _run_ollama_model_stage(
+            streamer, repo_path, probe_groups
+        )
+        return teardown, error, findings, generated, None
+    return False, f"unsupported model backend: {backend}", [], None, None
 
-    Returns:
-        (model_inference_teardown, model_inference_error, findings, generated_tests_dir)
-        - teardown is True if the model stage ran AND Ollama state was wiped
-        - teardown is False if the model stage ran but wipe failed
-        - teardown is None if the model stage never ran (caller didn't request it)
-        - findings: structured findings from the model's probes (passed to receipt)
-        - generated_tests_dir: pytest test file the worker wrote, so the executor
-          could persist/audit it (None if model stage failed)
+
+def _run_llamacpp_model_stage(
+    streamer: ResultStreamer,
+    repo_path: str,
+    probe_groups: list[str],
+) -> tuple[bool, Optional[str], list[dict], Optional[Path], Optional[dict]]:
+    """Run the pinned local llama.cpp router and produce executable pytest.
+
+    The runtime owns the server process and binds it to loopback. The router
+    validates adapter discovery, schema output, safe paths, and generated code
+    before this function writes anything into the disposable repository copy.
     """
+    findings: list[dict] = []
+    generated_tests_dir: Optional[Path] = None
+    provenance: Optional[dict] = None
+    router: Optional[ModelRouter] = None
+    runtime: Optional[LlamaCppRuntime] = None
+    requests = 0
+    started_at = time.monotonic()
+    error: Optional[str] = None
+
+    try:
+        config = LlamaCppRuntimeConfig.from_env()
+        runtime = LlamaCppRuntime(config)
+        streamer.log("[model] verifying pinned GGUF artifacts and starting llama.cpp...")
+        runtime.start()
+        provenance = runtime.provenance()
+        router = ModelRouter(
+            RouterConfig(
+                base_url=runtime.base_url,
+                timeout_sec=config.request_timeout_seconds,
+            )
+        )
+        adapters = router.discover_adapters()
+        streamer.log(f"[model] discovered required llama.cpp adapters: {sorted(adapters)}")
+
+        repo_prompt = _build_repo_analysis_prompt(repo_path, probe_groups)
+        streamer.log(f"[model] local source prompt built ({len(repo_prompt)} chars)")
+        system_prompt = (
+            "Generate a single deterministic pytest file for the repository snapshot. "
+            "Return only the required JSON object. Do not use network, subprocess, "
+            "filesystem mutation, dynamic execution, or paths outside the generated-test directory."
+        )
+
+        def generate(flag: str, prompt: str):
+            nonlocal requests
+            last_error: Optional[Exception] = None
+            for attempt in range(2):
+                requests += 1
+                try:
+                    return router.generate_for_flag(flag, system_prompt, prompt)
+                except GenerationValidationError as exc:
+                    last_error = exc
+                    streamer.log(
+                        f"[model] validated generation attempt {attempt + 1} failed: {exc}"
+                    )
+                    prompt += (
+                        "\n\nThe prior response failed strict validation. Return a corrected JSON "
+                        "object matching the requested schema; include no commentary."
+                    )
+            raise GenerationValidationError(
+                f"model output invalid after one retry: {last_error}"
+            )
+
+        invariant: Optional[ProposeInvariantCall] = None
+        if "aggressive" in probe_groups:
+            invariant_obj = generate("--aggressive-test", repo_prompt)
+            if not isinstance(invariant_obj, ProposeInvariantCall):
+                raise GenerationValidationError("reasoning adapter returned the wrong schema")
+            invariant = invariant_obj
+            test_prompt = (
+                f"{repo_prompt}\n\nValidated invariant to exercise:\n"
+                f"description={invariant.description}\n"
+                f"target={invariant.target}\n"
+                f"strategy={invariant.hypothesis_strategy}\n"
+                f"property={invariant.property_check}\n"
+            )
+        else:
+            test_prompt = repo_prompt
+
+        generated = generate("--deep-test", test_prompt)
+        if not isinstance(generated, WriteTestCall):
+            raise GenerationValidationError("test-generation adapter returned the wrong schema")
+        pytest_file = _write_llamacpp_test(repo_path, generated)
+        generated_tests_dir = pytest_file.parent
+        streamer.log("[model] wrote validated llama.cpp pytest file")
+
+        # Never project model-authored rationale, invariant text, source, or
+        # generated code into receipts/log artifacts: those may reproduce
+        # repository content. Record only bounded identities and validation
+        # outcomes; executable content remains in the ephemeral repo copy.
+        finding = {
+            "name": "validated-local-model-test",
+            "path": "workflo_generated_tests/[redacted]",
+            "description": "validated local-model pytest file generated",
+            "source": "llamacpp_test_gen_adapter",
+            "model": config.model_id,
+            "base_model_sha256": config.base_model.sha256,
+        }
+        if invariant is not None:
+            finding["invariant_category"] = invariant.category
+        findings.append(finding)
+    except (AdapterLoadError, GenerationValidationError, LlamaCppRuntimeError, OSError) as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        streamer.log(f"[model] ERROR: {error}")
+    finally:
+        if router is not None:
+            router.close()
+        teardown_ok = False
+        if runtime is not None:
+            try:
+                teardown_ok = runtime.stop()
+            except OSError as exc:
+                teardown_ok = False
+                teardown_error = f"llama.cpp teardown failed: {type(exc).__name__}: {exc}"
+                error = f"{error}; {teardown_error}" if error else teardown_error
+        if provenance is not None:
+            provenance.update(
+                {
+                    "requests": requests,
+                    "inference_seconds": round(time.monotonic() - started_at, 6),
+                    "error": error,
+                }
+            )
+
+    if not teardown_ok:
+        teardown_error = "llama.cpp process or ephemeral state was not verified gone"
+        error = f"{error}; {teardown_error}" if error else teardown_error
+    return teardown_ok, error, findings, generated_tests_dir, provenance
+
+
+def _write_llamacpp_test(repo_path: str, generated: WriteTestCall) -> Path:
+    """Write beneath a dedicated directory, with a second containment check."""
+    repo = Path(repo_path).resolve(strict=True)
+    root = (repo / "workflo_generated_tests").resolve()
+    relative = PurePosixPath(generated.path)
+    destination = root.joinpath(*relative.parts).resolve()
+    if not destination.is_relative_to(root):
+        raise GenerationValidationError("generated test destination escaped its root")
+    if destination.exists():
+        raise GenerationValidationError("generated test destination already exists")
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination.write_text(generated.content, encoding="utf-8")
+    except OSError as exc:
+        # Do not include the model-authored path or generated content in logs
+        # or signed provenance.
+        raise GenerationValidationError(
+            f"generated test write failed ({type(exc).__name__}, errno={exc.errno})"
+        ) from exc
+    return destination
+
+
+def _run_ollama_model_stage(
+    streamer: ResultStreamer,
+    repo_path: str,
+    probe_groups: list[str],
+) -> tuple[Optional[bool], Optional[str], list[dict], Optional[Path]]:
+    """Legacy Ollama implementation retained only for migration compatibility."""
     findings: list[dict] = []
     generated_tests_dir: Optional[Path] = None
 
@@ -469,11 +656,11 @@ def _run_canary_check(target_host: str = "https://example.com", timeout_seconds:
 
     Returns a JSON-serializable dict matching CanaryCheckResult's shape.
     """
-    import ssl
-    import urllib.request
-    import urllib.error
     import socket
-    from datetime import datetime, UTC
+    import ssl
+    import urllib.error
+    import urllib.request
+    from datetime import UTC, datetime
 
     attempted_at = datetime.now(UTC).isoformat()
     try:

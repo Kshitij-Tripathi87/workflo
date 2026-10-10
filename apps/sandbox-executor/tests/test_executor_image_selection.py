@@ -69,8 +69,8 @@ class TestSelectWorkerImage:
         assert ex.select_worker_image(_spec_with_probe_groups(["surface"])) == "custom-surface:1"
 
     def test_surface_plus_security_uses_worker_image(self):
-        """--test --security: still the surface image (security doesn't pull
-        the model; canary/teardown checks don't need Ollama)."""
+        """--test --security: still the surface image; canary and teardown
+        checks do not require the llama.cpp/GGUF model image."""
         ex = SandboxExecutor()
         assert ex.select_worker_image(_spec_with_probe_groups(["surface", "security"])) == DEFAULT_WORKER_IMAGE
 
@@ -90,7 +90,7 @@ class TestSelectWorkerImage:
         assert ex.select_worker_image(_spec_with_probe_groups(["deep", "security"])) == DEFAULT_DEEP_WORKER_IMAGE
 
     def test_security_only_uses_surface_image(self):
-        """--security without --test: surface image (security doesn't boot Ollama)."""
+        """--security without --test: surface image; no local model is started."""
         ex = SandboxExecutor()
         assert ex.select_worker_image(_spec_with_probe_groups(["security"])) == DEFAULT_WORKER_IMAGE
 

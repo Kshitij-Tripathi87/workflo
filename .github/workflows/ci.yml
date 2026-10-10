@@ -6,7 +6,7 @@ concurrency:
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, "p4/**"]
   push:
     branches: [main, develop, "p4/**"]
   # On-demand runs for validating a branch that is not main/develop.
@@ -89,10 +89,9 @@ jobs:
             exit 1
           fi
 
-  # Scaffolding explicitly destined for the sandbox worker (see its README and
-  # PRODUCT_BOUNDARIES.md: disposition MERGE). It is P4-relevant - the model
-  # router and safety gate sit between generated code and the sandbox - so its
-  # 24 mock-based tests run here instead of rotting unobserved.
+  # Active llama.cpp routing and safety package used by the worker. Unit tests
+  # cover adapter discovery, structured generation, artifact pinning, and
+  # compile/path safety; protected real-model acceptance runs separately.
   ai-integration:
     runs-on: ubuntu-latest
     defaults:
@@ -107,7 +106,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
 
       - name: Run tests
         run: python -m pytest tests/ -v

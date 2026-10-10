@@ -3,13 +3,13 @@ Routes a flag (--deep-test, --aggressive-test, --security, reporting) to the
 correct LoRA adapter on a single shared base model, and validates every
 response against the schemas in schemas.py before returning it.
 
-Default serving backend: llama.cpp llama-server (CPU-only, MIT licensed).
-See serving/docker-compose.llamacpp.yml. The optional GPU path (vLLM) lives
-under serving/.optional-gpu-path/ and is not required for MMVP.
+Release serving backend: llama.cpp llama-server. See
+serving/docker-compose.llamacpp.yml. Other experimental manifests are not
+accepted as release evidence.
 
 Architecture this assumes:
-  - One llama-server process, one base GGUF (Qwen3-Coder dense, smallest
-    checkpoint that fits), started with all three adapters loaded via
+  - One llama-server process and one manifest-pinned base GGUF, started with
+    all three manifest-pinned adapters loaded via
     --lora / --lora-init-without-apply (scales default to 0.0).
   - Per request, exactly one adapter is activated via the `lora` field
     (id + scale). No shared mutable server state, no load/unload race.
@@ -40,8 +40,12 @@ from typing import Any, Literal
 import httpx
 from pydantic import ValidationError
 
-from schemas import ProposeInvariantCall, ReportNarrative, WriteTestCall
-from safety_gate import compile_check, property_expr_check
+from workflo_ai_integration.safety_gate import compile_check, property_expr_check
+from workflo_ai_integration.schemas import (
+    ProposeInvariantCall,
+    ReportNarrative,
+    WriteTestCall,
+)
 
 TaskType = Literal["test-gen", "reasoning", "reporting"]
 
@@ -76,7 +80,7 @@ class GenerationValidationError(RuntimeError):
 
 @dataclass
 class RouterConfig:
-    # llama-server default port is 8080 (vLLM used 8000; keep them distinct).
+    # The owned runtime binds llama-server to loopback on this port by default.
     base_url: str = "http://127.0.0.1:8080"
     timeout_sec: float = 60.0
     # Kept for callers that still pass the old name during the migration.
@@ -115,31 +119,52 @@ class ModelRouter:
         if self._adapter_ids is not None and not force:
             return self._adapter_ids
 
-        resp = self._client.get("/lora-adapters")
-        if resp.status_code >= 400:
-            raise AdapterLoadError(
-                f"failed to list adapters: {resp.status_code} {resp.text}"
-            )
+        try:
+            resp = self._client.get("/lora-adapters")
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise AdapterLoadError(f"failed to list llama.cpp adapters: {exc}") from exc
         try:
             listing = resp.json()
-        except json.JSONDecodeError as e:
-            raise AdapterLoadError(f"/lora-adapters returned non-JSON: {e}") from e
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise AdapterLoadError(f"/lora-adapters returned non-JSON: {exc}") from exc
         if not isinstance(listing, list):
-            raise AdapterLoadError(f"/lora-adapters expected a list, got {type(listing).__name__}")
+            raise AdapterLoadError(
+                f"/lora-adapters expected a list, got {type(listing).__name__}"
+            )
+
+        normalized: list[tuple[int, str]] = []
+        for index, entry in enumerate(listing):
+            if not isinstance(entry, dict):
+                raise AdapterLoadError(f"adapter entry {index} is not an object")
+            path = entry.get("path") or entry.get("name")
+            if not isinstance(path, str) or not path:
+                raise AdapterLoadError(f"adapter entry {index} has no path/name")
+            try:
+                adapter_id = int(entry["id"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise AdapterLoadError(f"adapter entry {index} has invalid id") from exc
+            normalized.append((adapter_id, path))
+
+        if len(normalized) != len(ADAPTER_REGISTRY):
+            raise AdapterLoadError(
+                "llama.cpp must expose exactly the three frozen adapters; "
+                f"found {len(normalized)}"
+            )
 
         found: dict[TaskType, int] = {}
         for task, meta in ADAPTER_REGISTRY.items():
             needle = meta["match"].lower()
-            for entry in listing:
-                path = str(entry.get("path") or entry.get("name") or "")
-                if needle in path.lower():
-                    found[task] = int(entry["id"])
-                    break
-            if task not in found:
+            matches = [(adapter_id, path) for adapter_id, path in normalized if needle in path.lower()]
+            if len(matches) != 1:
                 raise AdapterLoadError(
-                    f"no LoRA adapter matching '{needle}' in server listing "
-                    f"(looked for substring in path/name). Got: {listing!r}"
+                    f"expected exactly one LoRA adapter matching '{needle}', found {len(matches)}; "
+                    f"server listing: {listing!r}"
                 )
+            found[task] = matches[0][0]
+
+        if len(set(found.values())) != len(found):
+            raise AdapterLoadError(f"one adapter id matched multiple tasks: {found!r}")
 
         self._adapter_ids = found
         return found
@@ -165,13 +190,10 @@ class ModelRouter:
 
     def _build_prompt(self, system_prompt: str, user_prompt: str) -> str:
         """
-        Chat template for the locked MMVP base model:
-        qwen2.5-coder:7b-instruct-q4_K_m — same stack the live Ollama
-        deep-test path already runs. Template taken from Ollama's
-        Modelfile (ChatML <|im_start|>/<|im_end|> turns); full text in
-        serving/CHAT_TEMPLATE.md. A wrong template will not crash — it
-        will quietly generate worse output — so keep this in sync with
-        `ollama show <model> --modelfile` if the base ever changes.
+        The current release protocol uses ChatML turns. A frozen base GGUF
+        must be ChatML-compatible and must pass protected real-model
+        acceptance; changing the base/template is a protocol change, not an
+        artifact-only swap. See serving/CHAT_TEMPLATE.md.
         """
         return (
             f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
@@ -193,13 +215,30 @@ class ModelRouter:
             # Sampler-level constraint — see #19051 note above.
             "json_schema": self._json_schema_for_task(task),
         }
-        resp = self._client.post("/completion", json=payload)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = self._client.post("/completion", json=payload)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise GenerationValidationError(f"llama.cpp completion request failed: {exc}") from exc
+        try:
+            data = resp.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise GenerationValidationError("llama.cpp returned a non-JSON completion") from exc
+        if not isinstance(data, dict):
+            raise GenerationValidationError("llama.cpp completion must be a JSON object")
+
         # llama-server returns {"content": "..."}; tolerate OpenAI-shaped too.
-        if "content" in data:
-            return data["content"]
-        return data["choices"][0]["message"]["content"]
+        content = data.get("content")
+        if content is None:
+            try:
+                content = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise GenerationValidationError(
+                    "llama.cpp completion response is missing content"
+                ) from exc
+        if not isinstance(content, str) or not content.strip():
+            raise GenerationValidationError("llama.cpp returned empty completion content")
+        return content
 
     def generate_for_flag(self, flag: str, system_prompt: str, user_prompt: str):
         """
@@ -221,7 +260,11 @@ class ModelRouter:
         try:
             obj = schema_cls.model_validate(payload)
         except ValidationError as e:
-            raise GenerationValidationError(f"schema validation failed: {e}") from e
+            # Rendered Pydantic errors include rejected input values, which may
+            # contain source/model output. Preserve only a stable count.
+            raise GenerationValidationError(
+                f"schema validation failed ({e.error_count()} errors)"
+            ) from e
 
         if isinstance(obj, WriteTestCall):
             result = compile_check(obj.content)
@@ -250,7 +293,11 @@ class ModelRouter:
         try:
             return ReportNarrative.model_validate(payload)
         except ValidationError as e:
-            raise GenerationValidationError(f"schema validation failed: {e}") from e
+            # Rendered Pydantic errors include rejected input values, which may
+            # contain source/model output. Preserve only a stable count.
+            raise GenerationValidationError(
+                f"schema validation failed ({e.error_count()} errors)"
+            ) from e
 
     def close(self):
         self._client.close()

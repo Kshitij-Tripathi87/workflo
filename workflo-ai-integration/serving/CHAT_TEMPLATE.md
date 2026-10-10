@@ -1,15 +1,19 @@
-# Extracted from Ollama's published Modelfile for
-# qwen2.5-coder:7b-instruct-q4_K_M (blob 1e65450c3067).
-#
-# This is the chat template the live --deep-test / --aggressive-test pipeline
-# already uses via Ollama. model_router._build_prompt() must stay compatible
-# with this — do not invent a different template without re-checking
-# `ollama show qwen2.5-coder:7b-instruct-q4_K_m --modelfile`.
-#
-# Base model lock (MMVP): stay on Qwen2.5-Coder 7B Instruct Q4_K_M until a
-# held-out eval proves a different base is worth the image rebuild. The
-# earlier "Qwen3-Coder" suggestion is aspirational; production today is 2.5.
-#
+# ChatML protocol reference
+
+The active router currently emits ChatML turns. Therefore the frozen base GGUF
+and all three adapters supplied for a release must be ChatML-compatible and
+must pass protected real-model acceptance. The artifact manifest, not this
+historical reference, is the source of truth for the model identity.
+
+Changing the base to a model with a different template requires a router
+protocol change, updated tests, a new versioned artifact manifest, a rebuilt
+deep image, and a new protected acceptance run. Do not silently swap weights
+and assume a model-native template is equivalent.
+
+The longer Go template below is retained only as the historical source for the
+minimal turn shape. It is not an Ollama serving requirement or a release model
+lock.
+
 # Minimal turn shape (what model_router emits):
 #   <|im_start|>system\n{system}<|im_end|>\n
 #   <|im_start|>user\n{user}<|im_end|>\n

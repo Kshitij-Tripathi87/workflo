@@ -4,18 +4,24 @@ on:
   push:
     paths:
       - "apps/worker-engine/**"
+      - "workflo-ai-integration/**"
       - "packages/workflo-schema/**"
       - "packages/workflo-utils/**"
       - "packages/probe-engine/**"
       - "packages/sandbox-runtime/**"
+      - "scripts/release/llamacpp_worker_smoke.py"
+      - "scripts/release/gateway_smoke.py"
       - ".github/workflows/worker.yml"
   pull_request:
     paths:
       - "apps/worker-engine/**"
+      - "workflo-ai-integration/**"
       - "packages/workflo-schema/**"
       - "packages/workflo-utils/**"
       - "packages/probe-engine/**"
       - "packages/sandbox-runtime/**"
+      - "scripts/release/llamacpp_worker_smoke.py"
+      - "scripts/release/gateway_smoke.py"
       - ".github/workflows/worker.yml"
 
 jobs:
@@ -33,10 +39,12 @@ jobs:
           # Local project dependency must be installed before workflo-worker
           # asks pip to resolve the internal distribution name.
           pip install -e ./packages/probe-engine
+          pip install -e ./workflo-ai-integration
           pip install -e ./apps/worker-engine
       - name: Run tests
         run: |
-          cd apps/worker-engine && pytest -v
+          python -m pytest -v apps/worker-engine/tests
+          python -m pytest -q packages/sandbox-runtime/tests/test_gateway_smoke.py
 
   docker:
     needs: test

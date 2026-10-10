@@ -6,9 +6,9 @@
 # --lora-init-without-apply (scales 0.0) and activated per-request via the
 # `lora` field in model_router.py.
 #
-# Swap `-m` for whichever Qwen3-Coder GGUF you land on after the MMVP eval
-# (start small for iteration speed). Adapters MUST be GGUF — PEFT/Unsloth
-# checkpoints need a conversion step before this file can load them.
+# The base and adapters must match the frozen artifact manifest. Adapters MUST
+# be GGUF; raw PEFT/Unsloth checkpoints require a separately pinned conversion
+# step before this file can load them.
 #
 # Isolation (P1/P3/P4): this compose file does not enforce --network none or
 # post-run wipe. The sandbox runner does. Don't treat the absence of a
@@ -23,17 +23,16 @@
 #     inference API": absence is the check, not a runtime assertion.
 #   - No writable host bind-mounts for caches, logs, or slot state.
 #
-# Base GGUF: match the live Ollama model
-#   qwen2.5-coder:7b-instruct-q4_K_m  (see CHAT_TEMPLATE.md).
-#
-# Optional GPU upgrade path (vLLM multi-LoRA): see .optional-gpu-path/.
+# Before `docker compose up`, verify the frozen manifest and environment with
+# scripts/verify_artifact_manifest.py --check-env. Compose interpolation can
+# require a value but cannot itself validate the image-reference digest syntax.
 
 services:
   llama-server:
-    # Official llama.cpp server image (CPU). Pin a release tag in prod.
-    image: ghcr.io/ggml-org/llama.cpp:server
+    # Required immutable image reference, e.g.
+    # ghcr.io/ggml-org/llama.cpp:server@sha256:<64 hex>.
+    image: "${WORKFLO_LLAMACPP_IMAGE:?set a digest-pinned llama.cpp image}"
     command:
-      - "--server"
       - "-m"
       - "/models/base.gguf"
       - "--port"
@@ -55,7 +54,15 @@ services:
     volumes:
       - ./models:/models:ro
       - ./adapters:/adapters:ro
-    # No external ports in the sandbox runtime — model_router talks over
-    # the container-internal network only (default http://127.0.0.1:8080).
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # No published host port. The release worker starts llama-server inside
+    # its own namespace; this compose shape is for isolated artifact/model
+    # validation on a private container network only.
     expose:
       - "8080"

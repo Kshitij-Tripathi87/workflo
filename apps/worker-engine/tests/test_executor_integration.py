@@ -1,11 +1,12 @@
 """Integration tests for the worker-engine execute_run() — the full pipeline
 from spec to pytest to receipt.
 
-These tests exercise the END-TO-END worker logic against the fixture repo
-apps/worker-engine/tests/fixtures/sample_repo. They mock only the ModelServer
-(Ollama + Qwen) because we don't have a GPU in CI — but everything else
-runs for real: pytest executes against the fixture, the JSON report is
-parsed, the generated test file is written, findings are collected.
+These tests exercise the end-to-end worker logic against the fixture repo.
+They explicitly select and mock the legacy Ollama compatibility backend to
+preserve its migration contract. The release-default llama.cpp path has its
+own runtime/router tests and protected real-model acceptance. Everything else
+here runs for real: pytest executes against the fixture, the JSON report is
+parsed, the generated test file is written, and findings are collected.
 
 This is the Phase 1 Exit Gate test that proves:
 
@@ -109,6 +110,8 @@ def _run_worker(probe_groups: list[str]):
     env["WORKFLO_REPO_PATH"] = str(FIXTURE_REPO)
     # CRITICAL: worker reads PROBE_GROUPS from env to decide model stage
     env["PROBE_GROUPS"] = json.dumps(probe_groups)
+    # Legacy-path coverage remains explicit; production defaults to llama.cpp.
+    env["WORKFLO_MODEL_BACKEND"] = "ollama"
 
     streamer = _CapturingStreamer()
 
@@ -375,10 +378,12 @@ class TestWorkerModelStageFailureHandling:
         with patch("workflo_worker.executor.ModelServer", return_value=mock_server):
             streamer, summary = _run_worker(["deep"])
 
-        # The run should still complete the surface tests (the model stage
-        # failure doesn't kill the whole run — it records the failure).
+        # Surface diagnostics still run, but the requested deep tier fails
+        # closed rather than being misreported as a successful surface run.
         assert summary.total == 3  # only surface tests ran
         assert summary.passed == 3
+        assert summary.collection_error is not None
+        assert "model stage failed" in summary.collection_error
 
         # WORKFLO_MODEL_TEARDOWN line has teardown=false and the error.
         model_teardown_lines = [l for l in streamer.lines if l.startswith("WORKFLO_MODEL_TEARDOWN:")]

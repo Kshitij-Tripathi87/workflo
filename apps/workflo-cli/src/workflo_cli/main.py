@@ -1673,6 +1673,32 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
         else:
             click.echo("OK: teardown proof verified (container + filesystem gone)", err=True)
 
+    # Local-model claims are signed, but still need semantic verification:
+    # a model-bearing receipt cannot pass when process/state teardown failed.
+    model_teardown = getattr(tp, "model_inference_teardown", None)
+    local_model = getattr(receipt, "local_model_provenance", None)
+    if model_teardown is False:
+        click.echo("FAILED: local model process/state teardown was not verified", err=True)
+        teardown_ok = False
+    if local_model is not None:
+        if model_teardown is not True:
+            click.echo(
+                "FAILED: local-model provenance exists without verified model teardown",
+                err=True,
+            )
+            teardown_ok = False
+        elif local_model.error:
+            click.echo(
+                f"FAILED: local-model provenance records an inference error: {local_model.error}",
+                err=True,
+            )
+            teardown_ok = False
+        else:
+            click.echo(
+                "OK: pinned local llama.cpp provenance + teardown verified",
+                err=True,
+            )
+
     # --- Canary claim check ---
     if receipt.canary_check.request_succeeded:
         click.echo("FAILED: canary request SUCCEEDED — network isolation was broken", err=True)

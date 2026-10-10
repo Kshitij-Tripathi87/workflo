@@ -8,23 +8,17 @@ real GGUF adapters exist.
 """
 
 import json
-import sys
-from pathlib import Path
 
 import httpx
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-from model_router import (  # noqa: E402
+from workflo_ai_integration.model_router import (
     ADAPTER_REGISTRY,
-    AdapterLoadError,
     FLAG_TASK_MAP,
+    AdapterLoadError,
     GenerationValidationError,
     ModelRouter,
     RouterConfig,
 )
-
 
 DEFAULT_ADAPTERS = [
     {"id": 0, "path": "/adapters/test-gen.gguf", "scale": 0.0},
@@ -145,7 +139,23 @@ def test_discover_adapters_missing_match_raises():
         return httpx.Response(404)
 
     router = make_router(handler)
-    with pytest.raises(AdapterLoadError, match="no LoRA adapter matching"):
+    with pytest.raises(AdapterLoadError, match="exactly the three frozen adapters"):
+        router.discover_adapters()
+
+
+def test_discover_adapters_rejects_unexpected_extra_adapter():
+    listing = [
+        *DEFAULT_ADAPTERS,
+        {"id": 3, "path": "/adapters/unreviewed.gguf", "scale": 0.0},
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/lora-adapters":
+            return httpx.Response(200, json=listing)
+        return httpx.Response(404)
+
+    router = make_router(handler)
+    with pytest.raises(AdapterLoadError, match="exactly the three frozen adapters"):
         router.discover_adapters()
 
 
@@ -333,3 +343,48 @@ def test_adapter_registry_path_hints_are_gguf():
     can load them — registry hints must point at .gguf paths, not PEFT dirs."""
     for meta in ADAPTER_REGISTRY.values():
         assert meta["path_hint"].endswith(".gguf")
+
+
+def test_generate_rejects_windows_path_separator():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/lora-adapters":
+            return httpx.Response(200, json=DEFAULT_ADAPTERS)
+        if request.url.path == "/completion":
+            return httpx.Response(200, json={"content": _write_test_payload(
+                path="tests\\test_escape.py",
+            )})
+        return httpx.Response(404)
+
+    router = make_router(handler)
+    with pytest.raises(GenerationValidationError, match="schema validation failed"):
+        router.generate_for_flag("--deep-test", "system", "generate a test")
+
+
+def test_generate_rejects_non_python_test_path():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/lora-adapters":
+            return httpx.Response(200, json=DEFAULT_ADAPTERS)
+        if request.url.path == "/completion":
+            return httpx.Response(200, json={"content": _write_test_payload(
+                path="tests/test_payload.txt",
+            )})
+        return httpx.Response(404)
+
+    router = make_router(handler)
+    with pytest.raises(GenerationValidationError, match="schema validation failed"):
+        router.generate_for_flag("--deep-test", "system", "generate a test")
+
+
+def test_generate_rejects_unexpected_schema_fields():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/lora-adapters":
+            return httpx.Response(200, json=DEFAULT_ADAPTERS)
+        if request.url.path == "/completion":
+            return httpx.Response(200, json={"content": _write_test_payload(
+                unreviewed_command="curl example.com",
+            )})
+        return httpx.Response(404)
+
+    router = make_router(handler)
+    with pytest.raises(GenerationValidationError, match="schema validation failed"):
+        router.generate_for_flag("--deep-test", "system", "generate a test")

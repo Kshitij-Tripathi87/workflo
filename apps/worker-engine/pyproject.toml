@@ -21,6 +21,7 @@ dependencies = [
     "workflo-schema",
     "workflo-utils",
     "workflo-probe-engine",
+    "workflo-ai-integration",
 ]
 
 [project.optional-dependencies]

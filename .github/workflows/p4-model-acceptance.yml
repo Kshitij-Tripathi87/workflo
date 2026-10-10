@@ -1,13 +1,12 @@
 name: P4 Real Model Acceptance
 
-# Deliberately manual and isolated from pull-request code: this job makes real
-# inference requests and may incur GPU cost. Run only on a trusted, private
-# staging runner with network access to the protected model endpoint.
+# Manual, trusted-runner-only acceptance. This is the release gate that uses
+# real pinned GGUF artifacts and may incur serving cost; PR jobs remain mocked.
 on:
   workflow_dispatch:
     inputs:
       confirm_real_run:
-        description: "Type RUN-REAL-MODEL-TEST to confirm billed real-model requests"
+        description: "Type RUN-REAL-MODEL-TEST to confirm real-model requests"
         required: true
         type: string
 
@@ -18,60 +17,114 @@ jobs:
   model-acceptance:
     runs-on: [self-hosted, linux, p4-staging]
     environment: p4-staging
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
+      # Protected OpenAI-compatible serving endpoint used for throughput/cost.
       WORKFLO_MODEL_BASE_URL: ${{ vars.WORKFLO_MODEL_BASE_URL }}
       WORKFLO_MODEL_NAME: ${{ vars.WORKFLO_MODEL_NAME }}
-      WORKFLO_GPU_HOURLY_USD: ${{ vars.WORKFLO_GPU_HOURLY_USD }}
+      WORKFLO_INSTANCE_HOURLY_USD: ${{ vars.WORKFLO_INSTANCE_HOURLY_USD }}
       WORKFLO_MODEL_API_KEY: ${{ secrets.WORKFLO_MODEL_API_KEY }}
+      # Observation-only hosted planner gateway.
       WORKFLO_GATEWAY_BASE_URL: ${{ vars.WORKFLO_GATEWAY_BASE_URL }}
       WORKFLO_GATEWAY_API_KEY: ${{ secrets.WORKFLO_GATEWAY_API_KEY }}
+      # Local source-bearing worker inference. All paths are on the protected
+      # runner; the worker starts its own loopback-only llama-server process.
+      WORKFLO_MODEL_BACKEND: llamacpp
+      WORKFLO_LLAMACPP_BINARY: ${{ vars.WORKFLO_LLAMACPP_BINARY }}
+      WORKFLO_LLAMACPP_MANIFEST: ${{ vars.WORKFLO_LLAMACPP_MANIFEST }}
+      WORKFLO_LLAMACPP_MODEL_ID: ${{ vars.WORKFLO_LLAMACPP_MODEL_ID }}
+      WORKFLO_LLAMACPP_IMAGE: ${{ vars.WORKFLO_LLAMACPP_IMAGE }}
+      WORKFLO_LLAMACPP_BASE_GGUF: ${{ vars.WORKFLO_LLAMACPP_BASE_GGUF }}
+      WORKFLO_LLAMACPP_BASE_SHA256: ${{ vars.WORKFLO_LLAMACPP_BASE_SHA256 }}
+      WORKFLO_LLAMACPP_TEST_GEN_GGUF: ${{ vars.WORKFLO_LLAMACPP_TEST_GEN_GGUF }}
+      WORKFLO_LLAMACPP_TEST_GEN_SHA256: ${{ vars.WORKFLO_LLAMACPP_TEST_GEN_SHA256 }}
+      WORKFLO_LLAMACPP_REASONING_GGUF: ${{ vars.WORKFLO_LLAMACPP_REASONING_GGUF }}
+      WORKFLO_LLAMACPP_REASONING_SHA256: ${{ vars.WORKFLO_LLAMACPP_REASONING_SHA256 }}
+      WORKFLO_LLAMACPP_REPORTING_GGUF: ${{ vars.WORKFLO_LLAMACPP_REPORTING_GGUF }}
+      WORKFLO_LLAMACPP_REPORTING_SHA256: ${{ vars.WORKFLO_LLAMACPP_REPORTING_SHA256 }}
     steps:
       - name: Checkout exact release candidate
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, commit resolved by current GitHub runner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Validate explicit confirmation and staging configuration
+      - name: Validate confirmation and staging configuration
         env:
           CONFIRMATION: ${{ inputs.confirm_real_run }}
         shell: bash
         run: |
           set -euo pipefail
           if [[ "$CONFIRMATION" != "RUN-REAL-MODEL-TEST" ]]; then
-            echo "::error::Real-model test not confirmed. Type RUN-REAL-MODEL-TEST in workflow_dispatch."
+            echo "::error::Type RUN-REAL-MODEL-TEST to authorize this gate."
             exit 1
           fi
-          for name in WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME WORKFLO_GPU_HOURLY_USD WORKFLO_MODEL_API_KEY WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY; do
+          required=(
+            WORKFLO_MODEL_BASE_URL WORKFLO_MODEL_NAME
+            WORKFLO_INSTANCE_HOURLY_USD WORKFLO_MODEL_API_KEY
+            WORKFLO_GATEWAY_BASE_URL WORKFLO_GATEWAY_API_KEY
+            WORKFLO_LLAMACPP_BINARY WORKFLO_LLAMACPP_MANIFEST
+            WORKFLO_LLAMACPP_MODEL_ID WORKFLO_LLAMACPP_IMAGE
+            WORKFLO_LLAMACPP_BASE_GGUF WORKFLO_LLAMACPP_BASE_SHA256
+            WORKFLO_LLAMACPP_TEST_GEN_GGUF WORKFLO_LLAMACPP_TEST_GEN_SHA256
+            WORKFLO_LLAMACPP_REASONING_GGUF WORKFLO_LLAMACPP_REASONING_SHA256
+            WORKFLO_LLAMACPP_REPORTING_GGUF WORKFLO_LLAMACPP_REPORTING_SHA256
+          )
+          for name in "${required[@]}"; do
             if [[ -z "${!name:-}" ]]; then
-              echo "::error::Required p4-staging environment value is missing: $name"
+              echo "::error::Required p4-staging value is missing: $name"
               exit 1
             fi
           done
-          case "$WORKFLO_MODEL_BASE_URL" in
-            https://*) ;;
-            *) echo "::error::WORKFLO_MODEL_BASE_URL must use HTTPS"; exit 1 ;;
-          esac
-          case "$WORKFLO_GATEWAY_BASE_URL" in
-            https://*) ;;
-            *) echo "::error::WORKFLO_GATEWAY_BASE_URL must use HTTPS"; exit 1 ;;
-          esac
+          case "$WORKFLO_MODEL_BASE_URL" in https://*) ;; *)
+            echo "::error::WORKFLO_MODEL_BASE_URL must use HTTPS"; exit 1;; esac
+          case "$WORKFLO_GATEWAY_BASE_URL" in https://*) ;; *)
+            echo "::error::WORKFLO_GATEWAY_BASE_URL must use HTTPS"; exit 1;; esac
+          case "$WORKFLO_LLAMACPP_IMAGE" in *@sha256:*) ;; *)
+            echo "::error::WORKFLO_LLAMACPP_IMAGE must be digest-pinned"; exit 1;; esac
+          if [[ ! -x "$WORKFLO_LLAMACPP_BINARY" ]]; then
+            echo "::error::WORKFLO_LLAMACPP_BINARY is not executable"
+            exit 1
+          fi
           python3 - <<'PY'
-          import math, os, sys
-          raw = os.environ["WORKFLO_GPU_HOURLY_USD"]
+          import math, os, pathlib, re, sys
           try:
-              rate = float(raw)
+              rate = float(os.environ["WORKFLO_INSTANCE_HOURLY_USD"])
           except ValueError:
-              sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be numeric")
+              sys.exit("::error::WORKFLO_INSTANCE_HOURLY_USD must be numeric")
           if not math.isfinite(rate) or rate < 0:
-              sys.exit("::error::WORKFLO_GPU_HOURLY_USD must be finite and >= 0")
-          print(f"Cost assumption accepted: ${rate:.4f}/hour (estimate input, not cloud billing data)")
+              sys.exit("::error::WORKFLO_INSTANCE_HOURLY_USD must be finite and >= 0")
+          for kind in ("BASE", "TEST_GEN", "REASONING", "REPORTING"):
+              path = pathlib.Path(os.environ[f"WORKFLO_LLAMACPP_{kind}_GGUF"])
+              digest = os.environ[f"WORKFLO_LLAMACPP_{kind}_SHA256"]
+              if not path.is_file():
+                  sys.exit(f"::error::{kind} GGUF missing on staging runner: {path}")
+              if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                  sys.exit(f"::error::{kind} SHA-256 is malformed")
+          print(f"Cost assumption accepted: ${rate:.4f}/hour")
           PY
+          python3 workflo-ai-integration/scripts/verify_artifact_manifest.py \
+            "$WORKFLO_LLAMACPP_MANIFEST" --check-env
 
-      - name: Exercise real-model privacy gateway and source rejection
+      - name: Install release candidate model path
+        run: |
+          python3 -m venv .model-acceptance-venv
+          .model-acceptance-venv/bin/pip install --quiet \
+            ./packages/workflo-schema \
+            ./packages/workflo-utils \
+            ./packages/probe-engine \
+            ./workflo-ai-integration \
+            ./apps/worker-engine
+
+      - name: Exercise active worker with pinned llama.cpp adapters
+        run: |
+          OUT="artifacts/p4-${GITHUB_RUN_ID}"
+          .model-acceptance-venv/bin/python scripts/release/llamacpp_worker_smoke.py \
+            --out "$OUT/llamacpp-worker-smoke.json"
+
+      - name: Exercise privacy gateway and source rejection
         env:
           WORKFLO_GATEWAY_SMOKE_OUT: artifacts/p4-${{ github.run_id }}/gateway-smoke.json
         run: python3 scripts/release/gateway_smoke.py
 
-      - name: Run real-model benchmark at concurrency 1, 2, and 4
+      - name: Benchmark real endpoint at concurrency 1, 2, and 4
         shell: bash
         run: |
           set -euo pipefail
@@ -80,7 +133,7 @@ jobs:
           python3 bench/model-serving/bench_inference.py \
             --base-url "$WORKFLO_MODEL_BASE_URL" \
             --model "$WORKFLO_MODEL_NAME" \
-            --gpu-hourly-usd "$WORKFLO_GPU_HOURLY_USD" \
+            --instance-hourly-usd "$WORKFLO_INSTANCE_HOURLY_USD" \
             --levels 1,2,4 \
             --requests-per-level 32 \
             --warmup 2 \

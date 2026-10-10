@@ -66,6 +66,17 @@ def main() -> int:
         ],
     }
 
+    unauthorized_status, _, unauthorized_elapsed = post_json(
+        endpoint, valid_request, ""
+    )
+    if unauthorized_status not in (401, 403):
+        print(
+            "Authorization negative test failed: missing API key returned "
+            f"HTTP {unauthorized_status}",
+            file=sys.stderr,
+        )
+        return 1
+
     status, response, elapsed = post_json(endpoint, valid_request, api_key)
     if status != 200 or not isinstance(response, dict):
         print(f"Gateway valid-request smoke failed: HTTP {status}; response body suppressed", file=sys.stderr)
@@ -101,6 +112,11 @@ def main() -> int:
         return 1
 
     report = {
+        "authorization_rejection": {
+            "http_status": unauthorized_status,
+            "elapsed_seconds": round(unauthorized_elapsed, 4),
+            "passed": True,
+        },
         "valid_request": {
             "http_status": status,
             "elapsed_seconds": round(elapsed, 4),
@@ -124,7 +140,10 @@ def main() -> int:
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(f"Gateway smoke passed: valid request HTTP {status}; source-bearing request rejected HTTP {reject_status}.")
+    print(
+        f"Gateway smoke passed: unauthorized request rejected HTTP {unauthorized_status}; "
+        f"valid request HTTP {status}; source-bearing request rejected HTTP {reject_status}."
+    )
     print(f"Redacted metadata report: {path}")
     return 0
 

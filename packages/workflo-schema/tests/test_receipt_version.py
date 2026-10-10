@@ -1,18 +1,17 @@
 """Receipt protocol versioning — the deliberate compatibility boundary."""
 
 import json
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import pytest
-
 from workflo_schema.sandbox import (
-    SUPPORTED_RECEIPT_VERSIONS,
     CURRENT_RECEIPT_VERSION,
+    SUPPORTED_RECEIPT_VERSIONS,
+    CanaryCheckResult,
     EvidenceBinding,
     RunReport,
     SignedReceipt,
     TeardownProof,
-    CanaryCheckResult,
 )
 
 
@@ -119,8 +118,8 @@ class TestCanonicalPayloadVersioning:
     def test_v3_signature_covers_agent_activity(self):
         """The signature covers agent_activity for v3 — a receipt whose
         agent summary is altered must break signature verification."""
-        from workflo_schema.sandbox import AgentActivity
         from sandbox_isolation import generate_keypair
+        from workflo_schema.sandbox import AgentActivity
 
         signer = generate_keypair()
         receipt = _receipt(receipt_version=3, evidence_binding=_binding(),
@@ -328,3 +327,74 @@ class TestPhase7RunStatus:
         # An adversary flipping a failed run to "completed" must not verify
         receipt.run_status = "completed"
         assert not signer.verify(receipt)
+
+
+class TestLocalModelProvenance:
+    def _provenance(self):
+        from workflo_schema.sandbox import LocalModelProvenance
+        return LocalModelProvenance(
+            model="qwen2.5-coder-7b-q4_k_m",
+            server_image="ghcr.io/ggml-org/llama.cpp:server@sha256:" + "a" * 64,
+            base_model_sha256="b" * 64,
+            adapter_sha256={
+                "test-gen": "c" * 64,
+                "reasoning": "d" * 64,
+                "reporting": "e" * 64,
+            },
+            requests=2,
+            inference_seconds=1.25,
+        )
+
+    def test_absent_provenance_is_not_in_canonical_bytes(self):
+        receipt = _receipt(receipt_version=4, evidence_binding=_binding())
+        assert "local_model_provenance" not in json.loads(receipt.canonical_payload())
+
+    def test_local_provenance_infers_current_protocol(self):
+        receipt = _receipt(local_model_provenance=self._provenance())
+        assert receipt.receipt_version == CURRENT_RECEIPT_VERSION == 4
+
+    def test_local_provenance_is_signed(self):
+        from sandbox_isolation import generate_keypair
+
+        signer = generate_keypair()
+        receipt = _receipt(
+            receipt_version=4,
+            evidence_binding=_binding(),
+            local_model_provenance=self._provenance(),
+        )
+        signer.sign(receipt)
+        assert signer.verify(receipt)
+        payload = json.loads(receipt.canonical_payload())["local_model_provenance"]
+        assert payload["endpoint_scope"] == "loopback"
+        assert payload["source_code_included"] is True
+
+        receipt.local_model_provenance.requests += 1
+        assert not signer.verify(receipt)
+
+    def test_missing_adapter_hash_is_rejected(self):
+        from pydantic import ValidationError
+        from workflo_schema.sandbox import LocalModelProvenance
+
+        with pytest.raises(ValidationError, match="adapter hashes"):
+            LocalModelProvenance(
+                model="m",
+                server_image="image@sha256:" + "a" * 64,
+                base_model_sha256="b" * 64,
+                adapter_sha256={"test-gen": "c" * 64},
+            )
+
+    def test_unpinned_server_image_is_rejected(self):
+        from pydantic import ValidationError
+        from workflo_schema.sandbox import LocalModelProvenance
+
+        with pytest.raises(ValidationError):
+            LocalModelProvenance(
+                model="m",
+                server_image="ghcr.io/ggml-org/llama.cpp:server",
+                base_model_sha256="b" * 64,
+                adapter_sha256={
+                    "test-gen": "c" * 64,
+                    "reasoning": "d" * 64,
+                    "reporting": "e" * 64,
+                },
+            )

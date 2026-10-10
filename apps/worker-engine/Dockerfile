@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system deps needed by git (for shallow clones) + curl (for ollama, if needed later)
+# Install system dependencies used by shallow clones and worker health probes.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
@@ -24,6 +24,12 @@ RUN pip install --no-cache-dir /app/packages/workflo-schema \
 # Pure-Python, tiny; without these the offline install can't build the
 # repo's wheel and its tests can't import the package.
 RUN pip install --no-cache-dir flit-core hatchling poetry-core
+
+# Install the shared llama.cpp router before the worker resolves its local
+# distribution dependency.
+COPY workflo-ai-integration/pyproject.toml /app/workflo-ai-integration/pyproject.toml
+COPY workflo-ai-integration/src/ /app/workflo-ai-integration/src/
+RUN pip install --no-cache-dir /app/workflo-ai-integration
 
 # Now copy and install the worker itself
 COPY apps/worker-engine/pyproject.toml /app/worker-engine/pyproject.toml

@@ -1,18 +1,9 @@
-"""Model layer for --deep-test / --aggressive-test tiers.
+"""Model layer for deep/aggressive tiers.
 
-Public API:
-    ModelServer         - lifecycle wrapper around Ollama
-    ModelServerConfig   - configurable knobs (host, port, model, timeouts)
-    ModelServerError    - exception type for server lifecycle failures
-    wipe_model_state    - filesystem wipe of Ollama state dirs (logs, history)
-    generate_from_model_output - validate + parse model output into ProbeSpec list
-    ModelOutputInvalid  - raised when model output fails to parse
-    build_correction_prompt - build a retry prompt after a parse failure
-
-Phase 1 ships with these primitives. Phase 2+ may add:
-    - Multiple-model ensembling
-    - Caching of inference results across runs (with redaction)
-    - Streaming responses for long generations
+``LlamaCppRuntime`` is the release backend: it verifies pinned GGUF artifacts,
+owns a loopback llama-server process, and proves teardown. ``ModelServer`` and
+the Ollama parser exports remain temporarily available only for compatibility
+with pre-release images and tests; production selection defaults to llama.cpp.
 """
 
 from workflo_worker.model.model_server import (
@@ -22,6 +13,13 @@ from workflo_worker.model.model_server import (
     ModelServer,
     ModelServerConfig,
     ModelServerError,
+)
+from workflo_worker.model.llamacpp_runtime import (
+    ADAPTER_NAMES,
+    GGUFArtifact,
+    LlamaCppRuntime,
+    LlamaCppRuntimeConfig,
+    LlamaCppRuntimeError,
 )
 from workflo_worker.model.no_log_guard import wipe_model_state
 from workflo_worker.model.probe_adapter import (
@@ -35,6 +33,11 @@ __all__ = [
     "DEFAULT_HOST",
     "DEFAULT_MODEL",
     "DEFAULT_PORT",
+    "ADAPTER_NAMES",
+    "GGUFArtifact",
+    "LlamaCppRuntime",
+    "LlamaCppRuntimeConfig",
+    "LlamaCppRuntimeError",
     "ModelServer",
     "ModelServerConfig",
     "ModelServerError",

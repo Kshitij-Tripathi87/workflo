@@ -7,8 +7,10 @@ not logs of customer data — only these structured artifacts.
 """
 
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
 from workflo_schema.inference import InferenceProvenance
 
 # Receipt protocol versions — the deliberate compatibility boundary.
@@ -133,9 +135,9 @@ class TeardownProof(BaseModel):
         "home bind directories are confirmed gone after teardown. The evidence "
         "directory intentionally survives — it backs the receipt.",
     )
-    # Model inference teardown — the deep-test / aggressive-test stages
-    # run a local LLM (Ollama + Qwen2.5-Coder) which writes state to
-    # ~/.ollama. For surface / security runs, the model stage never runs.
+    # Model inference teardown — deep/aggressive stages own a local model
+    # process and its ephemeral state. For surface/security runs, the model
+    # stage never runs.
     #
     # We use Optional[bool] with default=None so the verifier can distinguish
     # three states cleanly:
@@ -149,7 +151,7 @@ class TeardownProof(BaseModel):
         default=None,
         description=(
             "None = model stage never ran (--test/--security only); "
-            "True = model stage ran and Ollama state was wiped; "
+            "True = model stage ran and process/state teardown was verified; "
             "False = model stage ran but state was NOT wiped."
         ),
     )
@@ -297,6 +299,40 @@ class EvidenceBinding(BaseModel):
     manifest_sha256: str = Field(
         description="SHA-256 of the manifest.json file bytes.",
     )
+
+
+class LocalModelProvenance(BaseModel):
+    """Signed provenance for source-bearing inference inside the sandbox.
+
+    Unlike hosted planner provenance, local inference may inspect the bounded
+    repository snapshot. The endpoint must therefore be loopback-only and the
+    exact base model, adapters, and serving image are cryptographically pinned.
+    """
+
+    backend: Literal["llamacpp"] = "llamacpp"
+    model: str = Field(min_length=1, max_length=128)
+    server_image: str = Field(
+        pattern=r"^.+@sha256:[0-9a-f]{64}$",
+        description="Immutable llama.cpp image reference.",
+    )
+    base_model_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    adapter_sha256: dict[str, str]
+    endpoint_scope: Literal["loopback"] = "loopback"
+    source_code_included: Literal[True] = True
+    requests: int = Field(default=0, ge=0, le=100)
+    inference_seconds: float = Field(default=0.0, ge=0.0)
+    error: Optional[str] = Field(default=None, max_length=1024)
+
+    @field_validator("adapter_sha256")
+    @classmethod
+    def _exact_adapter_set(cls, value: dict[str, str]) -> dict[str, str]:
+        expected = {"test-gen", "reasoning", "reporting"}
+        if set(value) != expected:
+            raise ValueError(f"adapter hashes must contain exactly {sorted(expected)}")
+        for name, digest in value.items():
+            if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+                raise ValueError(f"adapter {name!r} has invalid SHA-256")
+        return value
 
 
 class AgentActivity(BaseModel):
@@ -484,7 +520,8 @@ class SignedReceipt(BaseModel):
         default=None,
         description="Receipt protocol version. None in input: inferred (1 for "
         "legacy receipts without evidence binding, 2 when a binding is present "
-        "without agent activity, 3 when agent activity is present). "
+        "without agent activity, 3 when agent activity is present, and 4 when "
+        "local-model provenance or inference provenance is present). "
         "Serialized receipts always carry an explicit version.",
     )
     sandbox_id: str
@@ -608,6 +645,12 @@ class SignedReceipt(BaseModel):
         "summary of the agent's governed tool activity (tool calls, denials, "
         "step outcomes).",
     )
+    # Local source-bearing inference is separate from hosted planner
+    # provenance: it is allowed only on loopback inside the sandbox.
+    local_model_provenance: Optional[LocalModelProvenance] = Field(
+        default=None,
+        description="Pinned llama.cpp artifacts and request metrics for a local model stage.",
+    )
     # Repository provenance — present for git-url runs. Which ref was asked
     # for, which exact commit it resolved to, and the digest of the tree
     # that entered the sandbox. Canonical payload includes the key ONLY
@@ -630,7 +673,11 @@ class SignedReceipt(BaseModel):
         UNSUPPORTED_RECEIPT_VERSION instead of a signature failure.
         """
         if self.receipt_version is None:
-            if self.evidence_binding is None:
+            if self.local_model_provenance is not None:
+                # Local-model provenance was introduced with the current v4
+                # protocol and must never masquerade as a legacy v1 receipt.
+                self.receipt_version = 4
+            elif self.evidence_binding is None:
                 self.receipt_version = 1
             elif self.agent_activity is None:
                 self.receipt_version = 2
@@ -685,6 +732,12 @@ class SignedReceipt(BaseModel):
                 activity = {k: v for k, v in activity.items()
                             if k != "inference_provenance"}
             payload["agent_activity"] = activity
+        # Byte compatibility: local-model provenance is omitted entirely when
+        # absent, so receipts signed before this field existed still verify.
+        if self.local_model_provenance is not None:
+            payload["local_model_provenance"] = self.local_model_provenance.model_dump(
+                mode="json"
+            )
         # Byte-compatibility: the security attestation key appears in the
         # canonical payload ONLY when the field is set. Pre-Phase-6
         # receipts (field None) canonicalize to exactly the bytes that

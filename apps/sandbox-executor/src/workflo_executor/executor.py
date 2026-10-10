@@ -57,32 +57,29 @@ import json
 import subprocess
 import time
 import uuid
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlsplit
 
-from workflo_schema.sandbox import (
-    CanaryCheckResult,
-    RunReport,
-    SandboxLifecycleEvent,
-    SandboxSpec,
-    SignedReceipt,
-    SecurityProbeResult,
-    TeardownProof,
-    WebProbeResult,
-)
-
 from sandbox_isolation import (
-    CanaryResult,
     ReceiptSigner,
-    attempt_canary_request,
     build_teardown_proof,
     generate_keypair,
     mount_tmpfs,
     unmount_tmpfs,
     verify_ephemeral_gone,
-    verify_receipt_signature,
+)
+from workflo_schema.sandbox import (
+    CanaryCheckResult,
+    LocalModelProvenance,
+    RunReport,
+    SandboxLifecycleEvent,
+    SandboxSpec,
+    SecurityProbeResult,
+    SignedReceipt,
+    TeardownProof,
+    WebProbeResult,
 )
 
 from workflo_executor.docker_runner import (
@@ -91,12 +88,11 @@ from workflo_executor.docker_runner import (
 )
 from workflo_executor.runtime import ContainerRuntime, DockerContainerRuntime
 
-
 # Default images for the worker tiers.
 #
 # SURFACE: small, fast, no model weights, no browser. Used for --test / --security.
-# DEEP:   layered on top of surface, ships Ollama + Qwen2.5-Coder. Used
-#         for --deep-test / --aggressive-test (the model stage needs Ollama).
+# DEEP:   ships pinned llama.cpp + frozen GGUF base/adapters. Used for
+#         --deep-test / --aggressive-test.
 # WEB:    layered on top of surface, ships Playwright + Chromium. Used
 #         for --web (the browser probes need a headless browser).
 # DEEP_WEB: combined image. Not built before Aug 25; select_worker_image
@@ -273,7 +269,7 @@ class SandboxExecutor:
     ):
         self.worker_image = worker_image
         # Image used for --deep-test / --aggressive-test tiers (which need the
-        # model-bearing image so Ollama + Qwen2.5-Coder is available). When
+        # model-bearing image so pinned llama.cpp/GGUF assets are available). When
         # None, falls back to DEFAULT_DEEP_WORKER_IMAGE at selection time —
         # deferred so `deep_worker_image` is only resolved if a deep-tier run
         # actually needs it.
@@ -436,9 +432,8 @@ class SandboxExecutor:
             repo_path_in_container = "/workspace/repo"
             # Select the worker image based on the spec's probe groups.
             # This is the auto-switch the CLI advertises: --deep-test /
-            # --aggressive-test run on the model-bearing image (so Ollama +
-            # Qwen2.5-Coder is available inside the sandbox), while plain
-            # --test / --security stay on the small base image. The selected
+            # --aggressive-test run on the pinned llama.cpp/GGUF image, while
+            # plain --test / --security stay on the small base image. The selected
             # image is recorded in the lifecycle events so the receipt is
             # auditable — a reviewer can verify a deep-test run actually
             # used the deep image (and vice versa).
@@ -523,6 +518,22 @@ class SandboxExecutor:
                 report = worker_reported
             in_container_canary = self._parse_canary(container_result, spec.sandbox_id)
             model_teardown_status, model_teardown_error = self._parse_model_teardown(container_result)
+            local_model_provenance, provenance_error = self._parse_local_model_provenance(
+                container_result
+            )
+            if provenance_error:
+                report.collection_error = (
+                    f"{report.collection_error}; {provenance_error}"
+                    if report.collection_error
+                    else provenance_error
+                )
+            if model_teardown_status is True and local_model_provenance is None:
+                missing = "successful model stage did not emit signed local-model provenance"
+                report.collection_error = (
+                    f"{report.collection_error}; {missing}"
+                    if report.collection_error
+                    else missing
+                )
             web_probes = self._parse_web_probes(container_result)
             security_probes = self._parse_security_probes(container_result)
 
@@ -609,6 +620,7 @@ class SandboxExecutor:
                 lifecycle_events=list(lifecycle_events),  # snapshot copy
                 web_probes=web_probes,
                 security_probes=security_probes,
+                local_model_provenance=local_model_provenance,
                 # True ONLY when spec.dependency_install was set AND the prep
                 # stage actually ran with network access. Single-stage runs
                 # (the common --repo case) keep this False so the default
@@ -861,6 +873,28 @@ class SandboxExecutor:
                 except (json.JSONDecodeError, TypeError):
                     continue
         # Worker didn't emit WORKFLO_MODEL_TEARDOWN at all — model stage never ran
+        return None, None
+
+    def _parse_local_model_provenance(
+        self,
+        container_result: ContainerResult,
+    ) -> tuple[Optional[LocalModelProvenance], Optional[str]]:
+        """Parse and validate the worker's source-free provenance record.
+
+        Invalid provenance is a release-gate failure rather than an omitted
+        optional field: accepting malformed hashes would defeat artifact
+        pinning in the signed receipt.
+        """
+        prefix = "WORKFLO_LOCAL_MODEL_PROVENANCE:"
+        for line in container_result.stdout.splitlines():
+            line = line.strip()
+            if not line.startswith(prefix):
+                continue
+            try:
+                payload = json.loads(line[len(prefix):])
+                return LocalModelProvenance.model_validate(payload), None
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                return None, f"invalid local-model provenance: {exc}"
         return None, None
 
     def _parse_web_probes(

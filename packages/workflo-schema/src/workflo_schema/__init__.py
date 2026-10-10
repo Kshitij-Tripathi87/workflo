@@ -24,6 +24,7 @@ from workflo_schema.sandbox import (
     RunReport,
     SignedReceipt,
     AgentActivity,
+    LocalModelProvenance,
 )
 from workflo_schema.inference import (
     ALLOWED_AGENT_TOOLS,
@@ -63,6 +64,7 @@ __all__ = [
     "RunReport",
     "SignedReceipt",
     "AgentActivity",
+    "LocalModelProvenance",
     "ALLOWED_AGENT_TOOLS",
     "INFERENCE_PROTOCOL_VERSION",
     "InferenceBudget",

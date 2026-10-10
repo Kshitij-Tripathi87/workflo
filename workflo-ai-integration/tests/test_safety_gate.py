@@ -1,9 +1,4 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-from safety_gate import compile_check, property_expr_check  # noqa: E402
+from workflo_ai_integration.safety_gate import compile_check, property_expr_check
 
 
 def test_valid_code_passes():
@@ -47,3 +42,27 @@ def test_valid_property_expression_passes():
 def test_invalid_property_expression_fails():
     result = property_expr_check("st.integers(min_value=1,")
     assert not result.ok
+
+
+def test_disallowed_from_os_import_fails():
+    result = compile_check("from os import system\ndef test_x():\n    assert True\n")
+    assert not result.ok
+    assert "os" in result.reason
+
+
+def test_disallowed_builtin_exec_fails():
+    result = compile_check("def test_x():\n    exec('assert True')\n")
+    assert not result.ok
+    assert "exec" in result.reason
+
+
+def test_disallowed_attribute_call_fails():
+    result = compile_check("def test_x(tmp_path):\n    tmp_path.unlink()\n")
+    assert not result.ok
+    assert "unlink" in result.reason
+
+
+def test_property_expression_rejects_process_calls():
+    result = property_expr_check("runner.system('id')")
+    assert not result.ok
+    assert "system" in result.reason

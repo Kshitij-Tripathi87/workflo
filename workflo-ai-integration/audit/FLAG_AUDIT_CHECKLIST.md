@@ -1,4 +1,10 @@
-# workflo Flag Audit Checklist
+# Workflo flag audit checklist — historical snapshot
+
+> **Historical evidence only (2026-08-15).** The Ollama observations below
+> describe the pre-migration implementation and must not be read as current
+> serving guidance. The active release path now uses the pinned llama.cpp/GGUF
+> runtime documented in `../README.md`; Ollama remains explicit compatibility
+> code only.
 
 Purpose: settle, with evidence not memory, which flags are (a) real and working,
 (b) present but stubbed/heuristic-only, or (c) not implemented at all — before any
