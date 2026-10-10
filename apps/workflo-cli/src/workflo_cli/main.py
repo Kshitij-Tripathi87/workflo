@@ -998,9 +998,9 @@ def run(
         selected_worker_image = worker_image
 
     # --- 3b. LLM pre-flight for deep tiers (fail fast, fail clear) ---
-    # A deep-tier run without a configured LLM endpoint falls back to the
-    # deep image's embedded Ollama (legacy path). A *placeholder* endpoint on
-    # record, however, is always a misconfiguration — the worker would attempt
+    # A deep-tier run without a configured hosted endpoint uses the deep
+    # image's pinned, loopback-only llama.cpp runtime. A *placeholder* endpoint
+    # on record, however, is always a misconfiguration — the worker would attempt
     # an HTTP call to a fake URL and fail confusingly deep inside the sandbox.
     # Detect that here, before any tmpfs mount or Docker create happens.
     llm_cfg = None

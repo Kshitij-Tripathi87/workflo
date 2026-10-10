@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from workflo_ai_integration import AdapterLoadError, ProposeInvariantCall, WriteTestCall
-from workflo_worker.executor import _run_llamacpp_model_stage
+from workflo_worker.executor import _run_llamacpp_model_stage, _run_model_stage
 from workflo_worker.model.llamacpp_runtime import GGUFArtifact, LlamaCppRuntimeConfig
 
 
@@ -54,6 +54,21 @@ def _runtime(config):
     return runtime
 
 
+def test_default_llamacpp_failure_never_falls_back_to_ollama(monkeypatch, tmp_path):
+    monkeypatch.delenv("WORKFLO_MODEL_BACKEND", raising=False)
+    monkeypatch.delenv("WORKFLO_LLAMACPP_MODEL_ID", raising=False)
+    legacy = MagicMock()
+    with patch("workflo_worker.executor._run_ollama_model_stage", legacy):
+        teardown, error, findings, generated, provenance = _run_model_stage(
+            _Streamer(), str(tmp_path), ["deep"]
+        )
+
+    assert teardown is False
+    assert "required environment variable is missing" in error
+    assert findings == [] and generated is None and provenance is None
+    legacy.assert_not_called()
+
+
 def test_deep_stage_uses_router_and_writes_validated_test(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -72,11 +87,12 @@ def test_deep_stage_uses_router_and_writes_validated_test(tmp_path):
         rationale="exercise addition",
     )
 
+    streamer = _Streamer()
     with patch.object(LlamaCppRuntimeConfig, "from_env", return_value=config), patch(
         "workflo_worker.executor.LlamaCppRuntime", return_value=runtime
     ), patch("workflo_worker.executor.ModelRouter", return_value=router):
         teardown, error, findings, generated_dir, provenance = _run_llamacpp_model_stage(
-            _Streamer(), str(repo), ["deep"]
+            streamer, str(repo), ["deep"]
         )
 
     assert teardown is True
@@ -92,6 +108,9 @@ def test_deep_stage_uses_router_and_writes_validated_test(tmp_path):
     assert "test_generated_add.py" not in str(findings)
     assert "exercise addition" not in str(findings)
     assert "def test_generated_add" not in str(findings)
+    source_free_output = str(findings) + "\n" + "\n".join(streamer.lines)
+    assert "def add(a, b)" not in source_free_output
+    assert "def test_generated_add" not in source_free_output
     assert provenance["requests"] == 1
     assert provenance["source_code_included"] is True
     runtime.start.assert_called_once()

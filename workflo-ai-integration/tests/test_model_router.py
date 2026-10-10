@@ -130,12 +130,10 @@ def test_discover_adapters_caches_until_forced():
     assert calls["n"] == 2
 
 
-def test_discover_adapters_missing_match_raises():
+def test_discover_adapters_rejects_only_two_adapters():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/lora-adapters":
-            return httpx.Response(200, json=[
-                {"id": 0, "path": "/adapters/only-test-gen.gguf", "scale": 0.0},
-            ])
+            return httpx.Response(200, json=DEFAULT_ADAPTERS[:2])
         return httpx.Response(404)
 
     router = make_router(handler)
@@ -228,15 +226,16 @@ def test_generate_for_flag_rejects_path_outside_sandbox():
             return httpx.Response(200, json=DEFAULT_ADAPTERS)
         if request.url.path == "/completion":
             return httpx.Response(200, json={"content": _write_test_payload(
-                path="/etc/test_malicious.py",
+                path="/etc/WORKFLO_SOURCE_CANARY.py",
                 content="def test_x():\n    assert True\n",
                 rationale="x",
             )})
         return httpx.Response(404)
 
     router = make_router(handler)
-    with pytest.raises(GenerationValidationError, match="schema validation failed"):
+    with pytest.raises(GenerationValidationError, match="schema validation failed") as caught:
         router.generate_for_flag("--deep-test", "system", "generate a test")
+    assert "WORKFLO_SOURCE_CANARY" not in str(caught.value)
 
 
 def test_generate_for_flag_rejects_disallowed_import():

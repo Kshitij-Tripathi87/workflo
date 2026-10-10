@@ -10,10 +10,7 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from click.testing import CliRunner
-
-from workflo_cli.config_commands import config_group
 from workflo_cli.main import cli
 
 
@@ -105,14 +102,14 @@ class TestDeepTestPlaceholderFailFast:
         assert result.exit_code != 0
         assert "workflo config set-llm" in result.output
 
-    def test_no_config_keeps_legacy_ollama_path(self, runner, clean_llm_config):
-        """No config at all = embedded-model fallback; must NOT hard-fail."""
+    def test_no_config_uses_embedded_llamacpp_path(self, runner, clean_llm_config):
+        """No hosted config uses the pinned embedded model; do not hard-fail."""
         result = runner.invoke(
             cli,
             ["run", "--repo", "https://github.com/pallets/click.git", "--deep-test", "--dry-run"],
         )
         assert result.exit_code == 0
-        # stdout holds the plan JSON; stderr holds the legacy-fallback note.
+        # stdout holds the plan JSON; stderr identifies the embedded model path.
         assert '"mode": "dry-run"' in result.output
         assert '"configured": false' in result.output
 

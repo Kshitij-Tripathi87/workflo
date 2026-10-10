@@ -42,6 +42,13 @@ def test_config_verifies_all_artifacts(tmp_path):
     _config(tmp_path).validate()
 
 
+def test_config_rejects_missing_artifact(tmp_path):
+    config = _config(tmp_path)
+    config.base_model.path.unlink()
+    with pytest.raises(LlamaCppRuntimeError, match="is missing"):
+        config.validate()
+
+
 def test_config_rejects_hash_mismatch(tmp_path):
     config = _config(tmp_path)
     bad = GGUFArtifact("base", config.base_model.path, "0" * 64)
@@ -83,6 +90,7 @@ def test_command_loads_exact_adapters_without_slot_persistence(tmp_path):
     assert command.count("--lora") == 3
     assert "--lora-init-without-apply" in command
     assert "--slot-save-path" not in command
+    assert command[command.index("--host") + 1] == "127.0.0.1"
     assert command[command.index("-m") + 1].endswith("base.gguf")
 
 
