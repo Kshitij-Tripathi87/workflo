@@ -29,8 +29,8 @@ DEFAULT_ADAPTERS = [
 
 def make_router(handler) -> ModelRouter:
     transport = httpx.MockTransport(handler)
-    client = httpx.Client(transport=transport, base_url="http://fake-llama")
-    return ModelRouter(config=RouterConfig(base_url="http://fake-llama"), client=client)
+    client = httpx.Client(transport=transport, base_url="http://127.0.0.1:8080")
+    return ModelRouter(config=RouterConfig(base_url="http://127.0.0.1:8080"), client=client)
 
 
 def _write_test_payload(**overrides):
@@ -72,9 +72,48 @@ def test_unmapped_flag_raises():
         router.task_for_flag("--web")
 
 
-def test_legacy_vllm_base_url_alias_still_works():
-    cfg = RouterConfig(vllm_base_url="http://legacy:8000")
-    assert cfg.base_url == "http://legacy:8000"
+def test_legacy_base_url_alias_is_still_loopback_guarded():
+    cfg = RouterConfig(vllm_base_url="http://localhost:8000")
+    assert cfg.base_url == "http://localhost:8000"
+    with pytest.raises(ValueError, match="loopback"):
+        RouterConfig(vllm_base_url="http://inference.example.com:8000")
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://inference.example.com:8080",
+        "http://203.0.113.10:8080",
+        "http://127.0.0.1.evil.com:8080",
+    ],
+)
+def test_router_config_rejects_non_loopback_and_prefix_traps(base_url):
+    with pytest.raises(ValueError, match="loopback"):
+        RouterConfig(base_url=base_url)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+        "http://[::1]:8080",
+    ],
+)
+def test_router_config_accepts_exact_loopback_hosts(base_url):
+    assert RouterConfig(base_url=base_url).base_url == base_url
+
+
+def test_custom_http_client_cannot_bypass_loopback_guard():
+    client = httpx.Client(
+        base_url="http://inference.example.com:8080",
+        transport=httpx.MockTransport(lambda request: httpx.Response(200)),
+    )
+    try:
+        with pytest.raises(ValueError, match="loopback"):
+            ModelRouter(RouterConfig(), client=client)
+    finally:
+        client.close()
 
 
 # ---------------------------------------------------------------------------

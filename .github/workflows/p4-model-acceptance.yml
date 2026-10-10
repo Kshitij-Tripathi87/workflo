@@ -117,7 +117,8 @@ jobs:
         run: |
           OUT="artifacts/p4-${GITHUB_RUN_ID}"
           .model-acceptance-venv/bin/python scripts/release/llamacpp_worker_smoke.py \
-            --out "$OUT/llamacpp-worker-smoke.json"
+            --out "$OUT/llamacpp-worker-smoke.json" \
+            --reporting-out "$OUT/reporting-smoke.json"
 
       - name: Exercise privacy gateway and source rejection
         env:

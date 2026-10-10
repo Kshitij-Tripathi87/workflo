@@ -127,9 +127,10 @@ Mocks do not satisfy the real-model release gate. The manual
 `.github/workflows/p4-model-acceptance.yml` workflow must run on the protected
 `p4-staging` runner with the frozen manifest, real GGUFs, executable
 `llama-server`, HTTPS serving/gateway endpoints, protected API keys, and a real
-instance-hourly cost. It exercises the active aggressive worker route, verifies
-teardown/provenance, checks missing-key authorization and source rejection, and
-benchmarks concurrency 1/2/4. Its uploaded reports are the acceptance evidence.
+instance-hourly cost. It exercises the active aggressive worker route plus a
+structured-results-only reporting request, verifies teardown/provenance, checks
+missing-key authorization and source rejection, and benchmarks concurrency
+1/2/4. Its uploaded source-free reports are the acceptance evidence.
 
 Until that workflow and the real deep-image build pass for supplied artifacts,
 the implementation is ready for acceptance but real serving is **not proven**.

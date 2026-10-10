@@ -33,9 +33,11 @@ receipts — is the sandbox runtime's job; this file assumes it holds.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 from dataclasses import dataclass
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 from pydantic import ValidationError
@@ -89,6 +91,30 @@ class RouterConfig:
     def __post_init__(self) -> None:
         if self.vllm_base_url:
             self.base_url = self.vllm_base_url
+        try:
+            parsed = urlsplit(self.base_url)
+            host = parsed.hostname
+            # Accessing .port also validates malformed/overflowing ports.
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError("llama.cpp base_url must be a valid loopback URL") from exc
+        if parsed.scheme not in {"http", "https"} or not host:
+            raise ValueError("llama.cpp base_url must be an HTTP(S) loopback URL")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("llama.cpp base_url must not contain credentials")
+        if host == "localhost":
+            return
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise ValueError("llama.cpp base_url host must be loopback") from exc
+        if address not in {
+            ipaddress.ip_address("127.0.0.1"),
+            ipaddress.ip_address("::1"),
+        }:
+            raise ValueError(
+                "llama.cpp base_url host must be loopback: 127.0.0.1, ::1, or localhost"
+            )
 
 
 class ModelRouter:
@@ -101,8 +127,14 @@ class ModelRouter:
 
     def __init__(self, config: RouterConfig | None = None, client: httpx.Client | None = None):
         self.config = config or RouterConfig()
+        if client is not None:
+            # A caller-supplied client is useful for deterministic tests, but
+            # its actual destination must not bypass the source-bearing URL guard.
+            RouterConfig(base_url=str(client.base_url), timeout_sec=self.config.timeout_sec)
         self._client = client or httpx.Client(
-            base_url=self.config.base_url, timeout=self.config.timeout_sec
+            base_url=self.config.base_url,
+            timeout=self.config.timeout_sec,
+            trust_env=False,  # never route source-bearing loopback calls via a proxy
         )
         self._adapter_ids: dict[TaskType, int] | None = None
 

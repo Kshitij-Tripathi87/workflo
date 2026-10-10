@@ -87,10 +87,11 @@ The workflow must fail unless all of the following complete:
 1. the manifest, runtime environment, executable, paths, hashes, image pin, and
    cost assumption validate;
 2. the representative calculator application runs through the active
-   aggressive worker route (`reasoning` then `test-gen`);
+   aggressive worker route (`reasoning` then `test-gen`), and a separate
+   structured-results-only request returns a schema-valid reporting response;
 3. generated tests pass structural/path/compile validation;
-4. llama.cpp process/state teardown is verified and signed provenance has no
-   inference error;
+4. both llama.cpp lifecycles verify process/state teardown and their redacted
+   provenance reports have no inference error;
 5. a missing gateway key is rejected with HTTP 401/403;
 6. an authorized observation-only request returns model/request/hash/token and
    latency provenance without source;
