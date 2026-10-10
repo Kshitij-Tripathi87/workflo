@@ -6,9 +6,13 @@ on:
       - "apps/agent-cli/**"
       - "packages/workflo-schema/**"
       - "packages/workflo-utils/**"
+      - ".github/workflows/cli.yml"
   pull_request:
     paths:
       - "apps/agent-cli/**"
+      - "packages/workflo-schema/**"
+      - "packages/workflo-utils/**"
+      - ".github/workflows/cli.yml"
 
 jobs:
   test:
