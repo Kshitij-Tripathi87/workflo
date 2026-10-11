@@ -1,0 +1,44 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_AARCH64"],
+  "comment": "Workflo default sandbox profile: deny-by-default (EPERM), minimal runtime allowlist. Anything not listed cannot execute.",
+  "syscalls": [
+    {
+      "names": [
+        "read", "write", "close", "pread64", "pwrite64", "readv", "writev",
+        "lseek", "dup", "dup2", "dup3", "pipe", "pipe2", "fcntl",
+        "openat", "openat2", "newfstatat", "fstat", "stat", "lstat",
+        "statx", "readlink", "readlinkat", "getdents64", "getcwd",
+        "access", "faccessat", "faccessat2",
+        "mkdir", "mkdirat", "rmdir", "unlink", "unlinkat",
+        "rename", "renameat", "renameat2",
+        "link", "linkat", "symlink", "symlinkat",
+        "chmod", "fchmod", "fchmodat", "umask", "truncate", "ftruncate",
+        "brk", "mmap", "mprotect", "munmap", "mremap", "madvise",
+        "rt_sigaction", "rt_sigprocmask", "rt_sigreturn", "sigaltstack",
+        "ioctl", "poll", "ppoll", "pselect6", "select", "epoll_create1",
+        "epoll_ctl", "epoll_wait", "epoll_pwait", "eventfd", "eventfd2",
+        "futex", "set_robust_list", "get_robust_list",
+        "nanosleep", "clock_nanosleep", "clock_gettime", "clock_getres",
+        "getpid", "gettid", "getppid", "getuid", "getgid", "geteuid", "getegid",
+        "getgroups", "getpgrp", "getpgid", "getsid", "setsid", "set_tid_address",
+        "clone", "clone3", "fork", "vfork", "wait4", "waitid",
+        "execve", "execveat", "exit", "exit_group",
+        "getrandom", "prctl", "arch_prctl",
+        "socket", "socketpair", "bind", "connect", "listen", "accept", "accept4",
+        "getsockname", "getpeername", "setsockopt", "getsockopt",
+        "sendto", "recvfrom", "sendmsg", "recvmsg", "shutdown",
+        "sched_yield", "sched_getaffinity", "sched_setaffinity",
+        "setpriority", "getpriority",
+        "memfd_create", "fallocate", "fsync", "fdatasync", "syncfs",
+        "copy_file_range", "sendfile", "splice", "tee",
+        "timer_create", "timer_settime", "timer_gettime",
+        "timerfd_create", "timerfd_settime", "timerfd_gettime",
+        "uname", "sysinfo", "getrlimit", "setrlimit", "prlimit64",
+        "getrusage", "times", "gettimeofday"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}
