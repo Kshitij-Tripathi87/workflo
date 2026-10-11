@@ -106,9 +106,9 @@ export default function PricingPage() {
                 }}
               >
                 Most popular
-            </div>
+              </div>
             )}
-            <h2 style={{ marginTop: 0 }}>{tier.name</h2>
+            <h2 style={{ marginTop: 0 }}>{tier.name}</h2>
             <div
               style={{
                 fontSize: 36,
@@ -117,11 +117,11 @@ export default function PricingPage() {
               }}
             >
               {tier.price}
-          </div>
+            </div>
             <div style={{ color: "var(--text-muted)", marginBottom: 16 }}>
               {tier.cadence}
-          </div>
-            <p style={{ color: "var(--text-dim)" }}>{tier.description</p>
+            </div>
+            <p style={{ color: "var(--text-dim)" }}>{tier.description}</p>
             <ul
               style={{
                 listStyle: "none",

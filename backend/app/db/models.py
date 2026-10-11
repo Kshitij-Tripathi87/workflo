@@ -2,16 +2,16 @@
 
 import uuid
 from datetime import datetime
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Float,
-    Text,
     DateTime,
+    Float,
     Index,
-    Boolean,
+    Integer,
+    String,
+    Text,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 

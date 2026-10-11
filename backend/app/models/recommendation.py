@@ -1,6 +1,7 @@
-from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Literal
 from uuid import uuid4
+
+from pydantic import BaseModel, Field
 
 RecommendationAction = Literal[
     "patch_sql",
@@ -23,5 +24,5 @@ class Recommendation(BaseModel):
     rationale: str
     confidence: float = 0.7
     risk: Literal["low", "medium", "high", "critical"] = "medium"
-    artifacts: List[str] = Field(default_factory=list)
-    fallback_action: Optional[RecommendationAction] = None
+    artifacts: list[str] = Field(default_factory=list)
+    fallback_action: RecommendationAction | None = None

@@ -8,16 +8,15 @@ Supported roles: admin, analyst, viewer.
 """
 
 import time
-from typing import Optional, Literal
 from dataclasses import dataclass
+from typing import Literal
 
-from jose import jwt, jwk
-from jose.exceptions import JWTError, ExpiredSignatureError
 import httpx
+from jose import jwk, jwt
+from jose.exceptions import ExpiredSignatureError, JWTError
 
+from app.core.exceptions import CortexAuthError
 from app.core.settings import settings
-from app.core.exceptions import CortexAuthError, CortexForbiddenError
-
 
 Role = Literal["admin", "analyst", "viewer"]
 
@@ -30,8 +29,8 @@ _JWKS_TTL_SECONDS = 300  # 5 minutes
 class User:
     """Authenticated user."""
     subject: str
-    email: Optional[str]
-    name: Optional[str]
+    email: str | None
+    name: str | None
     roles: list[Role]
 
     @property

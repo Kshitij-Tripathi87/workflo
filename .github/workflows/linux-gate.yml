@@ -1,5 +1,9 @@
 name: linux-gate
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Gate 3 of the launch candidate: the REAL sandbox path.
 # The unit/mock suite proves logic on every platform; THIS workflow proves
 # kernel-level isolation (bwrap + cgroups v2 + netns + seccomp + Landlock)
@@ -8,9 +12,9 @@ name: linux-gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, "p4/**", "arena/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "p4/**"]
   workflow_dispatch:
 
 permissions:
@@ -22,9 +26,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8f4b7f84864484a7bf31730abe267c3f869a2437  # v4.1.8
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4, commit resolved by current GitHub runner
 
-      - name: Preflight: verify isolation prerequisites exist
+      - name: "Preflight: verify isolation prerequisites exist"
         run: |
           echo "Checking for required scripts and test directories..."
           for path in \
@@ -46,42 +50,404 @@ jobs:
       # /opt/workflo/venv, and creates the /root/wf-fixture repo.
       # JUSTIFIED: Root required for cgroup/netns setup on Linux.
       - name: Provision isolation stack
+        id: provision
         run: sudo bash scripts/linux/setup_env.sh
 
+      # NOTE: this suite imports sibling packages (workflo_worker,
+      # sandbox_isolation, probe_engine, ...) that scripts/linux/setup_env.sh
+      # installs into /opt/workflo/venv - it is not self-contained.
       - name: Agent-layer unit suites (mock gate)
         run: |
           /opt/workflo/venv/bin/python -m pytest \
             packages/sandbox-runtime/tests \
             packages/workflo-schema/tests \
             --ignore packages/sandbox-runtime/tests/integration \
-            -q -x
+            -q -x --junitxml=/tmp/linux-gate-unit.xml
+
+      # Exit status alone cannot tell "476 tests verified isolation logic" from
+      # "the suite collected nothing and skipped the rest".
+      - name: Assert the unit suite actually executed
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          MIN_EXECUTED = 400  # suite currently executes 476; a lower number means tests vanished
+          path = "/tmp/linux-gate-unit.xml"
+          try:
+              root = ET.parse(path).getroot()
+          except FileNotFoundError:
+              sys.exit(f"::error::no junit report at {path} - the unit step did not run")
+
+          suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+          total = sum(int(s.get("tests", 0)) for s in suites)
+          skipped = sum(int(s.get("skipped", 0)) for s in suites)
+          failed = sum(int(s.get("failures", 0)) + int(s.get("errors", 0)) for s in suites)
+          executed = total - skipped
+          print(f"collected={total} executed={executed} skipped={skipped} failed={failed}")
+
+          if failed:
+              sys.exit(f"::error::{failed} unit test(s) failed")
+          if executed < MIN_EXECUTED:
+              sys.exit(f"::error::only {executed} unit tests executed (expected >= {MIN_EXECUTED})")
+          print(f"[ok] {executed} unit tests executed")
+          PY
 
       # JUSTIFIED: Root required for real namespace/cgroup/landlock testing.
       - name: Linux integration gate (root, real namespaces)
         run: |
           sudo -E /opt/workflo/venv/bin/python -m pytest \
-            packages/sandbox-runtime/tests/integration -q -v
+            packages/sandbox-runtime/tests/integration -q -v \
+            --junitxml=/tmp/linux-gate-integration.xml
 
+      # The authoritative isolation gate. These tests skip whenever a capability
+      # is missing (not root, no bwrap/nft/dnsmasq, runtime image absent, kernel
+      # without Landlock), so a half-provisioned runner would report "33 skipped,
+      # 0 failed" and exit 0 - a green gate that verified nothing. Skips are
+      # therefore a FAILURE here: a security test that only passes because the
+      # capability was skipped is not an authoritative security gate.
+      - name: Assert the integration gate actually executed
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          MIN_EXECUTED = 30  # suite has 33 tests; fewer means tests were removed
+          path = "/tmp/linux-gate-integration.xml"
+          try:
+              root = ET.parse(path).getroot()
+          except FileNotFoundError:
+              sys.exit(f"::error::no junit report at {path} - the integration step did not run")
+
+          suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+          total = sum(int(s.get("tests", 0)) for s in suites)
+          skipped = sum(int(s.get("skipped", 0)) for s in suites)
+          failed = sum(int(s.get("failures", 0)) + int(s.get("errors", 0)) for s in suites)
+          executed = total - skipped
+          print(f"collected={total} executed={executed} skipped={skipped} failed={failed}")
+
+          # Expand each skip into a concrete test name and reason. This is
+          # diagnostic only: every skip still fails the authoritative gate.
+          import os
+          skipped_cases = []
+          for suite in suites:
+              for case in suite.findall(".//testcase"):
+                  skipped_node = case.find("skipped")
+                  if skipped_node is not None:
+                      reason = (skipped_node.get("message") or "").strip()
+                      body = (skipped_node.text or "").strip()
+                      if body:
+                          reason = f"{reason}: {body}" if reason else body
+                      skipped_cases.append((
+                          case.get("classname", "<unknown>"),
+                          case.get("name", "<unnamed>"),
+                          reason or "no skip reason recorded",
+                      ))
+
+          problems = []
+          if skipped:
+              problems.append(
+                  f"{skipped} integration test(s) skipped, so the isolation claims were "
+                  "not fully exercised. Every skipped test must be investigated."
+              )
+          if executed < MIN_EXECUTED:
+              problems.append(f"only {executed} tests executed (expected >= {MIN_EXECUTED})")
+          if failed:
+              problems.append(f"{failed} test(s) failed")
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          summary = [
+              "## Linux isolation integration gate",
+              "",
+              f"- Collected: **{total}**",
+              f"- Executed: **{executed}**",
+              f"- Skipped: **{skipped}**",
+              f"- Failed/errors: **{failed}**",
+              "",
+          ]
+          if skipped_cases:
+              summary += ["### Skipped tests (gate failure)", ""]
+              for cls, name, reason in skipped_cases:
+                  entry = f"- `{cls}::{name}` — {reason}"
+                  print("SKIPPED TEST: " + entry)
+                  summary.append(entry)
+          if problems:
+              summary += ["", "### Gate failures", ""] + [f"- {p}" for p in problems]
+          else:
+              summary.append("All required integration tests executed without skips.")
+
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as handle:
+                  handle.write("\n".join(summary) + "\n")
+
+          if problems:
+              for problem in problems:
+                  escaped = (problem.replace("%", "%25").replace("\r", "%0D")
+                                    .replace("\n", "%0A").replace(":", "%3A").replace(",", "%2C"))
+                  print(f"::error title=Linux isolation gate::{escaped}")
+              for cls, name, reason in skipped_cases:
+                  detail = f"{cls}::{name}: {reason}"
+                  escaped = (detail.replace("%", "%25").replace("\r", "%0D")
+                                   .replace("\n", "%0A").replace(":", "%3A").replace(",", "%2C"))
+                  print(f"::error title=Skipped security test::{escaped}")
+              sys.exit(1)
+          print(f"[ok] isolation gate executed: {executed} tests, no skips")
+          PY
+
+      # These runs continue after an integration assertion failure, provided
+      # provisioning succeeded, so a failed gate still emits diagnostic receipts.
+      # A failed gate remains failed; this does not bypass the release criterion.
       # JUSTIFIED: Root required for bwrap + namespace isolation.
       - name: Namespaces golden run (tests tier)
+        if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/golden_run.sh
 
       # JUSTIFIED: Root required for deep-tier app + governed agent isolation.
-      - name: Agent golden run (deep tier: app + governed agent)
+      - name: "Agent golden run (deep tier: app + governed agent)"
+        if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/agent_golden_run.sh
 
       # JUSTIFIED: Root required for planner-mode isolation with real LLM.
       - name: Planner golden run (scripted LLM planner)
+        if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/planner_golden_run.sh
 
-      # Upload golden run artifacts for verification
-      - name: Upload golden run receipts
+      # Copy root-owned receipts into the workspace first. Artifact actions
+      # run as the hosted runner user and cannot traverse /root (mode 0700).
+      # Preserve the public key and the sibling evidence bundle so verification
+      # can run offline from a clean environment, independently of the producer.
+      - name: Collect golden run receipt bundles
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/artifacts/golden-runs"
+          mkdir -p "$ROOT"
+
+          # Copies from the root-owned sandbox preserve restrictive ownership
+          # and modes. Keep the collector usable by the runner even if any later
+          # assertion fails, so diagnostics can still be uploaded.
+          RUN_UID="$(id -u)"
+          RUN_GID="$(id -g)"
+          normalize_artifact_permissions() {
+            status=$?
+            trap - EXIT
+            if sudo test -d "$ROOT"; then
+              sudo chown -R "$RUN_UID:$RUN_GID" "$ROOT" 2>/dev/null || true
+              sudo chmod -R u+rwX "$ROOT" 2>/dev/null || true
+            fi
+            exit "$status"
+          }
+          trap normalize_artifact_permissions EXIT
+
+          for base in wf-golden wf-agent-golden wf-planner-golden; do
+            source_dir="/root/$base/.workflo/runs"
+            target_dir="$ROOT/$base"
+            mkdir -p "$target_dir"
+
+            if ! sudo test -d "$source_dir"; then
+              echo "::error::Missing golden-run output directory: $source_dir"
+              exit 1
+            fi
+
+            while IFS= read -r -d '' receipt; do
+              relative="${receipt#"$source_dir"/}"
+              run_target="$target_dir/$(dirname "$relative")"
+              mkdir -p "$run_target"
+
+              sudo cp "$receipt" "$run_target/receipt.json"
+              fingerprint="$(sudo python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("receipt", d)["public_key_fingerprint"])' "$receipt")"
+              # Prefer the producer-side sidecar. Older runs or custom HOME /
+              # WORKFLO_CONFIG_DIR settings may keep the key elsewhere, so fall
+              # back to a filesystem search by exact fingerprint filename.
+              key_source="$(dirname "$receipt")/receipt-key.pub.pem"
+              if ! sudo test -s "$key_source"; then
+                key_source="$(sudo find / -type f -name "${fingerprint}.pub.pem" \
+                  -not -path '/proc/*' -not -path '/sys/*' -not -path '/dev/*' \
+                  -print -quit 2>/dev/null || true)"
+              fi
+              if [ -z "$key_source" ] || ! sudo test -s "$key_source"; then
+                echo "::error::Missing signing public key for receipt fingerprint $fingerprint"
+                exit 1
+              fi
+              sudo cp "$key_source" "$run_target/receipt-key.pub.pem"
+
+              evidence_source="$(dirname "$receipt")/evidence"
+              if ! sudo test -s "$evidence_source/manifest.json" || ! sudo test -s "$evidence_source/events.jsonl"; then
+                echo "::error::Missing or incomplete evidence bundle next to $receipt"
+                exit 1
+              fi
+              sudo cp -a "$evidence_source" "$run_target/evidence"
+              # cp -a preserves root ownership/modes; normalize immediately
+              # before the subsequent unprivileged find/verifier traverses it.
+              sudo chown -R "$RUN_UID:$RUN_GID" "$run_target/evidence"
+              sudo chmod -R u+rwX "$run_target/evidence"
+              # GitHub artifact ZIPs omit empty directories. Preserve the full
+              # evidence tree (including empty logs/traces) in a nested tarball.
+              # The tar sits beside, not inside, evidence, so it does not change
+              # the receipt-bound directory hashes.
+              tar -cf "$run_target/evidence.tar" -C "$run_target" evidence
+              test -s "$run_target/evidence.tar"
+            done < <(sudo find "$source_dir" -type f -name receipt.json -print0)
+
+            # Preserve producer and in-run verifier logs; these are diagnostics,
+            # not substitutes for the clean-environment verification below.
+            for name in run.stdout run.stderr verify.stdout verify.stderr; do
+              if sudo test -f "/root/$base/$name"; then
+                sudo cp "/root/$base/$name" "$target_dir/$name"
+              fi
+            done
+          done
+
+          mkdir -p "$ROOT/diagnostics"
+          for report in /tmp/linux-gate-unit.xml /tmp/linux-gate-integration.xml; do
+            if sudo test -s "$report"; then
+              sudo cp "$report" "$ROOT/diagnostics/"
+            else
+              echo "::error::Expected JUnit report missing or empty: $report"
+              exit 1
+            fi
+          done
+
+          count="$(find "$ROOT" -type f -name receipt.json | wc -l)"
+          if [ "$count" -ne 3 ]; then
+            echo "::error::Expected 3 golden receipts; collected $count"
+            exit 1
+          fi
+          sudo chown -R "$(id -u):$(id -g)" "$ROOT"
+
+      # Verify from the collected bundle using explicit public-key and evidence
+      # paths. This does not rely on the producer's ~/.config/workflo/keys.
+      - name: Independent receipt and evidence verification
+        if: always() && steps.provision.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/artifacts/golden-runs"
+          mapfile -d '' receipts < <(find "$ROOT" -type f -name receipt.json -print0 | sort -z)
+          if [ "${#receipts[@]}" -ne 3 ]; then
+            echo "::error::Expected 3 receipts for independent verification; found ${#receipts[@]}"
+            exit 1
+          fi
+
+          mkdir -p "$ROOT/verification"
+          for receipt in "${receipts[@]}"; do
+            run_dir="$(dirname "$receipt")"
+            pubkey="$run_dir/receipt-key.pub.pem"
+            evidence="$run_dir/evidence"
+            log="$ROOT/verification/$(basename "$(dirname "$run_dir")")-$(basename "$run_dir").log"
+
+            test -s "$pubkey" || { echo "::error::Public key missing for $receipt"; exit 1; }
+            test -s "$evidence/manifest.json" || { echo "::error::Evidence manifest missing for $receipt"; exit 1; }
+            test -s "$evidence/events.jsonl" || { echo "::error::Evidence event ledger missing for $receipt"; exit 1; }
+
+            echo "==> Independent verification: $receipt"
+            /opt/workflo/venv/bin/workflo verify \
+              --receipt "$receipt" \
+              --pubkey "$pubkey" \
+              --evidence "$evidence" >"$log" 2>&1 || {
+                cat "$log"
+                echo "::error::Independent receipt/evidence verification failed: $receipt"
+                exit 1
+              }
+            cat "$log"
+          done
+
+          # Negative control: a modified signed field must be rejected by a
+          # separate verifier process. This catches accidentally permissive
+          # signature verification in the release candidate.
+          original="${receipts[0]}"
+          run_dir="$(dirname "$original")"
+          tampered="$ROOT/verification/tampered-receipt.json"
+          python3 - "$original" "$tampered" <<'PY'
+          import json, sys
+          src, dst = sys.argv[1:3]
+          doc = json.load(open(src, encoding="utf-8"))
+          receipt = doc.get("receipt", doc)
+          report = receipt.get("run_report") or {}
+          report["duration_seconds"] = float(report.get("duration_seconds") or 0) + 1.0
+          receipt["run_report"] = report
+          with open(dst, "w", encoding="utf-8") as f:
+              json.dump(doc, f, sort_keys=True)
+              f.write("\n")
+          PY
+
+          if /opt/workflo/venv/bin/workflo verify \
+            --receipt "$tampered" \
+            --pubkey "$run_dir/receipt-key.pub.pem" \
+            --evidence "$run_dir/evidence" >"$ROOT/verification/tampered-receipt.log" 2>&1; then
+            cat "$ROOT/verification/tampered-receipt.log"
+            echo "::error::Tampered receipt was accepted by independent verifier"
+            exit 1
+          fi
+          echo "Tamper negative control: rejected as expected"
+
+          # The raw evidence directories have been verified in this workspace.
+          # Ship the lossless tar representation only: Actions ZIP upload omits
+          # empty directories, which are significant to the current hash scheme.
+          for receipt in "${receipts[@]}"; do
+            run_dir="$(dirname "$receipt")"
+            test -s "$run_dir/evidence.tar" || {
+              echo "::error::Portable evidence archive missing for $receipt"
+              exit 1
+            }
+            rm -rf "$run_dir/evidence"
+          done
+
+      # Upload receipts, portable evidence archives, test reports, and
+      # independent-verifier logs for inspection from outside the runner.
+      - name: Upload golden run proof bundles
+        id: upload_proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: golden-run-receipts
-          path: |
-            /root/wf-golden/.workflo/runs/*/receipt.json
-            /root/wf-agent-golden/.workflo/runs/*/receipt.json
-            /root/wf-planner-golden/.workflo/runs/*/receipt.json
+          name: golden-run-proof-bundles
+          path: artifacts/golden-runs/
+          if-no-files-found: error
           retention-days: 30
+
+      # Validate the artifact as users actually receive it. The nested tar must
+      # restore empty directories before the evidence hashes are recomputed.
+      - name: Download uploaded proof bundle for portability check
+        if: ${{ always() && steps.upload_proof.outcome == 'success' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: golden-run-proof-bundles
+          path: ${{ runner.temp }}/workflo-proof-roundtrip
+
+      - name: Verify proof bundles after artifact download and extraction
+        if: ${{ always() && steps.upload_proof.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ runner.temp }}/workflo-proof-roundtrip"
+          mapfile -d '' receipts < <(find "$ROOT" -type f -name receipt.json -print0 | sort -z)
+          if [ "${#receipts[@]}" -ne 3 ]; then
+            echo "::error::Downloaded artifact must contain 3 receipts; found ${#receipts[@]}"
+            exit 1
+          fi
+
+          for receipt in "${receipts[@]}"; do
+            run_dir="$(dirname "$receipt")"
+            pubkey="$run_dir/receipt-key.pub.pem"
+            archive="$run_dir/evidence.tar"
+            test -s "$pubkey" || { echo "::error::Public key missing for $receipt"; exit 1; }
+            test -s "$archive" || { echo "::error::Portable evidence archive missing for $receipt"; exit 1; }
+
+            extract_dir="$RUNNER_TEMP/workflo-evidence-roundtrip-$(basename "$run_dir")"
+            rm -rf "$extract_dir"
+            mkdir -p "$extract_dir"
+            tar -xf "$archive" -C "$extract_dir"
+            evidence="$extract_dir/evidence"
+            test -s "$evidence/manifest.json" || { echo "::error::Extracted manifest missing for $receipt"; exit 1; }
+            test -s "$evidence/events.jsonl" || { echo "::error::Extracted events ledger missing for $receipt"; exit 1; }
+
+            echo "==> Verifying downloaded/extracted proof: $receipt"
+            /opt/workflo/venv/bin/workflo verify \
+              --receipt "$receipt" \
+              --pubkey "$pubkey" \
+              --evidence "$evidence"
+          done
+          echo "Downloaded proof portability check passed for all 3 receipts."

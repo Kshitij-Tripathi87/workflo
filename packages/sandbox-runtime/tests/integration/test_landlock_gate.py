@@ -156,32 +156,75 @@ class TestLandlockEnforcement:
         assert status["abi"] >= 1
 
 
+def _landlock_status(config: BwrapConfig) -> dict:
+    """Read the in-sandbox Landlock status file for this config.
+
+    The filename is derived from the workload tag exactly as bwrap.py derives
+    it (``landlock-status-<workload_type.value>.json``). Hardcoding a suffix
+    here once produced a path the sandbox never writes, which went unnoticed
+    only because the test always skipped.
+    """
+    tag = config.workload_type.value.lower()
+    status_path = Path(config.evidence_dir) / f"landlock-status-{tag}.json"
+    assert status_path.exists(), f"no landlock status file at {status_path}"
+    return json.loads(status_path.read_text())
+
+
 class TestCompatAndHardenedModes:
-    """Unsupported-kernel behavior (spec §5.3). Force-skipped when the
-    host HAS Landlock — the valid modes here are checked by unit tests;
-    what matters for the Linux gate is that a hardened run on a host
-    WITHOUT Landlock refuses to exec."""
+    """Mode behavior across kernel capability (spec §5.3).
+
+    These two tests used to force-skip whenever the host HAD Landlock. Every
+    CI runner ships a 5.13+ kernel, so they skipped unconditionally: the Linux
+    gate carried two permanent skips on a perfectly healthy environment, and
+    the branch that actually applies to production kernels — hardened must
+    ENFORCE, compatible must not silently DOWNGRADE — was asserted nowhere on
+    real hardware. A skip is indistinguishable from "never verified", so both
+    branches are now asserted for real and neither test opts out on capability.
+
+    The only remaining skips are the platform/provisioning ones from
+    ``_require_linux()``, which the gate treats as failures.
+    """
 
     def test_hardened_mode_fails_closed_without_landlock(self, tmp_path):
         if sys.platform != "linux":
             pytest.skip("Landlock gate is Linux-only")
-        if probe_abi() > 0:
-            pytest.skip("host supports Landlock — hardened refusal "
-                        "covered by mocked supervisor tests")
+        _require_linux()
+        abi = probe_abi()
         config = _config(tmp_path, mode="hardened", command=["/bin/sh", "-c",
-            "echo SHOULD_NEVER_RUN"])
+            "echo WORKLOAD_EXECUTED"])
         proc, stdout, stderr = _run_landlocked(config)
-        assert b"SHOULD_NEVER_RUN" not in stdout
+
+        if abi > 0:
+            # Capable kernel: hardened mode must ENFORCE and run the workload.
+            # Refusing to exec here would be a self-inflicted outage; running
+            # without applying Landlock would be the security defect.
+            assert proc.returncode == 0, (
+                f"hardened run failed on Landlock ABI {abi}: {stderr!r}")
+            assert b"WORKLOAD_EXECUTED" in stdout
+            status = _landlock_status(config)
+            assert status["status"] == "LANDLOCK_APPLIED"
+            assert status["abi"] == abi
+            return
+
+        # Incapable kernel: hardened mode must refuse BEFORE the workload execs.
+        assert b"WORKLOAD_EXECUTED" not in stdout
         assert proc.returncode == 125
 
     def test_compatible_mode_records_downgrade(self, tmp_path):
         if sys.platform != "linux":
             pytest.skip("Landlock gate is Linux-only")
-        if probe_abi() > 0:
-            pytest.skip("host supports Landlock")
+        _require_linux()
+        abi = probe_abi()
         config = _config(tmp_path, mode="compatible", command=["true"])
-        proc, _, _ = _run_landlocked(config)
-        assert proc.returncode == 0
-        status_path = Path(config.evidence_dir) / "landlock-status-test.json"
-        status = json.loads(status_path.read_text())
-        assert status["status"] == "UNSUPPORTED_KERNEL"
+        proc, _, stderr = _run_landlocked(config)
+        assert proc.returncode == 0, f"compatible run failed: {stderr!r}"
+        status = _landlock_status(config)
+
+        if abi > 0:
+            # "Compatible" must mean "tolerate older kernels", never "disable
+            # enforcement when the kernel does support it".
+            assert status["status"] == "LANDLOCK_APPLIED", (
+                "compatible mode dropped Landlock on a capable kernel")
+            assert status["abi"] == abi
+        else:
+            assert status["status"] == "UNSUPPORTED_KERNEL"

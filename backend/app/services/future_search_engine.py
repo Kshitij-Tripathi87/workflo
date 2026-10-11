@@ -1,1 +1,1 @@
-from app.engine.future_search_engine import generate_futures, _build_candidates  # noqa: F401
+from app.engine.future_search_engine import _build_candidates, generate_futures  # noqa: F401

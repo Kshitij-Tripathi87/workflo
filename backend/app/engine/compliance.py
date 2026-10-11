@@ -5,12 +5,16 @@ cryptographic receipt coverage directly to AICPA Trust Services Criteria
 (CC6.1 Logical Access / Integrity, CC7.2 System Operations & Monitoring).
 """
 
-from datetime import datetime, timezone
-from typing import Dict, List
 import uuid
+from datetime import UTC, datetime
+from typing import Literal
 
-from app.models.asset import AssetNode, GraphSnapshot
+from app.models.asset import GraphSnapshot
 from app.models.compliance import ComplianceReport, SOC2ControlStatus
+
+# Local aliases for the two status vocabularies this engine computes.
+ControlStatus = Literal["compliant", "warning", "non_compliant"]
+ReportStatus = Literal["passing", "needs_review", "failing"]
 
 
 class ComplianceEngine:
@@ -27,8 +31,8 @@ class ComplianceEngine:
                 total_assets=0,
             )
 
-        unowned_critical: List[str] = []
-        schema_issues: List[str] = []
+        unowned_critical: list[str] = []
+        schema_issues: list[str] = []
 
         for urn, node in graph.nodes.items():
             # Check ownership on high/critical assets (CC6.1)
@@ -43,7 +47,9 @@ class ComplianceEngine:
         # Calculate CC6.1 Score (Ownership & Access Integrity)
         cc6_1_violations = unowned_critical
         cc6_1_score = max(0.0, 100.0 - (len(cc6_1_violations) * 20.0))
-        cc6_1_status = "compliant" if not cc6_1_violations else ("warning" if cc6_1_score >= 60 else "non_compliant")
+        cc6_1_status: ControlStatus = (
+            "compliant" if not cc6_1_violations else ("warning" if cc6_1_score >= 60 else "non_compliant")
+        )
 
         cc6_1_recs = []
         if cc6_1_violations:
@@ -65,7 +71,7 @@ class ComplianceEngine:
         # Calculate CC7.2 Score (System Monitoring & Anomaly Detection)
         cc7_2_violations = schema_issues
         cc7_2_score = max(0.0, 100.0 - (len(cc7_2_violations) * 15.0))
-        cc7_2_status = "compliant" if not cc7_2_violations else ("warning" if cc7_2_score >= 60 else "non_compliant")
+        cc7_2_status: ControlStatus = "compliant" if not cc7_2_violations else ("warning" if cc7_2_score >= 60 else "non_compliant")
 
         cc7_2_recs = []
         if cc7_2_violations:
@@ -85,11 +91,11 @@ class ComplianceEngine:
         )
 
         overall_score = round((cc6_1_score + cc7_2_score) / 2.0, 1)
-        overall_status = "passing" if overall_score >= 85 else ("needs_review" if overall_score >= 60 else "failing")
+        overall_status: ReportStatus = "passing" if overall_score >= 85 else ("needs_review" if overall_score >= 60 else "failing")
 
         return ComplianceReport(
             report_id=f"soc2_{uuid.uuid4().hex[:8]}",
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             overall_compliance_score=overall_score,
             status=overall_status,
             controls={

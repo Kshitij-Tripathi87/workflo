@@ -37,16 +37,14 @@ from workflo_cli.artifacts import (
     EVIDENCE_INVALID,
     EVIDENCE_MISSING,
     EVIDENCE_NONE,
-    EVIDENCE_VALID,
-    FindingView,
     PROVENANCE_UNKNOWN,
     SIG_INVALID,
-    SIG_UNKNOWN,
     SIG_UNSIGNED,
     SIG_VALID,
     STATUS_VERIFIED,
     TEARDOWN_UNVERIFIED,
     TEARDOWN_VERIFIED,
+    FindingView,
     TrustContext,
     build_trust_context,
     select_findings,
@@ -54,10 +52,9 @@ from workflo_cli.artifacts import (
 )
 from workflo_cli.exit_codes import (
     EXIT_CONFIGURATION_ERROR,
-    EXIT_VERIFIED,
     EXIT_VERIFICATION_FAILED,
+    EXIT_VERIFIED,
 )
-
 
 # ---------------------------------------------------------------------------
 # Text rendering (7B.3)
@@ -188,12 +185,13 @@ def _privacy_lines(trust: TrustContext) -> list[str]:
     lines = ["PRIVACY"]
     aa = trust.receipt.agent_activity
     prov = aa.inference_provenance if aa else None
+    local = getattr(trust.receipt, "local_model_provenance", None)
     tp = trust.receipt.teardown_proof
     model_teardown = getattr(tp, "model_inference_teardown", None)
-    if prov is None and model_teardown is None:
+    if prov is None and local is None and model_teardown is None:
         lines.append(
-            "  No hosted inference recorded — no model was involved in "
-            "this run (or the receipt predates provenance recording)"
+            "  No inference recorded — no model was involved in this run "
+            "(or the receipt predates provenance recording)"
         )
         return lines
     if prov is not None:
@@ -209,6 +207,12 @@ def _privacy_lines(trust: TrustContext) -> list[str]:
             f"  Inference requests: {prov.requests} "
             f"(observations sent: {prov.observations_sent})"
         )
+    if local is not None:
+        lines.append("  Inference mode: local llama.cpp (loopback inside sandbox)")
+        lines.append(f"  Model: {local.model}")
+        lines.append(f"  Source code included locally: {local.source_code_included}")
+        lines.append(f"  Base model SHA-256: {local.base_model_sha256}")
+        lines.append(f"  Inference requests: {local.requests}")
     if model_teardown is not None:
         lines.append(f"  Model inference torn down: {model_teardown}")
     return lines
@@ -515,9 +519,10 @@ def _privacy_json(trust: TrustContext) -> Optional[dict]:
         return None
     aa = trust.receipt.agent_activity
     prov = aa.inference_provenance if aa else None
+    local = getattr(trust.receipt, "local_model_provenance", None)
     model_teardown = getattr(trust.receipt.teardown_proof,
                              "model_inference_teardown", None)
-    if prov is None and model_teardown is None:
+    if prov is None and local is None and model_teardown is None:
         return None
     doc: dict = {}
     if prov is not None:
@@ -528,6 +533,19 @@ def _privacy_json(trust: TrustContext) -> Optional[dict]:
             "inference_requests": prov.requests,
             "observations_sent": prov.observations_sent,
         })
+    if local is not None:
+        doc["local_inference"] = {
+            "backend": local.backend,
+            "model": local.model,
+            "endpoint_scope": local.endpoint_scope,
+            "source_code_included": local.source_code_included,
+            "requests": local.requests,
+            "inference_seconds": local.inference_seconds,
+            "server_image": local.server_image,
+            "base_model_sha256": local.base_model_sha256,
+            "adapter_sha256": dict(local.adapter_sha256),
+            "error": local.error,
+        }
     if model_teardown is not None:
         doc["model_inference_teardown"] = model_teardown
     return doc

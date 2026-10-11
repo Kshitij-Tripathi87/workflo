@@ -176,7 +176,13 @@ class TestPlannerLoop:
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
                 if plan_path.exists():
-                    plan = json.loads(plan_path.read_text())
+                    try:
+                        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, OSError):
+                        # Mirror the real agent runner: retry if a producer has
+                        # not finished publishing a protocol file yet.
+                        time.sleep(0.05)
+                        continue
                     if plan.get("seq", 0) > last_seq:
                         last_seq = plan["seq"]
                         observations = [execute_step(gw, s) for s in plan.get("steps", [])]
@@ -216,8 +222,11 @@ class TestPlannerLoop:
         assert gw.tool_calls == 3
         assert "http_get" in gw.tools_used
 
-    def test_budget_exhaustion_ends_loop(self, fake_llm, tmp_path):
+    def test_budget_exhaustion_ends_loop(self, fake_llm, tmp_path, monkeypatch):
         """The planner stops when the tool-call budget is exhausted."""
+        import sandbox_runtime.planner as planner_module
+        monkeypatch.setattr(planner_module, "OBSERVATION_WAIT_TIMEOUT", 0.05)
+
         FakeLLMHandler.plans = [
             {"done": False, "steps": [{"tool": "http_get", "args": {"url": "http://app.workflo.internal:1/x"}}]}
             for _ in range(10)
@@ -422,7 +431,13 @@ class TestGatewayMode:
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
                 if plan_path.exists():
-                    plan = json.loads(plan_path.read_text())
+                    try:
+                        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, OSError):
+                        # A concurrent writer may be replacing the protocol file;
+                        # retry rather than terminating the reader thread.
+                        time.sleep(0.05)
+                        continue
                     if plan.get("seq", 0) > last_seq:
                         last_seq = plan["seq"]
                         observations = [execute_step(gw, s) for s in plan.get("steps", [])]

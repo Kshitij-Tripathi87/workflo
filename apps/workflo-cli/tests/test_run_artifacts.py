@@ -9,10 +9,9 @@ teardown_attestation.json, receipt.json, receipt.sig.
 import json
 from datetime import UTC, datetime
 
-from workflo_cli.run_artifacts import materialize_run_artifacts
 from sandbox_isolation import generate_keypair
+from workflo_cli.run_artifacts import materialize_run_artifacts
 from workflo_schema.sandbox import (
-    AgentActivity,
     CanaryCheckResult,
     RunReport,
     SignedReceipt,
@@ -199,3 +198,37 @@ class TestMaterializeRunArtifacts:
         metrics = _json.loads((run_root / "run_metrics.json").read_text())
         assert metrics["model"] is None
         assert metrics["agent"]["planner"] == "task_spec"
+
+
+def test_local_model_provenance_projects_without_source(tmp_path):
+    receipt = _signed_receipt()
+    payload = receipt.model_dump()
+    payload["local_model_provenance"] = {
+        "backend": "llamacpp",
+        "model": "qwen-local",
+        "server_image": "image@sha256:" + "a" * 64,
+        "base_model_sha256": "b" * 64,
+        "adapter_sha256": {
+            "test-gen": "c" * 64,
+            "reasoning": "d" * 64,
+            "reporting": "e" * 64,
+        },
+        "endpoint_scope": "loopback",
+        "source_code_included": True,
+        "requests": 2,
+        "inference_seconds": 1.5,
+        "error": None,
+    }
+    receipt = SignedReceipt(**payload)
+    generate_keypair().sign(receipt)
+
+    run_root = tmp_path / "local-model-run"
+    materialize_run_artifacts(run_root, None, receipt=receipt)
+    provenance = json.loads((run_root / "provenance.json").read_text())
+    assert provenance["local_model"]["base_model_sha256"] == "b" * 64
+    assert "content" not in json.dumps(provenance).lower()
+
+    metrics = json.loads((run_root / "run_metrics.json").read_text())
+    assert metrics["model"]["backend"] == "llamacpp"
+    assert metrics["model"]["source_code_included"] is True
+    assert metrics["model"]["requests"] == 2

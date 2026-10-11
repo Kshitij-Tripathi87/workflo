@@ -143,12 +143,12 @@ export default function HomePage() {
                   color: "var(--accent-bright)",
                 }}
               >
-                <1ms
-           </div>
+                {"<1ms"}
+              </div>
               <div style={{ color: "var(--text-dim)", fontSize: 14 }}>
                 p95 simulation latency (synthetic benchmark, 10k changes)
-           </div>
-         </div>
+              </div>
+            </div>
             <div>
               <div
                 style={{
@@ -222,11 +222,11 @@ export default function HomePage() {
                 className="card"
                 style={{ textAlign: "center", padding: 16 }}
               >
-                <div style={{ fontWeight: 600 }}>{s.name</div>
+                <div style={{ fontWeight: 600 }}>{s.name}</div>
                 <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
                   {s.role}
-            </div>
-          </div>
+                </div>
+              </div>
             ))}
         </div>
       </div>

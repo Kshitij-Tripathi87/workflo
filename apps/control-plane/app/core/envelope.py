@@ -96,6 +96,30 @@ def is_enabled() -> bool:
     return bool(settings.master_kek_hex)
 
 
+def availability_error(cfg=None) -> str | None:
+    """None when credential encryption is usable, else the reason it is not.
+
+    Used by the fail-closed production startup guard: sealing credential
+    columns must not silently degrade to plaintext. The probe validates the key
+    material itself, so a malformed MASTER_KEK_HEX fails at startup rather than
+    on the first write, and it does not touch the cached provider (callers may
+    pass a settings object that is not the process-wide one).
+    """
+    cfg = cfg if cfg is not None else settings
+    if not cfg.master_kek_hex:
+        return "no KEK configured (set MASTER_KEK_HEX)"
+    if cfg.kek_provider != "static":
+        return (
+            f"kek_provider {cfg.kek_provider!r} not available in this build "
+            "(production deployments install a KMS provider implementing KEKProvider)"
+        )
+    try:
+        StaticKEKProvider(cfg.master_kek_hex)
+    except EnvelopeError as e:
+        return str(e)
+    return None
+
+
 def _get_provider() -> KEKProvider:
     global _provider
     if _provider is None:

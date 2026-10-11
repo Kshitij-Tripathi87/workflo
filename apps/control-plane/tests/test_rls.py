@@ -1,9 +1,10 @@
 """RLS defense-in-depth tests (SOC 2 CC6.1).
 
-The policies live in db/rls/001_tenant_rls.sql (applied by ops). Here we
-lock the application contract that feeds them: set_tenant_context binds
-the session GUC on Postgres, and is a strict no-op elsewhere — including
-when rls_enabled is False (default dev/test posture).
+The policies live in db/rls/001_tenant_rls.sql and are installed by the
+one-off schema bootstrap using a separate schema-owner role. Here we lock
+the application contract that feeds them: set_tenant_context binds the
+session GUC on Postgres, and is a strict no-op elsewhere — including when
+rls_enabled is False (default dev/test posture).
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -11,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.config import settings
-from app.db.database import set_tenant_context
+from app.db.database import set_tenant_context, set_api_key_lookup_mode
 
 
 def _session(dialect: str):
@@ -56,6 +57,35 @@ class TestSetTenantContext:
         assert params == {"pid": ""}
 
 
+    async def test_api_key_lookup_mode_is_transaction_local_on_postgres(self, monkeypatch):
+        monkeypatch.setattr(settings, "rls_enabled", True)
+        session = _session("postgresql")
+        await set_api_key_lookup_mode(session, enabled=True)
+        session.execute.assert_awaited_once()
+        stmt, params = session.execute.await_args.args
+        assert "set_config('app.api_key_lookup'" in str(stmt)
+        assert ", true)" in str(stmt)
+        assert params == {"mode": "on"}
+
+    async def test_api_key_lookup_mode_is_disabled_after_key_scan(self, monkeypatch):
+        monkeypatch.setattr(settings, "rls_enabled", True)
+        session = _session("postgresql")
+        await set_api_key_lookup_mode(session, enabled=False)
+        _stmt, params = session.execute.await_args.args
+        assert params == {"mode": "off"}
+
+    async def test_api_key_lookup_mode_is_noop_when_disabled_or_non_postgres(self, monkeypatch):
+        monkeypatch.setattr(settings, "rls_enabled", False)
+        session = _session("postgresql")
+        await set_api_key_lookup_mode(session, enabled=True)
+        session.execute.assert_not_called()
+
+        monkeypatch.setattr(settings, "rls_enabled", True)
+        session = _session("sqlite")
+        await set_api_key_lookup_mode(session, enabled=True)
+        session.execute.assert_not_called()
+
+
 class TestPolicySqlShipsAndIsReferenced:
     def test_policy_file_exists_and_covers_tenant_tables(self):
         from pathlib import Path
@@ -73,3 +103,5 @@ class TestPolicySqlShipsAndIsReferenced:
             )
         assert "FORCE ROW LEVEL SECURITY" in sql
         assert "current_setting('app.current_project_id', true)" in sql
+        assert "api_key_auth_lookup" in sql
+        assert "current_setting('app.api_key_lookup', true) = 'on'" in sql

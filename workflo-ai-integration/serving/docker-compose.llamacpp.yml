@@ -1,0 +1,68 @@
+# llama.cpp llama-server — DEFAULT serving backend for the AI adapters.
+#
+# CPU-only, MIT licensed, $0 GPU rental. Runs INSIDE the ephemeral sandbox
+# alongside the pytest/Hypothesis executor. Base GGUF loaded once; the three
+# adapters (test-gen, reasoning, reporting) are loaded at startup with
+# --lora-init-without-apply (scales 0.0) and activated per-request via the
+# `lora` field in model_router.py.
+#
+# The base and adapters must match the frozen artifact manifest. Adapters MUST
+# be GGUF; raw PEFT/Unsloth checkpoints require a separately pinned conversion
+# step before this file can load them.
+#
+# Isolation (P1/P3/P4): this compose file does not enforce --network none or
+# post-run wipe. The sandbox runner does. Don't treat the absence of a
+# published `ports:` mapping as the security boundary.
+#
+# P4 — deliberate omissions (verify these, don't assume):
+#   - ./models and ./adapters are :ro static assets only (weights/adapters),
+#     not per-run state. That is fine — they are not customer repo content.
+#   - --slot-save-path is NOT set (and must never be). That flag persists
+#     prompt-cache slots to disk and would write real repo content outside
+#     the sandbox teardown boundary. Same class of guarantee as "no external
+#     inference API": absence is the check, not a runtime assertion.
+#   - No writable host bind-mounts for caches, logs, or slot state.
+#
+# Before `docker compose up`, verify the frozen manifest and environment with
+# scripts/verify_artifact_manifest.py --check-env. Compose interpolation can
+# require a value but cannot itself validate the image-reference digest syntax.
+
+services:
+  llama-server:
+    # Required immutable image reference, e.g.
+    # ghcr.io/ggml-org/llama.cpp:server@sha256:<64 hex>.
+    image: "${WORKFLO_LLAMACPP_IMAGE:?set a digest-pinned llama.cpp image}"
+    command:
+      - "-m"
+      - "/models/base.gguf"
+      - "--port"
+      - "8080"
+      - "--host"
+      - "0.0.0.0"
+      - "--lora"
+      - "/adapters/test-gen.gguf"
+      - "--lora"
+      - "/adapters/reasoning.gguf"
+      - "--lora"
+      - "/adapters/reporting.gguf"
+      - "--lora-init-without-apply"
+      # Keep context modest — inference is on the critical path of every
+      # --deep-test / --security run inside a short-lived sandbox.
+      - "-c"
+      - "8192"
+      # DO NOT add --slot-save-path here. See P4 note above.
+    volumes:
+      - ./models:/models:ro
+      - ./adapters:/adapters:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # No published host port. The release worker starts llama-server inside
+    # its own namespace; this compose shape is for isolated artifact/model
+    # validation on a private container network only.
+    expose:
+      - "8080"

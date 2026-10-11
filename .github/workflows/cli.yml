@@ -6,9 +6,13 @@ on:
       - "apps/agent-cli/**"
       - "packages/workflo-schema/**"
       - "packages/workflo-utils/**"
+      - ".github/workflows/cli.yml"
   pull_request:
     paths:
       - "apps/agent-cli/**"
+      - "packages/workflo-schema/**"
+      - "packages/workflo-utils/**"
+      - ".github/workflows/cli.yml"
 
 jobs:
   test:
@@ -23,6 +27,7 @@ jobs:
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/workflo-utils
           pip install -e ./apps/agent-cli
+          pip install pytest
       - name: Run tests
         run: |
           cd apps/agent-cli && pytest -v

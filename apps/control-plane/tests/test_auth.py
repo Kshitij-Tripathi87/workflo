@@ -83,3 +83,29 @@ def test_key_hash_is_secure(client):
                 assert ":" in record.key_hash
     
     asyncio.run(_check())
+
+
+
+def test_unauthenticated_key_bootstrap_is_disabled_in_production(client, monkeypatch):
+    """The development convenience route must not let anonymous callers mint keys."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "production", False)
+    resp = client.post(
+        "/v1/keys",
+        json={"project_id": "default", "label": "unauthorized", "scopes": ["admin"]},
+    )
+    assert resp.status_code == 404
+    assert "disabled in production" in resp.json()["detail"]
+
+
+def test_demo_token_issuance_is_disabled_in_production(client, monkeypatch):
+    """The fixed demo credential cannot be minted by public callers in production."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "production", False)
+    resp = client.post("/v1/auth/demo-token")
+    assert resp.status_code == 404
+    assert "disabled in production" in resp.json()["detail"]

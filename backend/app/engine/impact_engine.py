@@ -1,8 +1,7 @@
-from app.models.asset import GraphSnapshot
-from app.models.scenario import ScenarioResult
-from app.models.impact import ImpactReport
 from app.engine.graph import get_all_downstream
-
+from app.models.asset import GraphSnapshot, Severity
+from app.models.impact import ImpactReport
+from app.models.scenario import ScenarioResult
 
 WEIGHT_DOWNSTREAM_COUNT = 10
 WEIGHT_DEPTH = 15
@@ -12,10 +11,10 @@ WEIGHT_ML_DEPENDENCY = 20
 WEIGHT_PIPELINE_STATUS = 20
 
 
-def _collect_affected_assets(snapshot: GraphSnapshot, start_urn: str) -> dict:
+def _collect_affected_assets(snapshot: GraphSnapshot, start_urn: str) -> dict[str, list[str]]:
     affected_urns = get_all_downstream(snapshot, start_urn)
 
-    affected = {
+    affected: dict[str, list[str]] = {
         "assets": [],
         "dashboards": [],
         "models": [],
@@ -36,7 +35,7 @@ def _collect_affected_assets(snapshot: GraphSnapshot, start_urn: str) -> dict:
     return affected
 
 
-def _compute_depth(snapshot: GraphSnapshot, start_urn: str, visited: set = None) -> int:
+def _compute_depth(snapshot: GraphSnapshot, start_urn: str, visited: set[str] | None = None) -> int:
     if visited is None:
         visited = set()
 
@@ -54,7 +53,7 @@ def _compute_depth(snapshot: GraphSnapshot, start_urn: str, visited: set = None)
     return max_depth
 
 
-def _has_ml_dependency(snapshot: GraphSnapshot, start_urn: str, visited: set = None) -> bool:
+def _has_ml_dependency(snapshot: GraphSnapshot, start_urn: str, visited: set[str] | None = None) -> bool:
     if visited is None:
         visited = set()
 
@@ -138,7 +137,7 @@ def analyze_impact(snapshot: GraphSnapshot, scenario_result: ScenarioResult) -> 
     )
 
     if severity_score >= 75:
-        severity = "critical"
+        severity: Severity = "critical"
     elif severity_score >= 50:
         severity = "high"
     elif severity_score >= 25:

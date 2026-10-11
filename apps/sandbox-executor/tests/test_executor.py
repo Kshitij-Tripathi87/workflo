@@ -10,19 +10,15 @@ from __future__ import annotations
 import json
 import subprocess
 from contextlib import contextmanager
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from workflo_executor import SandboxExecutor
 from workflo_executor.docker_runner import ContainerConfig, ContainerResult
 from workflo_schema.sandbox import (
-    CanaryCheckResult,
-    RunReport,
     SandboxSpec,
-    SignedReceipt,
     TeardownProof,
 )
 
@@ -67,6 +63,7 @@ def _fake_canary_success(target_host="https://example.com", timeout_seconds=3.0)
 def _fake_mount():
     """A fake EphemeralMount that doesn't touch the filesystem."""
     from pathlib import Path
+
     from sandbox_isolation.ephemeral_fs import EphemeralMount
     return EphemeralMount(
         sandbox_id="test-sandbox-001",
@@ -113,7 +110,6 @@ def _patched_orchestration(
     )
     full_stdout = container_stdout + "\n" + canary_line
 
-    from workflo_schema.sandbox import TeardownProof
 
     # Real tempdir so the executor's spec-file write succeeds.
     import tempfile as _tempfile
@@ -390,3 +386,48 @@ class TestContainerConfig:
         # default_factory=dict — empty dict when not set, NOT None
         assert config.tmpfs_mounts == {}
         assert config.tmpfs_mounts is not None
+
+
+class TestLocalModelProvenanceParsing:
+    def _result(self, line: str) -> ContainerResult:
+        return ContainerResult(
+            container_id="c",
+            returncode=0,
+            stdout=line,
+            stderr="",
+        )
+
+    def test_valid_provenance_is_parsed(self):
+        payload = {
+            "backend": "llamacpp",
+            "model": "qwen-test",
+            "server_image": "image@sha256:" + "a" * 64,
+            "base_model_sha256": "b" * 64,
+            "adapter_sha256": {
+                "test-gen": "c" * 64,
+                "reasoning": "d" * 64,
+                "reporting": "e" * 64,
+            },
+            "endpoint_scope": "loopback",
+            "source_code_included": True,
+            "requests": 1,
+            "inference_seconds": 0.25,
+            "error": None,
+        }
+        executor = SandboxExecutor(runtime=MagicMock())
+        provenance, error = executor._parse_local_model_provenance(
+            self._result("WORKFLO_LOCAL_MODEL_PROVENANCE: " + json.dumps(payload))
+        )
+        assert error is None
+        assert provenance is not None
+        assert provenance.model == "qwen-test"
+        assert provenance.adapter_sha256["reporting"] == "e" * 64
+
+    def test_invalid_provenance_fails_closed(self):
+        executor = SandboxExecutor(runtime=MagicMock())
+        provenance, error = executor._parse_local_model_provenance(
+            self._result('WORKFLO_LOCAL_MODEL_PROVENANCE: {"backend":"llamacpp"}')
+        )
+        assert provenance is None
+        assert error is not None
+        assert "invalid local-model provenance" in error

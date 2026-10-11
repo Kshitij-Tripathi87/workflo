@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 from app.core.settings import settings
 from app.models.autopilot import AutopilotStatus, AutopilotTask
@@ -31,13 +30,13 @@ class Autopilot:
     def __init__(
         self,
         context_store: ContextStore,
-        agent: Optional[CortexAgent] = None,
+        agent: CortexAgent | None = None,
     ) -> None:
         self.context_store = context_store
         self.agent = agent or CortexAgent(context_store=context_store)
         self._running = False
-        self._observer_task: Optional[asyncio.Task] = None
-        self._last_observation_at: Optional[datetime] = None
+        self._observer_task: asyncio.Task | None = None
+        self._last_observation_at: datetime | None = None
         self._lock = asyncio.Lock()  # serialize manual + auto tasks
 
     # ------------------------------------------------------------------
@@ -110,8 +109,8 @@ class Autopilot:
 
     async def _observe_once(self) -> None:
         """One pass over registered assets. Detects drift → enqueue task."""
-        from app.core.logging import logger
         from app.connectors import get_connector, list_connectors
+        from app.core.logging import logger
 
         if not list_connectors():
             import app.connectors  # noqa: F401 — trigger auto-registration
@@ -122,7 +121,7 @@ class Autopilot:
 
         # Group URNs by their previously stored connector so we poll each
         # connector only once per cycle.
-        by_connector: Dict[str, List[str]] = {}
+        by_connector: dict[str, list[str]] = {}
         for urn in urns:
             state = self.context_store.get_asset_state(urn)
             connector_name = (state or {}).get("connector", "datahub")
@@ -192,7 +191,7 @@ class Autopilot:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_autopilot: Optional[Autopilot] = None
+_autopilot: Autopilot | None = None
 
 
 def get_autopilot() -> Autopilot:
@@ -203,7 +202,7 @@ def get_autopilot() -> Autopilot:
     return _autopilot
 
 
-def reset_autopilot(autopilot: Optional[Autopilot] = None) -> None:
+def reset_autopilot(autopilot: Autopilot | None = None) -> None:
     """Replace or clear the singleton. Used by tests."""
     global _autopilot
     _autopilot = autopilot

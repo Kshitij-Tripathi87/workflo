@@ -6,7 +6,6 @@ GET  /autopilot/status    Return autopilot health and recent task log.
 GET  /autopilot/assets    List asset URNs the autopilot has observed.
 """
 
-from typing import Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -25,7 +24,7 @@ class TriggerRequest(BaseModel):
     asset_urn: str
     connector: str = "datahub"
     change_type: str = "auto_detected"
-    description: Optional[str] = None
+    description: str | None = None
     change: dict = Field(default_factory=dict)
 
 

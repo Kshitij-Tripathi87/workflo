@@ -1,4 +1,6 @@
-MOCK_ASSETS = {
+from typing import Any
+
+MOCK_ASSETS: dict[str, dict[str, Any]] = {
     "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)": {
         "urn": "urn:li:dataset:(urn:li:dataPlatform:postgres,orders,PROD)",
         "name": "orders",

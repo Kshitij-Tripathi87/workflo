@@ -24,9 +24,9 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       <div style={{ padding: 48, textAlign: "center", color: "#94a3b8" }}>
         <h2>Authentication required</h2>
         <p>Please sign in to access Cortex Autopilot</p>
-     </div>
+      </div>
     );
   }
 
-  return <>{children</>;
+  return <>{children}</>;
 }

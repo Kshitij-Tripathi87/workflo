@@ -10,7 +10,7 @@ Provides:
 
 import uuid
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from app.core.auth import User, extract_bearer_token, verify_token

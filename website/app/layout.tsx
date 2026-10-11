@@ -24,9 +24,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Nav />
-        <main>{children</main>
+        <main>{children}</main>
         <Footer />
-     </body>
-   </html>
+      </body>
+    </html>
   );
 }

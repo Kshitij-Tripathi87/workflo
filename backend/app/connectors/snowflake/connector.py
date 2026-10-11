@@ -16,13 +16,12 @@ Engineers can run this connector in three modes:
 The `snowflake-connector-python` package is imported lazily so this
 module can register itself even when the dep isn't installed.
 """
-from typing import Any, Optional
+from typing import Any
 
 from app.connectors.base import BaseConnector
 from app.connectors.registry import register
 from app.connectors.snowflake.config import SnowflakeConfig, snowflake_config_from_env
 from app.models.asset import AssetNode, GraphEdge, GraphSnapshot
-
 
 # --- URN helpers ----------------------------------------------------------
 
@@ -102,7 +101,7 @@ class SnowflakeConnector(BaseConnector):
     when no credentials are configured (so unit tests stay hermetic).
     """
 
-    def __init__(self, config: Optional[SnowflakeConfig] = None):
+    def __init__(self, config: SnowflakeConfig | None = None):
         self._config = config or snowflake_config_from_env()
         self._conn: Any = None
         self._connected = False
@@ -135,7 +134,7 @@ class SnowflakeConnector(BaseConnector):
         if cfg.password:
             auth["password"] = cfg.password
         elif cfg.private_key_path:
-            with open(cfg.private_key_path, "r") as f:
+            with open(cfg.private_key_path) as f:
                 auth["private_key"] = f.read()
         else:
             raise RuntimeError(
@@ -227,7 +226,7 @@ class SnowflakeConnector(BaseConnector):
         rows = self._execute(sql, (db, schema, name))
         return [r[0] for r in rows]
 
-    def _query_owner(self, db: str, schema: str, name: str) -> Optional[str]:
+    def _query_owner(self, db: str, schema: str, name: str) -> str | None:
         sql = (
             "SELECT OWNER FROM INFORMATION_SCHEMA.TABLES "
             "WHERE TABLE_CATALOG = %s AND TABLE_SCHEMA = %s AND TABLE_NAME = %s"

@@ -22,7 +22,7 @@ in dev / CI without an external dependency.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.settings import settings
 
@@ -32,7 +32,7 @@ class LlmResponse:
     """The bits of the OpenAI ChatCompletion response the agent cares about."""
 
     content: str
-    tool_calls: List[Dict[str, Any]]
+    tool_calls: list[dict[str, Any]]
     finish_reason: str
     raw: Any = None
 
@@ -42,10 +42,10 @@ class BaseLlmProvider:
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.2,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> LlmResponse:
         raise NotImplementedError
 
@@ -58,7 +58,7 @@ class OpenAiCompatibleProvider(BaseLlmProvider):
         api_key: str,
         base_url: str,
         model: str,
-        default_headers: Optional[Dict[str, str]] = None,
+        default_headers: dict[str, str] | None = None,
     ):
         # Lazy import so the openai package only needs to be installed
         # when the Autopilot actually runs.
@@ -79,12 +79,12 @@ class OpenAiCompatibleProvider(BaseLlmProvider):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.2,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> LlmResponse:
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": messages,
             "temperature": temperature,
@@ -100,7 +100,7 @@ class OpenAiCompatibleProvider(BaseLlmProvider):
         choice = completion.choices[0]
         message = choice.message
 
-        tool_calls: List[Dict[str, Any]] = []
+        tool_calls: list[dict[str, Any]] = []
         if message.tool_calls:
             import json
 
@@ -134,10 +134,10 @@ class DummyLlmProvider(BaseLlmProvider):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.2,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> LlmResponse:
         return LlmResponse(
             content=(

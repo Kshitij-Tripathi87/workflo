@@ -8,10 +8,9 @@ This is what lets Cortex move from "reporting impact" to "enforcing
 governance" — the difference between an advisory tool and infrastructure.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 Verdict = Literal["pass", "warn", "block"]
 
@@ -37,8 +36,8 @@ class Policy(BaseModel):
     model_config = {"extra": "forbid"}
 
     name: str = "default"
-    max_severity: Optional[float] = None
-    max_blast_radius: Optional[int] = None
+    max_severity: float | None = None
+    max_blast_radius: int | None = None
     require_owner: bool = False
     action: Verdict = "block"
 

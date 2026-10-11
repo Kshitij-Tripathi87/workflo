@@ -1,0 +1,260 @@
+name: P4 Gate 4 Real Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: "Exact 40-character commit SHA (must equal the dispatch ref HEAD)"
+        required: true
+        type: string
+      confirm_real_run:
+        description: "Type BUILD-REAL-GGUF-IMAGE to authorize the real build"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: p4-real-model-release
+  cancel-in-progress: false
+
+jobs:
+  gate4-real-artifacts:
+    runs-on: [self-hosted, linux, p4-staging]
+    environment: p4-staging
+    timeout-minutes: 240
+    env:
+      WORKFLO_LLAMACPP_MANIFEST: ${{ vars.WORKFLO_LLAMACPP_MANIFEST }}
+      WORKFLO_LLAMACPP_MODEL_ID: ${{ vars.WORKFLO_LLAMACPP_MODEL_ID }}
+      WORKFLO_LLAMACPP_IMAGE: ${{ vars.WORKFLO_LLAMACPP_IMAGE }}
+      WORKFLO_LLAMACPP_BASE_GGUF: ${{ vars.WORKFLO_LLAMACPP_BASE_GGUF }}
+      WORKFLO_LLAMACPP_BASE_SHA256: ${{ vars.WORKFLO_LLAMACPP_BASE_SHA256 }}
+      WORKFLO_LLAMACPP_TEST_GEN_GGUF: ${{ vars.WORKFLO_LLAMACPP_TEST_GEN_GGUF }}
+      WORKFLO_LLAMACPP_TEST_GEN_SHA256: ${{ vars.WORKFLO_LLAMACPP_TEST_GEN_SHA256 }}
+      WORKFLO_LLAMACPP_REASONING_GGUF: ${{ vars.WORKFLO_LLAMACPP_REASONING_GGUF }}
+      WORKFLO_LLAMACPP_REASONING_SHA256: ${{ vars.WORKFLO_LLAMACPP_REASONING_SHA256 }}
+      WORKFLO_LLAMACPP_REPORTING_GGUF: ${{ vars.WORKFLO_LLAMACPP_REPORTING_GGUF }}
+      WORKFLO_LLAMACPP_REPORTING_SHA256: ${{ vars.WORKFLO_LLAMACPP_REPORTING_SHA256 }}
+    steps:
+      - name: Checkout exact release candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.release_commit }}
+          fetch-depth: 1
+
+      - name: Validate exact checkout and protected configuration
+        env:
+          CONFIRMATION: ${{ inputs.confirm_real_run }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+          DISPATCH_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/p4-gate4-${GITHUB_RUN_ID}"
+          mkdir -p "$OUT"
+          printf '%s\n' '{"passed":false,"failure_class":"configuration"}' >"$OUT/configuration-validation.json"
+          [[ "$CONFIRMATION" == "BUILD-REAL-GGUF-IMAGE" ]] || {
+            echo "::error::Real build confirmation is invalid"; exit 1; }
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::release_commit must be a full lowercase SHA"; exit 1; }
+          [[ "$RELEASE_COMMIT" == "$DISPATCH_COMMIT" ]] || {
+            echo "::error::release_commit must equal the selected dispatch ref HEAD"; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$RELEASE_COMMIT" ]] || {
+            echo "::error::checkout does not match release_commit"; exit 1; }
+          [[ -z "$(git status --porcelain --untracked-files=no)" ]] || {
+            echo "::error::tracked checkout is not clean"; exit 1; }
+          command -v docker >/dev/null || {
+            echo "::error::Docker is required on the p4-staging runner"; exit 1; }
+          required=(
+            WORKFLO_LLAMACPP_MANIFEST WORKFLO_LLAMACPP_MODEL_ID
+            WORKFLO_LLAMACPP_IMAGE WORKFLO_LLAMACPP_BASE_GGUF
+            WORKFLO_LLAMACPP_BASE_SHA256 WORKFLO_LLAMACPP_TEST_GEN_GGUF
+            WORKFLO_LLAMACPP_TEST_GEN_SHA256 WORKFLO_LLAMACPP_REASONING_GGUF
+            WORKFLO_LLAMACPP_REASONING_SHA256 WORKFLO_LLAMACPP_REPORTING_GGUF
+            WORKFLO_LLAMACPP_REPORTING_SHA256
+          )
+          for name in "${required[@]}"; do
+            [[ -n "${!name:-}" ]] || {
+              echo "::error::Required p4-staging value is missing: $name"; exit 1; }
+          done
+          python3 workflo-ai-integration/scripts/verify_artifact_manifest.py \
+            "$WORKFLO_LLAMACPP_MANIFEST" --check-env \
+            --report "$OUT/manifest-verification.json"
+          printf '%s\n' '{"passed":true}' >"$OUT/configuration-validation.json"
+
+      - name: Stage ignored GGUF build inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, pathlib, shutil
+          pairs = {
+              "workflo-ai-integration/serving/models/base.gguf": "WORKFLO_LLAMACPP_BASE_GGUF",
+              "workflo-ai-integration/serving/adapters/test-gen.gguf": "WORKFLO_LLAMACPP_TEST_GEN_GGUF",
+              "workflo-ai-integration/serving/adapters/reasoning.gguf": "WORKFLO_LLAMACPP_REASONING_GGUF",
+              "workflo-ai-integration/serving/adapters/reporting.gguf": "WORKFLO_LLAMACPP_REPORTING_GGUF",
+          }
+          for destination, variable in pairs.items():
+              source = pathlib.Path(os.environ[variable]).resolve(strict=True)
+              target = pathlib.Path(destination)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              if target.exists() and target.resolve() == source:
+                  continue
+              target.unlink(missing_ok=True)
+              try:
+                  os.link(source, target)
+              except OSError:
+                  shutil.copyfile(source, target)
+          PY
+
+      - name: Prove six fail-closed negative image builds
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/p4-gate4-${GITHUB_RUN_ID}"
+          mutable_image="${WORKFLO_LLAMACPP_IMAGE%@sha256:*}"
+          malformed_image="${mutable_image}@sha256:${WORKFLO_LLAMACPP_IMAGE##*@sha256:}x"
+          wrong_test="$(python3 - <<'PY'
+          import os
+          value = os.environ['WORKFLO_LLAMACPP_TEST_GEN_SHA256']
+          print(('0' if value[0] != '0' else '1') + value[1:])
+          PY
+          )"
+          wrong_reasoning="$(python3 - <<'PY'
+          import os
+          value = os.environ['WORKFLO_LLAMACPP_REASONING_SHA256']
+          print(('0' if value[0] != '0' else '1') + value[1:])
+          PY
+          )"
+          common=(
+            --file apps/worker-engine/Dockerfile.deep
+            --build-arg "LLAMACPP_IMAGE=$WORKFLO_LLAMACPP_IMAGE"
+            --build-arg "WORKFLO_LLAMACPP_MODEL_ID=$WORKFLO_LLAMACPP_MODEL_ID"
+            --build-arg "WORKFLO_RELEASE_COMMIT=$RELEASE_COMMIT"
+            --build-arg "BASE_GGUF_SHA256=$WORKFLO_LLAMACPP_BASE_SHA256"
+            --build-arg "TEST_GEN_GGUF_SHA256=$WORKFLO_LLAMACPP_TEST_GEN_SHA256"
+            --build-arg "REASONING_GGUF_SHA256=$WORKFLO_LLAMACPP_REASONING_SHA256"
+            --build-arg "REPORTING_GGUF_SHA256=$WORKFLO_LLAMACPP_REPORTING_SHA256"
+          )
+          names=()
+          expect_rejected() {
+            local name="$1"; shift
+            set +e
+            docker build "${common[@]}" "$@" --tag "workflo-negative:${name}-${GITHUB_RUN_ID}" . \
+              >"/tmp/workflo-${GITHUB_RUN_ID}-${name}.log" 2>&1
+            local status=$?
+            set -e
+            docker image rm -f "workflo-negative:${name}-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
+            rm -f "/tmp/workflo-${GITHUB_RUN_ID}-${name}.log"
+            [[ $status -ne 0 ]] || {
+              echo "::error::Negative image build unexpectedly succeeded: $name"; exit 1; }
+            names+=("$name")
+          }
+          expect_rejected mutable-image --build-arg "LLAMACPP_IMAGE=$mutable_image"
+          expect_rejected malformed-image-digest --build-arg "LLAMACPP_IMAGE=$malformed_image"
+          expect_rejected missing-model-id --build-arg "WORKFLO_LLAMACPP_MODEL_ID="
+          expect_rejected malformed-base-sha --build-arg "BASE_GGUF_SHA256=abc"
+          expect_rejected wrong-test-gen-sha --build-arg "TEST_GEN_GGUF_SHA256=$wrong_test"
+          expect_rejected wrong-reasoning-sha --build-arg "REASONING_GGUF_SHA256=$wrong_reasoning"
+          printf '%s\n' "${names[@]}" | python3 -c '
+          import json, sys
+          names = [line.strip() for line in sys.stdin if line.strip()]
+          print(json.dumps({"passed": len(names) == 6, "cases": [
+              {"name": name, "rejected": True} for name in names
+          ]}, indent=2, sort_keys=True))
+          ' >"$OUT/negative-builds.json"
+
+      - name: Build and publish immutable deep image
+        id: image
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository="ghcr.io/kshitij-tripathi87/workflo-worker-deep"
+          tag="$repository:${RELEASE_COMMIT}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin >/dev/null
+          docker build \
+            --file apps/worker-engine/Dockerfile.deep \
+            --build-arg "LLAMACPP_IMAGE=$WORKFLO_LLAMACPP_IMAGE" \
+            --build-arg "WORKFLO_LLAMACPP_MODEL_ID=$WORKFLO_LLAMACPP_MODEL_ID" \
+            --build-arg "WORKFLO_RELEASE_COMMIT=$RELEASE_COMMIT" \
+            --build-arg "BASE_GGUF_SHA256=$WORKFLO_LLAMACPP_BASE_SHA256" \
+            --build-arg "TEST_GEN_GGUF_SHA256=$WORKFLO_LLAMACPP_TEST_GEN_SHA256" \
+            --build-arg "REASONING_GGUF_SHA256=$WORKFLO_LLAMACPP_REASONING_SHA256" \
+            --build-arg "REPORTING_GGUF_SHA256=$WORKFLO_LLAMACPP_REPORTING_SHA256" \
+            --tag "$tag" .
+          docker push "$tag" >/dev/null
+          deep_image="$(docker image inspect "$tag" --format '{{index .RepoDigests 0}}')"
+          [[ "$deep_image" =~ @sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Published deep image has no immutable repository digest"; exit 1; }
+          echo "deep_image=$deep_image" >>"$GITHUB_OUTPUT"
+          DEEP_IMAGE="$deep_image" python3 - <<'PY'
+          import json, os, pathlib
+          pathlib.Path(f"artifacts/p4-gate4-{os.environ['GITHUB_RUN_ID']}/release-identity.json").write_text(
+              json.dumps({
+                  "passed": True,
+                  "release_commit": os.environ["RELEASE_COMMIT"],
+                  "deep_image": os.environ["DEEP_IMAGE"],
+                  "base_image": os.environ["WORKFLO_LLAMACPP_IMAGE"],
+                  "model_id": os.environ["WORKFLO_LLAMACPP_MODEL_ID"],
+              }, indent=2, sort_keys=True) + "\n"
+          )
+          PY
+
+      - name: Verify deep image binding and embedded binary
+        env:
+          DEEP_IMAGE: ${{ steps.image.outputs.deep_image }}
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: |
+          python3 scripts/release/verify_deep_image.py \
+            --image "$DEEP_IMAGE" \
+            --manifest "$WORKFLO_LLAMACPP_MANIFEST" \
+            --commit "$RELEASE_COMMIT" \
+            --report "artifacts/p4-gate4-${GITHUB_RUN_ID}/deep-image-binding.json"
+
+      - name: Run real worker and reporting inference in immutable image
+        env:
+          DEEP_IMAGE: ${{ steps.image.outputs.deep_image }}
+        run: |
+          python3 scripts/release/run_deep_image_smoke.py \
+            --image "$DEEP_IMAGE" \
+            --out-dir "artifacts/p4-gate4-${GITHUB_RUN_ID}" \
+            --name "workflo-gate4-${GITHUB_RUN_ID}" \
+            --isolation-report "artifacts/p4-gate4-${GITHUB_RUN_ID}/container-isolation.json"
+
+      - name: Assert Gate 4 evidence completeness
+        env:
+          RELEASE_COMMIT: ${{ inputs.release_commit }}
+        run: |
+          python3 scripts/release/assert_p4_evidence.py \
+            --gate gate4 \
+            --root "artifacts/p4-gate4-${GITHUB_RUN_ID}" \
+            --commit "$RELEASE_COMMIT" \
+            --out "artifacts/p4-gate4-${GITHUB_RUN_ID}/evidence-index.json"
+
+      - name: Remove staged model files and containers
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f "workflo-gate4-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
+          rm -f \
+            workflo-ai-integration/serving/models/base.gguf \
+            workflo-ai-integration/serving/adapters/test-gen.gguf \
+            workflo-ai-integration/serving/adapters/reasoning.gguf \
+            workflo-ai-integration/serving/adapters/reporting.gguf
+          docker logout ghcr.io >/dev/null 2>&1 || true
+
+      - name: Upload Gate 4 report even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: p4-gate4-real-artifacts-${{ github.run_id }}
+          path: artifacts/p4-gate4-${{ github.run_id }}/
+          if-no-files-found: error
+          retention-days: 30

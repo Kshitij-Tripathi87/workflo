@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Literal
 from uuid import uuid4
+
+from pydantic import BaseModel, Field
 
 WritebackStatus = Literal["open", "triaged", "mitigated", "fixed", "dismissed"]
 
@@ -12,7 +13,7 @@ class WritebackRecord(BaseModel):
     asset_urn: str
     status: WritebackStatus = "open"
     summary: str
-    linked_artifact: Optional[str] = None
-    affected_assets: List[str] = Field(default_factory=list)
+    linked_artifact: str | None = None
+    affected_assets: list[str] = Field(default_factory=list)
     created_by: str = "system"
     created_at: datetime = Field(default_factory=datetime.utcnow)

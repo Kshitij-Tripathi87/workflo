@@ -4,13 +4,13 @@ Provides tamper-evident cryptographic receipts for all future searches,
 impact analysis runs, contract test executions, and remediation actions.
 """
 
-from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
 import secrets
-from typing import Any, Dict, List, Optional
 import uuid
+from datetime import UTC, datetime
+from typing import Any
 
 from app.models.receipt import (
     ReceiptVerificationResponse,
@@ -22,7 +22,7 @@ from app.models.receipt import (
 class ReceiptEngine:
     """Signs and verifies cryptographic receipts."""
 
-    def __init__(self, secret_key: Optional[str] = None):
+    def __init__(self, secret_key: str | None = None):
         self.secret_key = (secret_key or secrets.token_hex(32)).encode("utf-8")
         self.public_fingerprint = hashlib.sha256(self.secret_key).hexdigest()[:16]
 
@@ -30,9 +30,9 @@ class ReceiptEngine:
         self,
         action_type: str,
         asset_urn: str,
-        parameters: Dict[str, Any],
-        result_summary: Dict[str, Any],
-        soc2_controls: Optional[List[str]] = None,
+        parameters: dict[str, Any],
+        result_summary: dict[str, Any],
+        soc2_controls: list[str] | None = None,
         duration_seconds: float = 0.05,
     ) -> SignedReceipt:
         """Create an ephemeral teardown proof and cryptographically sign the receipt."""
@@ -47,7 +47,7 @@ class ReceiptEngine:
             container_removed=True,
             filesystem_removed=True,
             no_snapshot_retained=True,
-            destroyed_at=datetime.now(timezone.utc),
+            destroyed_at=datetime.now(UTC),
             session_duration_seconds=duration_seconds,
             peak_memory_mb=128,
         )
@@ -56,7 +56,7 @@ class ReceiptEngine:
             receipt_id=receipt_id,
             action_type=action_type,
             asset_urn=asset_urn,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             parameters_hash=param_hash,
             result_summary=result_summary,
             soc2_controls=soc2_controls or ["CC6.1", "CC7.2"],

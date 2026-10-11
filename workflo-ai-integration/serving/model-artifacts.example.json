@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "llama_cpp_image": "ghcr.io/ggml-org/llama.cpp:server@sha256:REPLACE_WITH_64_HEX",
+  "model": {
+    "id": "REPLACE_WITH_FROZEN_MODEL_ID",
+    "source": "REPLACE_WITH_CANONICAL_ARTIFACT_SOURCE",
+    "path": "models/base.gguf",
+    "sha256": "REPLACE_WITH_64_HEX"
+  },
+  "adapters": {
+    "test-gen": {
+      "source": "REPLACE_WITH_CANONICAL_ARTIFACT_SOURCE",
+      "path": "adapters/test-gen.gguf",
+      "sha256": "REPLACE_WITH_64_HEX"
+    },
+    "reasoning": {
+      "source": "REPLACE_WITH_CANONICAL_ARTIFACT_SOURCE",
+      "path": "adapters/reasoning.gguf",
+      "sha256": "REPLACE_WITH_64_HEX"
+    },
+    "reporting": {
+      "source": "REPLACE_WITH_CANONICAL_ARTIFACT_SOURCE",
+      "path": "adapters/reporting.gguf",
+      "sha256": "REPLACE_WITH_64_HEX"
+    }
+  }
+}

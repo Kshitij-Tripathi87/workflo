@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from app.models.scenario import ScenarioResult
-from app.models.impact import ImpactReport
-from app.services.graph_builder import build_snapshot
-from app.engine.impact_engine import analyze_impact
-from app.core.exceptions import CortexError
-from app.middleware.auth import get_current_user, require_role
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.core.auth import User
+from app.core.exceptions import CortexError
+from app.engine.impact_engine import analyze_impact
+from app.middleware.auth import require_role
+from app.models.impact import ImpactReport
+from app.models.scenario import ScenarioResult
+from app.services.graph_builder import build_snapshot
 
 router = APIRouter(prefix="/impact", tags=["impact"])
 

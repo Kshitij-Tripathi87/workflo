@@ -1,4 +1,5 @@
-from app.models import Incident, FixDraft
+from app.models import FixDraft, Incident
+
 
 def generate_fix(incident: Incident) -> FixDraft:
     if incident.incident_type == "schema_drift":

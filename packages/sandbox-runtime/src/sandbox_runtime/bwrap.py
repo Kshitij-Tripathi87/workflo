@@ -67,7 +67,7 @@ def build_bwrap_args(config: BwrapConfig, seccomp_fd: int = 3) -> list[str]:
     # at the RUN root next to seccomp.allow — never inside the evidence
     # bundle (its hashes must only cover run outputs).
     if config.landlock_rules:
-        args += ["--ro-bind", str(landlock_exec_src()), "/workflo/landlock_exec.py"]
+        args += ["--ro-bind", str(landlock_exec_src(config.readonly_root)), "/workflo/landlock_exec.py"]
         args += ["--ro-bind", str(landlock_rules_path(config)), "/workflo/landlock-rules.json"]
 
     # Per-run resolv.conf (PRIVATE network mode: point at the netns dnsmasq)
@@ -197,8 +197,19 @@ def run_bwrap(config: BwrapConfig, capture: bool = True,
             os.close(fd)
 
 
-def landlock_exec_src() -> Path:
-    """Host path of the standalone in-sandbox Landlock wrapper."""
+def landlock_exec_src(readonly_root: Path | None = None) -> Path:
+    """Host path of the standalone in-sandbox Landlock wrapper.
+
+    Prefer the immutable runtime image copy over a path in the checked-out
+    repository. The latter can be inaccessible to bwrap's nested user
+    namespace on hosted runners and is mutable relative to the tested image.
+    The package-adjacent path remains a fallback for unit/dev environments
+    that have not built the runtime image.
+    """
+    if readonly_root is not None:
+        image_copy = Path(readonly_root) / "workflo" / "landlock_exec.py"
+        if image_copy.is_file():
+            return image_copy
     from sandbox_runtime import landlock as _landlock
     return Path(_landlock.__file__).parent / "landlock_exec.py"
 

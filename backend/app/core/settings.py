@@ -1,5 +1,6 @@
-from typing import Literal, Optional
-from pydantic import Field, AnyHttpUrl, PostgresDsn
+from typing import Literal
+
+from pydantic import AnyHttpUrl, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,28 +20,28 @@ class Settings(BaseSettings):
     API_VERSION_PREFIX: str = "/api/v1"
 
     # DataHub
-    DATAHUB_BASE_URL: Optional[AnyHttpUrl] = None
-    DATAHUB_TOKEN: Optional[str] = None
+    DATAHUB_BASE_URL: AnyHttpUrl | None = None
+    DATAHUB_TOKEN: str | None = None
     USE_MOCK_DATAHUB: bool = True
     DATAHUB_TIMEOUT: int = 30
     DATAHUB_MAX_RETRIES: int = 3
     DATAHUB_RATE_LIMIT_RPS: float = 10.0
 
     # Auth (OIDC)
-    OIDC_ISSUER: Optional[str] = None
-    OIDC_CLIENT_ID: Optional[str] = None
-    OIDC_CLIENT_SECRET: Optional[str] = None
+    OIDC_ISSUER: str | None = None
+    OIDC_CLIENT_ID: str | None = None
+    OIDC_CLIENT_SECRET: str | None = None
     AUTH_REQUIRED: bool = True
     ACCESS_TOKEN_TTL_MINUTES: int = 15
 
     # Database
-    DATABASE_URL: Optional[PostgresDsn] = None
+    DATABASE_URL: PostgresDsn | None = None
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_ECHO: bool = False
 
     # Observability
-    OTEL_EXPORTER_OTLP_ENDPOINT: Optional[str] = None
+    OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
     ENABLE_TRACING: bool = False
     METRICS_ENABLED: bool = True
 
@@ -52,6 +53,11 @@ class Settings(BaseSettings):
 
     # Write-back
     WRITEBACK_PATH: str = "data/writeback.jsonl"
+    # Directory the JSONL mirror is confined to. Path traversal outside it is
+    # always rejected (see writeback._safe_resolve); this only makes the base
+    # explicit so test suites and deployments can keep the mirror out of the
+    # source tree.
+    WRITEBACK_DIR: str = "data"
 
     # Autopilot
     CORTEX_AUTOPILOT_ENABLED: bool = False
@@ -62,7 +68,7 @@ class Settings(BaseSettings):
 
     # LLM (Nvidia NIM by default — OpenAI-compatible)
     CORTEX_LLM_PROVIDER: Literal["nvidia", "openai", "none"] = "nvidia"
-    CORTEX_NVIDIA_API_KEY: Optional[str] = None
+    CORTEX_NVIDIA_API_KEY: str | None = None
     CORTEX_NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
     CORTEX_NVIDIA_MODEL: str = "nvidia/llama-3.1-nemotron-70b-instruct"
 

@@ -1,8 +1,7 @@
-from typing import Any, Optional
+from typing import Any
 
-from app.core.settings import settings
-from app.models.asset import AssetNode
 from app.connectors.datahub.mock_store import MOCK_ASSETS
+from app.core.settings import settings
 
 
 class MockDataHubClient:
@@ -56,13 +55,13 @@ class MockDataHubClient:
     def get_kind(self, urn: str) -> str:
         return self.get_asset(urn).get("kind", "dataset")
 
-    def get_status(self, urn: str) -> Optional[str]:
+    def get_status(self, urn: str) -> str | None:
         return self.get_asset(urn).get("status")
 
 
 class DataHubAdapter:
     def __init__(self):
-        self._sync_client: Optional[MockDataHubClient] = None
+        self._sync_client: MockDataHubClient | None = None
         self._async_client = None
 
     @property

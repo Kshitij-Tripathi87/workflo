@@ -1,5 +1,6 @@
 from copy import deepcopy
-from app.models.asset import GraphSnapshot, AssetNode
+
+from app.models.asset import AssetNode, GraphSnapshot, Severity
 from app.models.scenario import ScenarioRequest, ScenarioResult
 
 
@@ -72,7 +73,7 @@ def apply_scenario(snapshot: GraphSnapshot, request: ScenarioRequest) -> Scenari
             confidence=0.5
         )
 
-    breakages = []
+    breakages: list[str] = []
     modified_node = node
 
     if request.scenario_type == "schema_rename":
@@ -93,7 +94,7 @@ def apply_scenario(snapshot: GraphSnapshot, request: ScenarioRequest) -> Scenari
 
     snapshot.nodes[request.asset_urn] = modified_node
 
-    severity = "low"
+    severity: Severity = "low"
     if len(breakages) >= 3 or node.criticality == "critical":
         severity = "critical"
     elif len(breakages) >= 2 or node.criticality == "high":

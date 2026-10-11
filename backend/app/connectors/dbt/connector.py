@@ -11,18 +11,17 @@ Snapshots are cached based on file mtime+size so a re-triggered PR with
 no manifest changes is served from memory.
 """
 from pathlib import Path
-from typing import Optional
 
 from app.connectors.base import BaseConnector
-from app.connectors.registry import register
 from app.connectors.dbt.config import dbt_config_from_env
 from app.connectors.dbt.parser import (
-    parse_manifest,
-    parse_catalog,
     build_snapshot_from_dbt,
+    parse_catalog,
+    parse_manifest,
 )
-from app.core.snapshot_cache import get_snapshot_cache, make_cache_key
+from app.connectors.registry import register
 from app.core.exceptions import ConnectorManifestMissingError
+from app.core.snapshot_cache import get_snapshot_cache, make_cache_key
 from app.models.asset import AssetNode, GraphSnapshot
 
 
@@ -41,7 +40,7 @@ class DbtConnector(BaseConnector):
     `connect()` so that a missing manifest doesn't break imports.
     """
 
-    def __init__(self, manifest_path: Optional[str] = None, catalog_path: Optional[str] = None):
+    def __init__(self, manifest_path: str | None = None, catalog_path: str | None = None):
         cfg = dbt_config_from_env()
         self._manifest_path = Path(manifest_path) if manifest_path else cfg["manifest_path"]
         self._catalog_path = Path(catalog_path) if catalog_path else cfg["catalog_path"]

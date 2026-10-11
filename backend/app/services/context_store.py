@@ -17,19 +17,18 @@ back to an in-memory dict so the Autopilot still works end-to-end.
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from app.core.logging import logger
 from app.core.settings import settings
 from app.models.autopilot import AutopilotTask, ContextDocument
-
 
 # ---------------------------------------------------------------------------
 # Schema hash helper (used by the observer loop to detect changes)
 # ---------------------------------------------------------------------------
 
-def compute_schema_hash(schema_fields: List[str]) -> str:
+def compute_schema_hash(schema_fields: list[str]) -> str:
     """Stable hash of a schema so we can detect drift cheaply."""
     normalized = sorted(f.lower() for f in (schema_fields or []))
     return hashlib.sha1("|".join(normalized).encode("utf-8")).hexdigest()
@@ -43,7 +42,7 @@ class _InMemoryStore:
     """Minimal fallback when chromadb isn't installed (CI / dev without deps)."""
 
     def __init__(self):
-        self._docs: Dict[str, Dict[str, Any]] = {}
+        self._docs: dict[str, dict[str, Any]] = {}
 
     def add(self, ids, documents, metadatas):
         for i, doc, meta in zip(ids, documents, metadatas):
@@ -82,24 +81,64 @@ class ContextStore:
 
     def __init__(self) -> None:
         self._chroma = self._init_chroma()
-        self._asset_state_cache: Dict[str, Dict[str, Any]] = {}
-        self._task_log: List[AutopilotTask] = []
+        self._asset_state_cache: dict[str, dict[str, Any]] = {}
+        self._task_log: list[AutopilotTask] = []
 
     # -- Chroma -----------------------------------------------------------
     def _init_chroma(self):
+        """Return a ChromaDB collection, or the in-memory fallback.
+
+        The fallback must engage not only when chromadb is absent but also when
+        its embedding model is unusable. ChromaDB's default embedder downloads
+        its model on first use, so in an offline deployment - including the
+        ``--network none`` sandbox this product runs in - every upsert/query
+        fails. Previously that degradation was silent: retrieval just returned
+        nothing while the object still looked healthy.
+
+        Readiness is therefore *probed* here, and every downgrade is logged.
+        """
         try:
             import chromadb
-        except ImportError:
+        except ImportError as e:
+            logger.warning(
+                "context_store.chroma_unavailable",
+                reason=f"chromadb not installed: {e}",
+                fallback="in_memory",
+            )
             return _InMemoryStore()
 
         path = settings.CORTEX_CHROMA_PATH
+        try:
+            from chromadb.utils import embedding_functions
+
+            embedder = embedding_functions.DefaultEmbeddingFunction()
+            embedder(["readiness probe"])  # first call downloads/loads the model
+        except Exception as e:
+            logger.warning(
+                "context_store.chroma_embedding_unavailable",
+                reason=f"{type(e).__name__}: {e}",
+                detail=(
+                    "ChromaDB's embedding model could not be loaded (it is "
+                    "fetched on first use). Semantic retrieval would silently "
+                    "return nothing."
+                ),
+                fallback="in_memory",
+            )
+            return _InMemoryStore()
+
         try:
             client = chromadb.PersistentClient(path=path)
             self._collection = client.get_or_create_collection(
                 name=settings.CORTEX_CHROMA_COLLECTION,
             )
             return self._collection
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "context_store.chroma_init_failed",
+                reason=f"{type(e).__name__}: {e}",
+                path=path,
+                fallback="in_memory",
+            )
             return _InMemoryStore()
 
     # -- RAG retrieval ----------------------------------------------------
@@ -107,8 +146,8 @@ class ContextStore:
         self,
         query: str,
         k: int = 5,
-        where: Optional[Dict[str, Any]] = None,
-    ) -> List[ContextDocument]:
+        where: dict[str, Any] | None = None,
+    ) -> list[ContextDocument]:
         """Top-k most relevant context entries for `query`."""
         if not query or not query.strip():
             return []
@@ -122,7 +161,12 @@ class ContextStore:
                 n_results=k,
                 where=where,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "context_store.retrieve_failed",
+                reason=f"{type(e).__name__}: {e}",
+                query=query[:120],
+            )
             return []
 
         documents = result.get("documents", [[]])
@@ -133,7 +177,7 @@ class ContextStore:
         metas = metadatas[0] if metadatas else []
         dists = distances[0] if distances else []
 
-        out: List[ContextDocument] = []
+        out: list[ContextDocument] = []
         for idx, text in enumerate(docs):
             dist = dists[idx] if idx < len(dists) else 1.0
             meta = metas[idx] if idx < len(metas) else {}
@@ -152,10 +196,10 @@ class ContextStore:
         self,
         asset_urn: str,
         connector: str,
-        name: Optional[str] = None,
-        owner: Optional[str] = None,
-        schema_fields: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        name: str | None = None,
+        owner: str | None = None,
+        schema_fields: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Record the latest observed state of an asset.
 
@@ -204,10 +248,10 @@ class ContextStore:
         )
         return changed
 
-    def get_asset_state(self, asset_urn: str) -> Optional[Dict[str, Any]]:
+    def get_asset_state(self, asset_urn: str) -> dict[str, Any] | None:
         return self._asset_state_cache.get(f"asset:{asset_urn}")
 
-    def list_registered_assets(self) -> List[str]:
+    def list_registered_assets(self) -> list[str]:
         return [
             v["asset_urn"] for v in self._asset_state_cache.values()
         ]
@@ -231,7 +275,7 @@ class ContextStore:
             },
         )
 
-    def recent_tasks(self, limit: int = 10) -> List[AutopilotTask]:
+    def recent_tasks(self, limit: int = 10) -> list[AutopilotTask]:
         return list(reversed(self._task_log[-limit:]))
 
     def total_tasks(self) -> int:
@@ -246,7 +290,7 @@ class ContextStore:
             return 0
 
     # -- Internals --------------------------------------------------------
-    def _index_document(self, doc_id: str, text: str, metadata: Dict[str, Any]) -> None:
+    def _index_document(self, doc_id: str, text: str, metadata: dict[str, Any]) -> None:
         if isinstance(self._chroma, _InMemoryStore):
             self._chroma.add([doc_id], [text], [metadata])
             return
@@ -256,5 +300,9 @@ class ContextStore:
                 documents=[text],
                 metadatas=[metadata],
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "context_store.index_failed",
+                reason=f"{type(e).__name__}: {e}",
+                doc_id=doc_id,
+            )

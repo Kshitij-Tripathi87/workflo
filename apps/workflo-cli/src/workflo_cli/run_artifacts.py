@@ -33,7 +33,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
 
-
 ARTIFACT_MANIFEST_VERSION = 1
 
 
@@ -97,6 +96,12 @@ def materialize_run_artifacts(
         ) or {}
         provenance.setdefault("receipt_version", receipt.receipt_version)
         provenance.setdefault("sandbox_id", receipt.sandbox_id)
+        local_model = getattr(receipt, "local_model_provenance", None)
+        if local_model is not None:
+            provenance["local_model"] = (
+                local_model if isinstance(local_model, dict)
+                else local_model.model_dump(mode="json")
+            )
         _write_json(run_root / "provenance.json", provenance)
         written.append(str(run_root / "provenance.json"))
     except OSError as e:
@@ -172,7 +177,13 @@ def materialize_run_artifacts(
             activity if isinstance(activity, dict)
             else (activity.model_dump(mode="json") if activity is not None else None)
         )
-        inference = (activity_doc or {}).get("inference_provenance") or None
+        hosted_inference = (activity_doc or {}).get("inference_provenance") or None
+        local_model = getattr(receipt, "local_model_provenance", None)
+        local_inference = (
+            local_model if isinstance(local_model, dict)
+            else (local_model.model_dump(mode="json") if local_model is not None else None)
+        )
+        inference = hosted_inference or local_inference
         run_state: dict = {}
         rs_path = run_root / "run_state.json"
         if rs_path.exists():
@@ -199,8 +210,11 @@ def materialize_run_artifacts(
                 "steps_completed": (activity_doc or {}).get("steps_completed"),
             } if activity_doc else None,
             "model": {
+                "backend": inference.get("backend") or inference.get("mode"),
                 "model": inference.get("model"),
                 "requests": inference.get("requests"),
+                "source_code_included": inference.get("source_code_included"),
+                "base_model_sha256": inference.get("base_model_sha256"),
                 "input_tokens": inference.get("input_tokens"),
                 "output_tokens": inference.get("output_tokens"),
                 "inference_seconds": inference.get("inference_seconds"),

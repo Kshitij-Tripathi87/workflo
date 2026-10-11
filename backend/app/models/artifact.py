@@ -1,6 +1,7 @@
-from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Literal
 from uuid import uuid4
+
+from pydantic import BaseModel, Field
 
 ArtifactType = Literal["sql", "dbt", "dag", "yaml", "markdown"]
 
@@ -12,5 +13,5 @@ class ArtifactDraft(BaseModel):
     artifact_type: ArtifactType
     title: str
     body: str
-    file_path: Optional[str] = None
+    file_path: str | None = None
     confidence: float = 0.75

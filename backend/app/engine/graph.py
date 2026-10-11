@@ -1,13 +1,14 @@
-from typing import List
 
 from app.models.asset import GraphSnapshot
 
 
-def get_all_downstream(snapshot: GraphSnapshot, start_urn: str, visited: set = None) -> List[str]:
+def get_all_downstream(
+    snapshot: GraphSnapshot, start_urn: str, visited: set[str] | None = None
+) -> list[str]:
     if visited is None:
         visited = set()
 
-    result = []
+    result: list[str] = []
     node = snapshot.nodes.get(start_urn)
     if not node:
         return result

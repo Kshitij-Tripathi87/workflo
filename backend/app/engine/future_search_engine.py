@@ -1,22 +1,23 @@
-from uuid import uuid4
 from copy import deepcopy
-from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from datetime import UTC, datetime
+from uuid import uuid4
 
-from app.models.asset import GraphSnapshot, AssetNode
-from app.models.scenario import ScenarioRequest
-from app.models.future import FutureScenario, FuturePlan
-from app.engine.scenario_engine import apply_scenario
+from app.engine.explanation_builder import build_explanation
 from app.engine.impact_engine import analyze_impact
 from app.engine.recommendation_ranker import rank_candidates
-from app.engine.explanation_builder import build_explanation
+from app.engine.scenario_engine import apply_scenario
+from app.models.asset import GraphSnapshot
+from app.models.future import FuturePlan, FutureScenario
+from app.models.future import ScenarioType as FutureScenarioType
+from app.models.scenario import ScenarioRequest
+from app.models.scenario import ScenarioType as AppScenarioType
 
 
 def _build_candidates(
     snapshot: GraphSnapshot,
     asset_urn: str,
-) -> List[Tuple[str, str, dict, int]]:
-    candidates: List[Tuple[str, str, dict, int]] = []
+) -> list[tuple[AppScenarioType, FutureScenarioType, dict, int]]:
+    candidates: list[tuple[AppScenarioType, FutureScenarioType, dict, int]] = []
     node = snapshot.nodes.get(asset_urn)
 
     if node is None:
@@ -64,9 +65,9 @@ def generate_futures(
     snapshot: GraphSnapshot,
     asset_urn: str,
     objective: str = "minimize incident risk",
-    constraints: Dict = None
+    constraints: dict | None = None
 ) -> FuturePlan:
-    candidates: List[FutureScenario] = []
+    candidates: list[FutureScenario] = []
     constraints = constraints or {}
 
     scenario_candidates = _build_candidates(snapshot, asset_urn)
@@ -138,5 +139,5 @@ def generate_futures(
         ranked_choice=ranked_choice,
         rationale=f"Selected {ranked_choice.scenario_type} because it best balances risk, effort, and benefit for the objective: {objective}.",
         explanation=explanation,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )

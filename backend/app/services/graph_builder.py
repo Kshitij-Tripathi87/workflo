@@ -1,6 +1,6 @@
-from typing import List
-from app.models.asset import AssetNode, GraphEdge, GraphSnapshot
+
 from app.connectors.datahub.client import DataHubClient
+from app.models.asset import AssetNode, EdgeType, GraphEdge, GraphSnapshot
 
 client = DataHubClient()
 
@@ -24,7 +24,7 @@ def _asset_to_node(urn: str) -> AssetNode:
     )
 
 
-def _infer_edge_type(source: AssetNode, target: AssetNode) -> str:
+def _infer_edge_type(source: AssetNode, target: AssetNode) -> EdgeType:
     """Infer edge type based on asset kinds."""
     if target.kind == "model":
         return "trains"
@@ -35,14 +35,14 @@ def _infer_edge_type(source: AssetNode, target: AssetNode) -> str:
     return "downstream_of"
 
 
-def build_snapshot(center_urns: List[str]) -> GraphSnapshot:
+def build_snapshot(center_urns: list[str]) -> GraphSnapshot:
     """
     Build a graph snapshot centered around given assets.
     Includes the center assets plus their immediate upstream and downstream neighbors.
     """
     nodes: dict[str, AssetNode] = {}
-    edges: List[GraphEdge] = []
-    
+    edges: list[GraphEdge] = []
+
     # Collect all URNs to include (centers + neighbors)
     all_urns = set(center_urns)
     for urn in center_urns:
@@ -53,14 +53,14 @@ def build_snapshot(center_urns: List[str]) -> GraphSnapshot:
             all_urns.update(downstream)
         except KeyError:
             continue
-    
+
     # Load all nodes
     for urn in all_urns:
         try:
             nodes[urn] = _asset_to_node(urn)
         except KeyError:
             continue
-    
+
     # Build edges from lineage relationships
     for urn, node in nodes.items():
         # Downstream edges
@@ -82,7 +82,7 @@ def build_snapshot(center_urns: List[str]) -> GraphSnapshot:
                     edge_type="upstream_of",
                     confidence=0.95
                 ))
-    
+
     return GraphSnapshot(nodes=nodes, edges=edges)
 
 

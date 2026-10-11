@@ -357,3 +357,80 @@ class TestAutopilotApi:
         body = res.json()
         assert body["task"]["status"] in ("completed", "blocked")
         assert body["task"]["asset_urn"] == "urn:api:trigger"
+
+
+class TestContextStoreDegradation:
+    """Silent degradation is the failure mode, not retrieval itself.
+
+    ChromaDB's default embedder downloads its model on first use, so in an
+    offline deployment - including the ``--network none`` sandbox this product
+    runs in - every upsert/query fails. Before this was fixed the fallback only
+    engaged when chromadb was *absent*, so RAG silently returned nothing while
+    the store looked healthy.
+    """
+
+    def test_falls_back_when_embedding_model_is_unusable(self, tmp_path, monkeypatch):
+        import chromadb.utils.embedding_functions as ef_module
+        import structlog
+
+        class _BrokenEmbedder:
+            def __init__(self, *a, **k):
+                pass
+
+            def __call__(self, *a, **k):
+                raise RuntimeError("simulated offline model download failure")
+
+        monkeypatch.setattr(ef_module, "DefaultEmbeddingFunction", _BrokenEmbedder)
+        monkeypatch.setattr(
+            "app.services.context_store.settings.CORTEX_CHROMA_PATH",
+            str(tmp_path / "chromadb"),
+        )
+
+        with structlog.testing.capture_logs() as logs:
+            store = ContextStore()
+
+        # 1. The fallback engaged even though chromadb imported fine.
+        from app.services.context_store import _InMemoryStore
+
+        assert isinstance(store._chroma, _InMemoryStore)
+
+        # 2. The downgrade is observable, not silent.
+        assert any(
+            entry.get("event") == "context_store.chroma_embedding_unavailable"
+            and entry.get("fallback") == "in_memory"
+            for entry in logs
+        ), f"expected a degradation warning, got: {[e.get('event') for e in logs]}"
+
+        # 3. Retrieval keeps working in-memory instead of returning nothing.
+        store.store_task(
+            AutopilotTask(
+                asset_urn="urn:li:dataset:orders",
+                connector="dbt",
+                description="orders column removal",
+                summary="orders column removal",
+            )
+        )
+        docs = store.retrieve_context("orders", k=5)
+        assert any("orders" in d.text.lower() for d in docs)
+
+    def test_query_failure_is_logged_not_swallowed(self, tmp_path, monkeypatch):
+        import structlog
+
+        monkeypatch.setattr(
+            "app.services.context_store.settings.CORTEX_CHROMA_PATH",
+            str(tmp_path / "chromadb"),
+        )
+        store = ContextStore()
+
+        class _FailingCollection:
+            def query(self, *a, **k):
+                raise RuntimeError("simulated vector store failure")
+
+        monkeypatch.setattr(store, "_chroma", _FailingCollection())
+
+        with structlog.testing.capture_logs() as logs:
+            assert store.retrieve_context("orders", k=5) == []
+
+        assert any(
+            entry.get("event") == "context_store.retrieve_failed" for entry in logs
+        ), f"expected a retrieve_failed log, got: {[e.get('event') for e in logs]}"

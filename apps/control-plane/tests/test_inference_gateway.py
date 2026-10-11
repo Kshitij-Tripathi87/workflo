@@ -169,6 +169,7 @@ class TestGatewayPrivacy:
         sent_prompt = FakeUpstreamHandler.calls[-1]["messages"][1]["content"]
         assert "sk-live-secret-value-123" not in sent_prompt
         assert "<redacted>" in sent_prompt
+        assert resp.json()["provenance"]["redactions_applied"] >= 1
 
     def test_unknown_tool_in_observation_rejected(self, client, fake_upstream):
         headers = _demo_headers(client)

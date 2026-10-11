@@ -80,7 +80,12 @@ fi
 # "Can't create file at ...: Read-only file system". The Landlock wrapper
 # and its rules JSON are RO-bound per run (bwrap.py), so create the
 # placeholder destinations here. The real content arrives per run.
-touch "$IMAGE/workflo/landlock_exec.py" "$IMAGE/workflo/landlock-rules.json"
+# Put the standalone wrapper inside the pinned runtime rootfs. Binding it
+# from the Actions checkout can fail under the nested user-namespace mount
+# path (EACCES); the runtime image is the stable, read-only source of truth.
+cp "$REPO_ROOT/packages/sandbox-runtime/src/sandbox_runtime/landlock_exec.py" \
+   "$IMAGE/workflo/landlock_exec.py"
+touch "$IMAGE/workflo/landlock-rules.json"
 
 # --- Minimal /etc ---
 cp /etc/passwd "$IMAGE/etc/passwd"

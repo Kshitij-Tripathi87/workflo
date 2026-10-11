@@ -18,10 +18,8 @@ Catalog sections:
 """
 import json
 from pathlib import Path
-from typing import Any
 
-from app.models.asset import AssetNode, GraphEdge, GraphSnapshot
-
+from app.models.asset import AssetKind, AssetNode, GraphEdge, GraphSnapshot
 
 MODEL_PREFIX = "model."
 SOURCE_PREFIX = "source."
@@ -47,7 +45,7 @@ def _urn_for_node(node_id: str, raw: dict) -> str:
     return f"urn:dbt:node:{node_id}"
 
 
-def _kind_for(raw: dict) -> str:
+def _kind_for(raw: dict) -> AssetKind:
     rt = raw.get("resource_type", "model")
     if rt in ("model", "seed", "snapshot"):
         return "dataset"
@@ -95,7 +93,7 @@ def parse_manifest(manifest_path: Path) -> tuple[dict[str, AssetNode], list[Grap
 
     # Models, seeds, snapshots
     for node_id, raw in nodes_raw.items():
-        if not raw.get("resource_type") in ("model", "seed", "snapshot"):
+        if raw.get("resource_type") not in ("model", "seed", "snapshot"):
             continue
         urn = _urn_for_node(node_id, raw)
         urn_by_id[node_id] = urn
@@ -190,7 +188,7 @@ def _column_names(raw: dict) -> list[str]:
 
 
 def _load_json(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

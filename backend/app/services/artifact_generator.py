@@ -1,6 +1,5 @@
+from app.models.artifact import ArtifactDraft, ArtifactType
 from app.models.recommendation import Recommendation
-from app.models.artifact import ArtifactDraft
-
 
 # Templates for each (action_type, scenario_type) pair
 ARTIFACT_TEMPLATES = {
@@ -18,7 +17,7 @@ ALTER TABLE {table_name} RENAME COLUMN {old_name} TO {new_name};
 
 -- Option 1: Create compatibility view
 CREATE OR REPLACE VIEW {table_name}_compat AS
-SELECT 
+SELECT
     *,
     NULL AS {removed_column}  -- Placeholder for removed column
 FROM {table_name};
@@ -82,8 +81,8 @@ retry_task = PythonOperator(
     dag=dag,
 )
 """,
-    ("assign_owner", "owner_missing"): f"""# Ownership Assignment Template
-# Asset: {{asset_name}}
+    ("assign_owner", "owner_missing"): """# Ownership Assignment Template
+# Asset: {asset_name}
 
 ## Action Required
 Assign a responsible owner for this asset.
@@ -189,7 +188,7 @@ def _get_template(action_type: str, scenario_type: str) -> str:
     key = (action_type, scenario_type)
     if key in ARTIFACT_TEMPLATES:
         return ARTIFACT_TEMPLATES[key]
-    
+
     # Fallback to generic template
     return f"""# {action_type.replace('_', ' ').title()} Template
 # Scenario: {scenario_type}
@@ -222,7 +221,7 @@ def generate_artifact(
     Uses deterministic templates - no LLM.
     """
     template = _get_template(recommendation.action_type, scenario_type)
-    
+
     # Build context for template
     context = {
         "asset_name": asset_name,
@@ -238,11 +237,11 @@ def generate_artifact(
         "deprecation_date": kwargs.get("deprecation_date", "TBD"),
         **kwargs
     }
-    
+
     body = _fill_template(template, context)
-    
+
     # Determine artifact type based on action
-    type_mapping = {
+    type_mapping: dict[str, ArtifactType] = {
         "patch_sql": "sql",
         "patch_dbt": "dbt",
         "patch_dag": "dag",
@@ -252,9 +251,9 @@ def generate_artifact(
         "archive_asset": "markdown",
         "escalate": "markdown",
     }
-    
-    artifact_type = type_mapping.get(recommendation.action_type, "markdown")
-    
+
+    artifact_type: ArtifactType = type_mapping.get(recommendation.action_type, "markdown")
+
     return ArtifactDraft(
         recommendation_id=recommendation.recommendation_id,
         artifact_type=artifact_type,

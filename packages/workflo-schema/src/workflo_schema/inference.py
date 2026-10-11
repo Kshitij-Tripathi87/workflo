@@ -276,6 +276,11 @@ class InferenceProvenance(BaseModel):
     model: str = Field(max_length=128)
     requests: int = Field(default=0, ge=0, le=1000)
     observations_sent: int = Field(default=0, ge=0, le=100000)
+    redactions_applied: int = Field(
+        default=0,
+        ge=0,
+        description="Count of secret-like values redacted before upstream dispatch.",
+    )
     source_code_included: Literal[False] = False
     observation_sha256: Optional[str] = Field(default=None, min_length=64, max_length=64)
     prompt_sha256: Optional[str] = Field(default=None, min_length=64, max_length=64)

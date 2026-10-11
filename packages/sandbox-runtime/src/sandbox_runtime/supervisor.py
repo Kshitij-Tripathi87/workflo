@@ -34,7 +34,11 @@ from sandbox_runtime.deps import DepConfig, resolve_dependencies
 from sandbox_runtime.workloads import (
     run_app_workload, run_test_workload, run_agent_workload, run_browser_workload
 )
-from sandbox_runtime.evidence import EvidenceCollector
+from sandbox_runtime.evidence import (
+    EvidenceCollector,
+    metadata_only_enabled,
+    metadata_only_value,
+)
 from sandbox_runtime.teardown import (
     TeardownVerification,
     teardown_and_verify,
@@ -138,18 +142,24 @@ class Supervisor:
         return "hardened" if mode == "hardened" else "compatible"
 
     def emit(self, event: str, detail: dict = None):
+        full_detail = _json_safe(detail or {})
+        retained_detail = (
+            metadata_only_value(full_detail) if metadata_only_enabled() else full_detail
+        )
         evt = {
             "event": event,
             "timestamp": datetime.now(UTC).isoformat(),
-            "detail": _json_safe(detail or {}),
+            "detail": retained_detail,
         }
         self.lifecycle_events.append(evt)
-        event_id = self.evidence.write_event(event, evt["detail"])
+        # EvidenceCollector applies the same metadata-only policy itself; pass
+        # the original detail so it is transformed exactly once.
+        event_id = self.evidence.write_event(event, full_detail)
         # Console mirror (best-effort: the ledger is the authority).
         state = getattr(self, "_run_state", None)
         if state is not None:
             try:
-                state.on_event(event, evt["detail"])
+                state.on_event(event, retained_detail)
             except Exception:
                 pass
         return event_id
@@ -763,6 +773,11 @@ class Supervisor:
         The payload is a SignedReceipt-compatible dict. The caller (CLI /
         daemon) signs it — the private key never enters the supervisor.
         """
+        # Landlock status is an operational artifact. Read it before the
+        # protected acceptance mode irreversibly replaces retained payload
+        # files with hash/size commitments.
+        landlock_applied, landlock_reason = self._landlock_outcome()
+        self.evidence.redact_retained_payloads()
         manifest_path = self.evidence.finalize(
             self.lifecycle_events,
             self.config.sandbox_id,
@@ -820,7 +835,41 @@ class Supervisor:
         # host kernel probe, in-sandbox landlock-status files, cgroup
         # attach results. This is an attestation of the execution
         # environment, not of the workload.
-        landlock_applied, landlock_reason = self._landlock_outcome()
+
+        collection_error = test_result.get("collection_error")
+        retained_findings = list(self._findings)
+        retained_agent_activity = self.agent_activity
+        if metadata_only_enabled():
+            def _string_commitment(value):
+                if not value:
+                    return None
+                metadata = metadata_only_value(str(value))
+                return f"sha256:{metadata['sha256']};bytes:{metadata['bytes']}"
+
+            collection_error = _string_commitment(collection_error)
+            canary_fields["error"] = _string_commitment(canary_fields.get("error"))
+            if proof_fields.get("model_inference_error"):
+                proof_fields["model_inference_error"] = _string_commitment(
+                    proof_fields["model_inference_error"]
+                )
+            retained_findings = [
+                {
+                    "outcome": finding.get("status", "recorded"),
+                    "sha256": metadata_only_value(
+                        json.dumps(finding, sort_keys=True, default=str)
+                    )["sha256"],
+                }
+                for finding in retained_findings
+            ]
+            if retained_agent_activity is not None:
+                retained_agent_activity = json.loads(json.dumps(retained_agent_activity))
+                retained_agent_activity["mission"] = None
+                retained_agent_activity["planner_note"] = None
+                inference = retained_agent_activity.get("inference_provenance")
+                if isinstance(inference, dict):
+                    inference["gateway_url"] = None
+                    if inference.get("error"):
+                        inference["error"] = _string_commitment(inference["error"])
 
         payload = {
             "sandbox_id": self.config.sandbox_id,
@@ -834,11 +883,11 @@ class Supervisor:
                 "failed": test_result.get("failed", 0),
                 "skipped": test_result.get("skipped", 0),
                 "duration_seconds": test_result.get("duration_seconds", 0.0),
-                "collection_error": test_result.get("collection_error"),
+                "collection_error": collection_error,
                 # Judge output (Day 10/11): findings derived deterministically
-                # from the agent's governed records. Empty when no agent tier
-                # ran or nothing failed — never model-invented certainty.
-                "findings": list(self._findings),
+                # from the agent's governed records. Protected acceptance keeps
+                # only each finding's outcome and hash commitment.
+                "findings": retained_findings,
             },
             "teardown_proof": proof_fields,
             "canary_check": canary_fields,
@@ -852,7 +901,7 @@ class Supervisor:
                 for evt in self.lifecycle_events
             ],
             "evidence_binding": binding,
-            "agent_activity": self.agent_activity,
+            "agent_activity": retained_agent_activity,
             "security_attestation": {
                 "security_mode": self.security_mode,
                 "landlock": {

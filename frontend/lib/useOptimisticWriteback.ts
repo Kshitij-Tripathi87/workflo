@@ -30,9 +30,12 @@ export function useOptimisticWriteback() {
       const optimisticRecord: WritebackRecord = {
         record_id: `optimistic-${Date.now()}`,
         asset_urn: assetUrn,
-        status: "processing",
+        // "open" is the backend's status for a freshly recorded resolution.
+        // The optimistic UI state ("processing") lives in `status` below —
+        // the record itself must carry a status the API can round-trip.
+        status: "open",
         summary: "Recording resolution...",
-        linked_artifact: artifact ? { artifact_id: "pending" } : null,
+        linked_artifact: artifact ? artifact.artifact_id : null,
         affected_assets: [],
         created_by: "user",
         created_at: new Date().toISOString(),

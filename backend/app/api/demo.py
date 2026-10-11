@@ -1,22 +1,23 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Any, Dict, Optional
+from typing import Any
 
-from app.models.scenario import ScenarioRequest, ScenarioResult
-from app.models.impact import ImpactReport
-from app.models.recommendation import Recommendation
-from app.models.artifact import ArtifactDraft
-from app.models.writeback import WritebackRecord
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from app.connectors.datahub.client import DataHubClient
-from app.services.graph_builder import build_snapshot
-from app.engine.scenario_engine import apply_scenario
-from app.engine.impact_engine import analyze_impact
-from app.services.recommendation_engine import recommend_action
-from app.services.artifact_generator import generate_artifact
-from app.services.writeback_service import writeback_service
-from app.middleware.auth import get_current_user, require_role
 from app.core.auth import User
 from app.core.exceptions import CortexError
+from app.engine.impact_engine import analyze_impact
+from app.engine.scenario_engine import apply_scenario
+from app.middleware.auth import require_role
+from app.models.artifact import ArtifactDraft
+from app.models.impact import ImpactReport
+from app.models.recommendation import Recommendation
+from app.models.scenario import ScenarioRequest, ScenarioResult, ScenarioType
+from app.models.writeback import WritebackRecord
+from app.services.artifact_generator import generate_artifact
+from app.services.graph_builder import build_snapshot
+from app.services.recommendation_engine import recommend_action
+from app.services.writeback_service import writeback_service
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 client = DataHubClient()
@@ -25,9 +26,9 @@ client = DataHubClient()
 class DemoRequest(BaseModel):
     """Request to run the full demo flow."""
     asset_urn: str
-    scenario_type: str = "schema_remove"
-    change: Optional[Dict[str, Any]] = None
-    notes: Optional[str] = None
+    scenario_type: ScenarioType = "schema_remove"
+    change: dict[str, Any] | None = None
+    notes: str | None = None
 
 
 class DemoResponse(BaseModel):
@@ -99,5 +100,5 @@ def run_demo(request: DemoRequest, user: User = Depends(require_role("analyst"))
         raise HTTPException(status_code=404, detail=f"Asset not found: {e}")
     except CortexError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")

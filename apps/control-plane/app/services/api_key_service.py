@@ -15,6 +15,12 @@ class ApiKeyService:
 
     async def create_key(self, project_id: str, label: str = "", scopes: list[str] | None = None) -> tuple[str, ApiKey]:
         """Create a new API key. Returns (raw_key, api_key_record)."""
+        from app.db.database import set_tenant_context
+
+        # Under production FORCE RLS, the project must be bound before looking
+        # it up or inserting it. For a new project the known target ID is the
+        # tenant context; for an existing project this scopes the query.
+        await set_tenant_context(self.db, project_id)
         # Ensure the project exists FIRST so the key's hash can be sealed
         # under the owning org's DEK (project → org resolution).
         project = await self.db.get(Project, project_id)
@@ -50,9 +56,18 @@ class ApiKeyService:
         under the owning org's DEK before the PBKDF2 check. Legacy
         plaintext hashes verify unchanged.
         """
+        from app.db.database import set_api_key_lookup_mode, set_tenant_context
+
         stmt = select(ApiKey)
         result = await self.db.execute(stmt)
-        for record in result.scalars():
+        # Materialize rows while the dedicated lookup policy is enabled, then
+        # disable it before processing candidates. The remaining table/DEK
+        # access and the last_used update are constrained to one project at a
+        # time using the normal transaction-local tenant context.
+        records = list(result.scalars())
+        await set_api_key_lookup_mode(self.db, enabled=False)
+        for record in records:
+            await set_tenant_context(self.db, record.project_id)
             stored_hash = await envelope.reveal_for_project(
                 self.db, record.project_id, record.key_hash
             )

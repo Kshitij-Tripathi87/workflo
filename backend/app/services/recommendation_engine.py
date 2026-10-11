@@ -1,9 +1,9 @@
+from app.models.asset import Severity
 from app.models.impact import ImpactReport
-from app.models.recommendation import Recommendation
-
+from app.models.recommendation import Recommendation, RecommendationAction
 
 # Decision rules: scenario_type -> (primary_action, fallback_action, title, rationale)
-RECOMMENDATION_RULES = {
+RECOMMENDATION_RULES: dict[str, tuple[RecommendationAction, RecommendationAction, str, str]] = {
     "schema_rename": (
         "patch_sql",
         "patch_dbt",
@@ -43,24 +43,26 @@ RECOMMENDATION_RULES = {
 }
 
 
-def _select_action(scenario_type: str, impact: ImpactReport) -> tuple:
+def _select_action(
+    scenario_type: str, impact: ImpactReport
+) -> tuple[RecommendationAction, RecommendationAction, str, str]:
     """Select primary and fallback action based on scenario and impact."""
     rule = RECOMMENDATION_RULES.get(scenario_type, RECOMMENDATION_RULES["auto_detected"])
-    
+
     primary, fallback, title, rationale = rule
-    
+
     # Escalate if severity is critical and no owner
     if impact.severity == "critical" and not any("owner" in e.lower() for e in impact.explanation):
         fallback = "escalate"
-    
+
     # If ML models affected, prefer dbt patch over SQL
     if impact.affected_models and primary == "patch_sql":
         primary = "patch_dbt"
-    
+
     return primary, fallback, title, rationale
 
 
-def _compute_risk(impact: ImpactReport) -> str:
+def _compute_risk(impact: ImpactReport) -> Severity:
     """Compute risk level based on impact severity and affected assets."""
     if impact.severity == "critical":
         return "critical"
@@ -74,19 +76,19 @@ def _compute_risk(impact: ImpactReport) -> str:
 def _compute_confidence(scenario_type: str, impact: ImpactReport) -> float:
     """Compute confidence based on scenario type and impact clarity."""
     base_confidence = 0.7
-    
+
     # Higher confidence for well-understood scenarios
     if scenario_type in ["schema_rename", "schema_remove"]:
         base_confidence += 0.1
-    
+
     # Lower confidence if many affected assets (more uncertainty)
     if len(impact.affected_assets) > 5:
         base_confidence -= 0.1
-    
+
     # Lower confidence if no owner (harder to validate)
     if any("owner" in e.lower() for e in impact.explanation):
         base_confidence -= 0.1
-    
+
     return min(max(base_confidence, 0.5), 0.95)
 
 
@@ -96,10 +98,10 @@ def recommend_action(impact_report: ImpactReport, scenario_type: str = "auto_det
     Returns a Recommendation with primary action and optional fallback.
     """
     primary, fallback, title, rationale = _select_action(scenario_type, impact_report)
-    
+
     risk = _compute_risk(impact_report)
     confidence = _compute_confidence(scenario_type, impact_report)
-    
+
     return Recommendation(
         impact_id=impact_report.impact_id,
         action_type=primary,

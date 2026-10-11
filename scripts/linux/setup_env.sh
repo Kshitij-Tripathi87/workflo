@@ -28,9 +28,13 @@ PIP="$VENV/bin/pip"
   pytest pytest-asyncio pytest-json-report
 
 "$PIP" install --quiet -e "$REPO_ROOT/packages/workflo-schema"
+# worker-engine declares workflo-utils as a dependency; install the local
+# package before the worker so pip never tries to resolve it from PyPI.
+"$PIP" install --quiet -e "$REPO_ROOT/packages/workflo-utils"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/sandbox-isolation"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/probe-engine"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/cortex-auth"
+"$PIP" install --quiet -e "$REPO_ROOT/workflo-ai-integration"
 "$PIP" install --quiet -e "$REPO_ROOT/apps/sandbox-executor"
 "$PIP" install --quiet -e "$REPO_ROOT/apps/worker-engine"
 "$PIP" install --quiet -e "$REPO_ROOT/packages/sandbox-runtime"
@@ -39,7 +43,7 @@ PIP="$VENV/bin/pip"
 
 # --- Runtime image ---
 WORKFLO_REPO_ROOT="$REPO_ROOT" WORKFLO_PIP="$PIP" \
-  "$REPO_ROOT/scripts/linux/build_runtime_image.sh"
+  bash "$REPO_ROOT/scripts/linux/build_runtime_image.sh"
 
 # --- Fixture repo: a tiny git repo whose own tests prove, from inside
 # the sandbox, that isolation holds (egress blocked, DNS blocked,

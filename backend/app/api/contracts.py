@@ -1,17 +1,17 @@
 """Data Contract QA and Test Generation API Endpoints."""
 
-from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.connectors.datahub.client import DataHubClient
-from app.services.graph_builder import build_snapshot
 from app.core.receipts import receipt_engine
 from app.engine.contract_test_generator import contract_test_generator
 from app.models.contract import (
     ContractExecutionResult,
     GeneratedContractTest,
 )
+from app.services.graph_builder import build_snapshot
 
 router = APIRouter(prefix="/contracts", tags=["Contracts"])
 client = DataHubClient()
@@ -19,7 +19,7 @@ client = DataHubClient()
 
 class ContractGenerateRequest(BaseModel):
     dataset_urn: str
-    custom_owner: Optional[str] = None
+    custom_owner: str | None = None
 
 
 @router.post("/generate", response_model=GeneratedContractTest)

@@ -222,12 +222,12 @@ def describe_llm_config() -> dict:
 
 
 def validate_llm_key(cfg: Optional[LLMConfig] = None, timeout: float = 10.0) -> tuple[bool, str]:
-    """Health-check the configured endpoint with the stored key.
+    """Health-check the configured endpoint using the correct auth protocol.
 
-    Hits {base_url}/models (OpenAI-compatible listing) and
-    {base_url}/health as a fallback — either returning a 2xx/401-vs-200
-    distinction counts as an answer. A placeholder config short-circuits
-    with an instructive error instead of making any network call.
+    Direct mode probes standard OpenAI-compatible model/health routes with a
+    Bearer key. Gateway mode uses the control-plane inference health route with
+    the Workflo API key in X-API-Key; treating the gateway key as a Bearer model
+    key makes a valid gateway configuration look broken.
     """
     import httpx
 
@@ -241,6 +241,29 @@ def validate_llm_key(cfg: Optional[LLMConfig] = None, timeout: float = 10.0) -> 
         )
     if not cfg.api_key:
         return False, "LLM api_key missing from credential store — re-run: workflo config set-llm"
+
+    if cfg.mode == "gateway":
+        gateway_base = (cfg.gateway_url or cfg.base_url).rstrip("/")
+        url = gateway_base + "/v1/inference/health"
+        headers = {"X-API-Key": cfg.api_key}
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.get(url, headers=headers)
+        except httpx.TimeoutException:
+            return False, f"timeout contacting {url} (>{timeout}s)"
+        except httpx.RequestError as e:
+            return False, f"cannot reach {url}: {e}"
+        if resp.status_code == 200:
+            try:
+                payload = resp.json()
+            except ValueError:
+                return False, f"gateway health endpoint returned invalid JSON ({url})"
+            if payload.get("status") not in {"configured", "ok"}:
+                return False, f"gateway is not ready ({url})"
+            return True, f"ok ({url} 200)"
+        if resp.status_code in (401, 403):
+            return False, f"Workflo gateway API key rejected by {url} (HTTP {resp.status_code})"
+        return False, f"gateway health check failed at {url} (HTTP {resp.status_code})"
 
     headers = {"Authorization": f"Bearer {cfg.api_key}"}
     # Probe the common health/listing paths used by OpenAI-compatible and
@@ -258,7 +281,7 @@ def validate_llm_key(cfg: Optional[LLMConfig] = None, timeout: float = 10.0) -> 
             return True, f"ok ({url} 200)"
         if resp.status_code in (401, 403):
             return False, f"API key rejected by {url} (HTTP {resp.status_code})"
-    return False, f"endpoint responded but no health/models endpoint (check base_url)"
+    return False, "endpoint responded but no health/models endpoint (check base_url)"
 
 
 def llm_env_for_run(cfg: Optional[LLMConfig] = None) -> dict[str, str]:
