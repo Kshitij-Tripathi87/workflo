@@ -175,7 +175,11 @@ Configure only these **environment secrets**: `WORKFLO_MODEL_API_KEY` and
 `WORKFLO_GATEWAY_API_KEY`. Never place either value in repository variables,
 workflow inputs, logs, artifacts, or chat.
 
+GitHub will not dispatch a branch-only manual workflow until the workflow path is registered on the default branch. The approved bootstrap path is a separate, workflow-only PR to the default branch; it registers the final Gate 4 and Gate 5 definitions but must not automatically run either costly workflow. This Arena session cannot create that separate bootstrap branch.
+
 Run `.github/workflows/p4-gate4-real-artifacts.yml` first with the exact dispatch SHA and `BUILD-REAL-GGUF-IMAGE`. After recording its published deep-image digest in the environment, run `.github/workflows/p4-model-acceptance.yml` at the same SHA with `RUN-REAL-MODEL-TEST`. Both reject a typed commit that differs from the selected dispatch ref. Requests and image publication can incur costs.
+
+Gate 5 uploads a producer bundle even when a protected step fails. A separate GitHub-hosted job has no `p4-staging` environment and receives no staging secrets; it downloads that bundle, verifies the producer digest index, receipt signature, evidence chain, candidate semantics, and rejection of four identity/teardown tamper cases, then uploads the final indexed bundle. A run passes only when both the protected producer and independent job pass.
 
 ## 7. Required deployment smoke tests
 
@@ -224,8 +228,11 @@ Rollback is required before production-candidate approval.
 - [ ] Model endpoint private, authenticated, healthy and producing non-stub completions.
 - [ ] Gateway privacy tests pass against actual captured outbound payload shape.
 - [ ] Linux gate has a real successful GitHub Actions run with no integration skips.
-- [ ] Full e2e receipt verifies independently from a clean environment.
-- [ ] Tampered receipt/evidence/proof rejected.
-- [ ] Real benchmark reports uploaded; cost assumptions clearly labelled.
+- [ ] Full e2e receipt verifies in the separate secret-free GitHub-hosted job.
+- [ ] Tampered image, base hash, adapter hash, teardown, receipt, and evidence are rejected.
+- [ ] Deliberate inference failure retains only identities, counts, timings, and error classes.
+- [ ] `redaction-check.json` passes using the actual staging secrets in memory.
+- [ ] Real benchmark and explicit cost reports are uploaded; assumptions are labelled.
+- [ ] `teardown-check.json` proves no model process, listener, container, cache, or Ollama remains.
 - [ ] Rollback drill complete; previous immutable deployment retained.
 - [ ] No unresolved P0/P1 in the shipping path.

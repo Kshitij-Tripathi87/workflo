@@ -212,7 +212,7 @@ def one_request(
         return RequestResult(
             latency_s=latency,
             ok=False,
-            error="invalid OpenAI response: JSON root must be an object",
+            error="invalid_json_root",
         )
 
     choices = body.get("choices")
@@ -225,7 +225,7 @@ def one_request(
         return RequestResult(
             latency_s=latency,
             ok=False,
-            error="invalid OpenAI response: expected non-empty choices with a message",
+            error="invalid_choices_message",
         )
 
     content = choices[0]["message"].get("content")
@@ -261,7 +261,7 @@ def one_request(
         return RequestResult(
             latency_s=latency,
             ok=False,
-            error="invalid OpenAI response: usage.prompt_tokens and usage.completion_tokens are required",
+            error="invalid_token_usage_missing",
         )
     try:
         prompt_tokens = int(usage["prompt_tokens"])
@@ -270,13 +270,13 @@ def one_request(
         return RequestResult(
             latency_s=latency,
             ok=False,
-            error="invalid OpenAI response: token usage fields must be integers",
+            error="invalid_token_usage_type",
         )
     if prompt_tokens < 0 or completion_tokens < 0:
         return RequestResult(
             latency_s=latency,
             ok=False,
-            error="invalid OpenAI response: token usage fields must be non-negative",
+            error="invalid_token_usage_negative",
         )
 
     return RequestResult(

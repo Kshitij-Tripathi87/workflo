@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -105,13 +106,109 @@ def _gate4(root: Path, commit: str) -> list[str]:
     return files + ["negative-builds.json", "release-identity.json"]
 
 
-def _gate5(root: Path, commit: str, expected_model: str) -> list[str]:
+def _gate5(
+    root: Path,
+    commit: str,
+    expected_model: str,
+    *,
+    require_independent: bool,
+) -> list[str]:
     files = _common(root, commit)
     candidate_binding = _load(root, "deep-image-binding.json")
+    run_identity = _load(root, "run-identity.json")
+    environment = _load(root, "environment-setup.json")
+    cost = _load(root, "cost-report.json")
+    failure = _load(root, "failure-evidence.json")
+    redaction = _load(root, "redaction-check.json")
+    teardown_check = _load(root, "teardown-check.json")
+    for name, document in (
+        ("run identity", run_identity),
+        ("release environment", environment),
+        ("cost report", cost),
+        ("safe failure", failure),
+        ("redaction scan", redaction),
+        ("teardown check", teardown_check),
+    ):
+        _passed(document, name)
+    for relative in (
+        "run-identity.json",
+        "commit.txt",
+        "python-version.txt",
+        "manifest.sha256",
+        "model-artifacts.json",
+        "deep-image-digest.txt",
+        "previous-model-artifacts.json",
+    ):
+        path = root / relative
+        if not path.is_file() or not path.stat().st_size:
+            raise EvidenceError(f"release metadata is missing: {relative}")
+        files.append(relative)
+    if run_identity.get("release_commit") != commit or run_identity.get("github_sha") != commit:
+        raise EvidenceError("run identity does not match the release commit")
+    if not str(run_identity.get("github_run_id", "")).isdigit():
+        raise EvidenceError("run identity does not contain a GitHub run ID")
+    if (root / "commit.txt").read_text(encoding="utf-8").strip() != commit:
+        raise EvidenceError("commit metadata does not match the release commit")
+    if (root / "deep-image-digest.txt").read_text(encoding="utf-8").strip() != candidate_binding.get("deep_image"):
+        raise EvidenceError("deep-image metadata does not match the candidate binding")
+    manifest_digest = (root / "manifest.sha256").read_text(encoding="utf-8").strip()
+    if not HEX64.fullmatch(manifest_digest) or manifest_digest != _sha(root / "model-artifacts.json"):
+        raise EvidenceError("manifest digest metadata is invalid")
+    if environment.get("release_commit") != commit:
+        raise EvidenceError("release environment commit mismatch")
+    if environment.get("deep_image") != candidate_binding.get("deep_image"):
+        raise EvidenceError("release environment deep-image mismatch")
+    if not HEX64.fullmatch(str(environment.get("binary_sha256", ""))):
+        raise EvidenceError("release environment binary identity is invalid")
+    try:
+        hourly = float(cost["assumption_instance_hourly_usd"])
+        cost_per_request = float(cost["estimated_cost_per_request_usd"])
+        cost_per_run = float(cost["estimated_cost_per_representative_run_usd"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EvidenceError("cost report is incomplete") from exc
+    if (
+        not all(math.isfinite(value) and value >= 0 for value in (hourly, cost_per_request, cost_per_run))
+        or cost.get("benchmark_repeats") != 3
+        or cost.get("requests_completed", 0) < 1
+        or cost.get("requests_completed") != cost.get("requests_requested")
+        or cost.get("representative_run_requests", 0) < 1
+    ):
+        raise EvidenceError("cost report values are invalid")
+    if failure.get("inference_succeeded") is not False or failure.get("command_exit_nonzero") is not True:
+        raise EvidenceError("intentional inference failure did not fail closed")
+    failure_privacy_fields = (
+        "source_code_included", "prompt_recorded", "generated_code_recorded",
+        "narrative_recorded", "credentials_recorded",
+    )
+    if any(failure.get(field) is not False for field in failure_privacy_fields):
+        raise EvidenceError("safe-failure evidence is not source-free")
+    if not failure.get("error_classes"):
+        raise EvidenceError("safe-failure evidence contains no error identity")
+    if (
+        redaction.get("staging_secrets_present") is not False
+        or redaction.get("rejected_files")
+        or redaction.get("missing_files")
+        or redaction.get("files_scanned_count", 0) < 1
+    ):
+        raise EvidenceError("evidence redaction scan is incomplete")
+    teardown_fields = (
+        "candidate_container_absent", "rollback_container_absent",
+        "llama_server_processes_absent", "worker_children_absent", "ollama_absent",
+        "listener_inspection_succeeded", "container_inspection_succeeded",
+        "model_listeners_absent", "prompt_slot_cache_absent", "known_sandbox_workspace_absent",
+    )
+    if any(teardown_check.get(field) is not True for field in teardown_fields):
+        raise EvidenceError("explicit teardown evidence is incomplete")
+    files += [
+        "environment-setup.json", "cost-report.json", "failure-evidence.json",
+        "redaction-check.json", "teardown-check.json",
+    ]
+
     gateway = _load(root, "gateway-smoke.json")
     _passed(gateway, "gateway smoke")
     for field in (
-        "authorization_rejection", "wrong_key_rejection", "redaction", "source_rejection"
+        "authorization_rejection", "wrong_key_rejection", "valid_request",
+        "redaction", "source_rejection",
     ):
         if not isinstance(gateway.get(field), dict) or gateway[field].get("passed") is not True:
             raise EvidenceError(f"gateway evidence is incomplete: {field}")
@@ -119,6 +216,10 @@ def _gate5(root: Path, commit: str, expected_model: str) -> list[str]:
         raise EvidenceError("gateway source rejection did not cover four cases")
     if gateway["redaction"].get("redactions_applied", 0) < 1:
         raise EvidenceError("gateway redaction was not observed")
+    if expected_model and gateway["valid_request"].get("model") != expected_model:
+        raise EvidenceError("gateway valid-request model identity mismatch")
+    if gateway["valid_request"].get("source_code_included") is not False:
+        raise EvidenceError("gateway valid request included source code")
     files.append("gateway-smoke.json")
 
     for repeat in (1, 2, 3):
@@ -181,29 +282,50 @@ def _gate5(root: Path, commit: str, expected_model: str) -> list[str]:
             if relative not in files:
                 files.append(relative)
 
-    verification = _load(root, "independent-verification.json")
+    verification = (
+        _load(root, "independent-verification.json") if require_independent else None
+    )
+    independent_redaction = (
+        _load(root, "independent-redaction-check.json") if require_independent else None
+    )
     previous_manifest = _load(root, "previous-manifest-verification.json")
     rollback_binding = _load(root, "rollback-image-binding.json")
     rollback_worker = _load(root, "rollback-smoke/llamacpp-worker-smoke.json")
     rollback_reporting = _load(root, "rollback-smoke/reporting-smoke.json")
     rollback_isolation = _load(root, "rollback-smoke/container-isolation.json")
     rollback = _load(root, "rollback.json")
-    final_teardown = _load(root, "final-teardown.json")
-    for name, document in (
-        ("independent receipt verification", verification),
+    passing_documents = [
         ("previous manifest verification", previous_manifest),
         ("rollback image binding", rollback_binding),
         ("rollback worker smoke", rollback_worker),
         ("rollback reporting smoke", rollback_reporting),
         ("rollback container isolation", rollback_isolation),
         ("rollback", rollback),
-        ("final teardown", final_teardown),
-    ):
+    ]
+    if verification is not None and independent_redaction is not None:
+        passing_documents.extend((
+            ("independent receipt verification", verification),
+            ("independent redaction scan", independent_redaction),
+        ))
+    for name, document in passing_documents:
         _passed(document, name)
-    if verification.get("status") != "VALID":
-        raise EvidenceError("independent verifier did not return VALID")
-    if verification.get("staging_secrets_present") is not False:
-        raise EvidenceError("independent verifier inherited staging credentials")
+    if verification is not None:
+        if verification.get("status") != "VALID":
+            raise EvidenceError("independent verifier did not return VALID")
+        if verification.get("staging_secrets_present") is not False:
+            raise EvidenceError("independent verifier inherited staging credentials")
+        if verification.get("producer_index_verified") is not True:
+            raise EvidenceError("downloaded producer evidence index was not verified")
+        if verification.get("acceptance_semantics_verified") is not True:
+            raise EvidenceError("independent acceptance semantics were not verified")
+        if verification.get("tamper_checks_passed_count") != 4:
+            raise EvidenceError("independent tamper matrix is incomplete")
+        if (
+            independent_redaction.get("staging_secrets_present") is not False
+            or independent_redaction.get("missing_files")
+            or independent_redaction.get("rejected_files")
+        ):
+            raise EvidenceError("independent redaction scan is incomplete")
     restored_image = str(rollback.get("restored_image", ""))
     if not PINNED.fullmatch(restored_image):
         raise EvidenceError("rollback image is not immutable")
@@ -218,20 +340,16 @@ def _gate5(root: Path, commit: str, expected_model: str) -> list[str]:
         raise EvidenceError("rollback binding commit does not match restored commit")
     if rollback.get("manifest_verified") is not True or rollback.get("smoke_passed") is not True:
         raise EvidenceError("previous image/manifest pair was not restored and verified")
-    if final_teardown.get("candidate_container_absent") is not True:
-        raise EvidenceError("candidate container remains after acceptance")
-    if final_teardown.get("rollback_container_absent") is not True:
-        raise EvidenceError("rollback container remains after acceptance")
     files += [
-        "independent-verification.json",
         "previous-manifest-verification.json",
         "rollback-image-binding.json",
         "rollback-smoke/llamacpp-worker-smoke.json",
         "rollback-smoke/reporting-smoke.json",
         "rollback-smoke/container-isolation.json",
         "rollback.json",
-        "final-teardown.json",
     ]
+    if verification is not None:
+        files.extend(("independent-verification.json", "independent-redaction-check.json"))
     return files
 
 
@@ -241,17 +359,31 @@ def main() -> int:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--model", default="")
+    parser.add_argument("--phase", choices=("producer", "final"), default="final")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
     try:
         if not COMMIT.fullmatch(args.commit):
             raise EvidenceError("release commit is invalid")
+        if args.gate == "gate4" and args.phase != "final":
+            raise EvidenceError("Gate 4 does not support phased evidence")
         files = (
             _gate4(args.root, args.commit)
             if args.gate == "gate4"
-            else _gate5(args.root, args.commit, args.model)
+            else _gate5(
+                args.root,
+                args.commit,
+                args.model,
+                require_independent=args.phase == "final",
+            )
         )
+        output = args.out.resolve()
+        files = sorted(set(files) | {
+            path.relative_to(args.root).as_posix()
+            for path in args.root.rglob("*")
+            if path.is_file() and path.resolve() != output
+        })
         index = {
             "passed": True,
             "gate": args.gate,
@@ -261,7 +393,7 @@ def main() -> int:
                 name: {"sha256": _sha(args.root / name)} for name in sorted(files)
             },
         }
-    except (EvidenceError, OSError, KeyError, TypeError) as exc:
+    except (EvidenceError, OSError, UnicodeError, KeyError, TypeError) as exc:
         index = {
             "passed": False,
             "gate": args.gate,

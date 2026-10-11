@@ -195,7 +195,7 @@ def test_benchmark_rejects_success_status_without_openai_usage():
         thread.join(timeout=5)
 
     assert not result.ok
-    assert "usage.prompt_tokens" in (result.error or "")
+    assert result.error == "invalid_token_usage_missing"
 
 
 def test_request_rejects_cross_request_canary_without_retaining_value():

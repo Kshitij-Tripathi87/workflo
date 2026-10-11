@@ -6,23 +6,24 @@
 
 ## Release candidate
 
-The gates 1–3 evidence was produced from release candidate
-`e912905ea2c5618f0cba483c1b75735f206e9225` on `p4/14-day-release`.
-Model-serving changes must land through a reviewed PR and produce new evidence
-before that newer commit can be released.
+The latest complete gates 1–3 evidence was produced from exact commit
+`bdf686ebdb0d53cc980d72acb7657f78960e6df2` on
+`arena/bd73d1dd-workflo`. Later model-serving changes must produce fresh local
+regression and GitHub evidence before that newer commit can be released.
 
 ## Gates
 
 | Gate | Requirement | Current status | Authoritative evidence |
 | --- | --- | --- | --- |
-| 1 | Linux isolation, no skipped security checks, and verified teardown | **PROVEN at `e912905`** | `linux-gate.yml` run `37997223801` |
-| 2 | Three portable proof bundles independently verify; receipt/evidence tampering is rejected | **PROVEN at `e912905`** | `golden-run-proof-bundles` from run `37997223801` |
-| 3 | Planner protocol repeats the governed three-call behavior | **PROVEN at `e912905`** | planner/golden stages in run `37997223801` |
+| 1 | Linux isolation, no skipped security checks, and verified teardown | **PROVEN at `bdf686e`** | `linux-gate.yml` run `38078306454` |
+| 2 | Three portable proof bundles independently verify; receipt/evidence tampering is rejected | **PROVEN at `bdf686e`** | `golden-run-proof-bundles` from run `38078306454` |
+| 3 | Planner protocol repeats the governed three-call behavior | **PROVEN at `bdf686e`** | planner/golden stages in run `38078306454` |
 | 4 | Real llama.cpp/GGUF serving with immutable identities, exact adapters, active-worker routing, validation, and fail-closed handling | **IMPLEMENTATION COMPLETE; REAL-ARTIFACT EXECUTION UNPROVEN** | `.github/workflows/p4-gate4-real-artifacts.yml` now builds/publishes the bound image and asserts real evidence; no release GGUF/image inputs have been supplied and no real run has passed |
-| 5 | Protected staging preserves privacy, authorization, teardown, provenance, metrics, reproducibility, rollback, and failure handling during representative real inference | **IMPLEMENTATION COMPLETE; PROTECTED RUN OPEN** | `.github/workflows/p4-model-acceptance.yml` fails closed on the full contract; environment values, runner, real artifacts, and a passing run remain external prerequisites |
+| 5 | Protected staging preserves privacy, authorization, teardown, provenance, metrics, reproducibility, rollback, and failure handling during representative real inference | **IMPLEMENTATION COMPLETE; PROTECTED RUN OPEN** | `.github/workflows/p4-model-acceptance.yml` implements the binding 14-job evidence contract, including a separate secret-free verifier and tamper matrix; environment values, runner, real artifacts, bootstrap workflow registration, and a passing run remain external prerequisites |
 
-Repository CI and Docker CI also passed for `e912905` in run `37997223627`.
-These results do not prove gates 4–5 for later model-serving code.
+Repository CI and Docker CI also passed for `bdf686e` in run `38078306460`;
+Worker, Control Plane, CLI Agent, and Workflo CLI workflows passed for the same
+commit. These results do not prove gates 4–5 for later model-serving code.
 
 ## Gate 4 contract
 
@@ -73,6 +74,12 @@ not acceptance evidence.
 
 ## Gate 5 protected staging
 
+GitHub registers a manual workflow only when its workflow file exists on the
+default branch. Before either protected dispatch, the release team must merge an
+approved workflow-only bootstrap change to the default branch; that registration
+change must not auto-run inference. The implementation PR remains separate and
+is not opened until Gate 5 evidence passes.
+
 First dispatch `.github/workflows/p4-gate4-real-artifacts.yml` with the exact
 `release_commit` and `confirm_real_run=BUILD-REAL-GGUF-IMAGE`. It verifies the
 real manifest, proves six negative builds fail closed, builds and publishes the
@@ -93,29 +100,41 @@ dispatch `.github/workflows/p4-model-acceptance.yml` with the same exact
   `WORKFLO_PREVIOUS_LLAMACPP_DEEP_IMAGE`, and
   `WORKFLO_PREVIOUS_RELEASE_COMMIT` for the rollback drill.
 
-The workflow fails unless all of the following complete:
+The workflow implements the binding 14-job acceptance contract as thirteen
+ordered protected steps plus one separate GitHub-hosted verification job. It
+fails unless all of the following complete:
 
-1. the selected dispatch SHA, checked-out SHA, candidate labels, embedded
-   executable, embedded GGUF hashes, manifests, and environment agree;
-2. the immutable candidate image runs the active aggressive worker route
-   (`reasoning` then `test-gen`) and a separate schema-valid reporting request;
-3. generated tests pass structural/path/compile validation and both model
-   lifecycles prove process/state teardown;
-4. missing and wrong gateway keys are rejected, four source-bearing request
-   forms are rejected without canary echo, and a secret-like observation has a
-   positive pre-dispatch redaction count;
-5. three endpoint benchmark repeats complete at concurrency 1, 2, and 4 with a
-   unique marker verified per request, zero cross-request leakage, complete
-   timing/token/cost evidence, and no endpoint or response content retained;
-6. real hardened Linux isolation produces a full gateway-backed signed receipt
-   whose retained evidence contains only hashes, sizes, counts, timings,
-   identities, and outcomes;
-7. a separate verifier process with all staging API-key variables removed
-   returns `VALID` for the receipt, public key, and evidence bundle;
-8. the previous manifest/image pair is independently bound, run, and left as
-   the final verified local serving pair; and
-9. candidate/rollback containers are absent and the required-evidence index
-   passes before the always-upload step retains the source-free report bundle.
+1. protected approval, exact-SHA checkout, and clean-worktree validation;
+2. fail-fast validation of variables, secrets, HTTPS origins, finite cost,
+   immutable current/previous images, distinct rollback identities, and all
+   four real GGUF files;
+3. networkless/read-only verification of the embedded `llama-server`, image
+   labels, commit, model identity, and base/adapter hashes;
+4. installation from only the exact checkout plus retained package, Python,
+   commit, manifest, binary, and image identities;
+5. real aggressive worker inference and a separate schema-valid reporting
+   request, with no generated test or narrative body retained;
+6. hardened Linux execution producing a metadata-only signed receipt and full
+   evidence chain;
+7. missing/wrong-key denial, four source-bearing request denials, observation
+   redaction, and one valid observation-only gateway request;
+8. three benchmark repeats at concurrency 1, 2, and 4 with per-request markers,
+   zero cross-request leakage, timings, tokens, and classified errors;
+9. an explicit metadata-only cost report derived from the protected hourly
+   assumption and a recorded representative-run request count;
+10. a deliberate loopback transport failure whose non-zero outcome is reduced
+    to identities, counts, timings, and error classes;
+11. rollback to a distinct previous manifest/image/commit pair followed by
+    process, listener, container, cache, workspace, and no-Ollama teardown;
+12. an explicit completeness/redaction scan using the actual staging secret
+    bytes in memory, without retaining those bytes;
+13. an always-run producer upload containing every partial or complete report;
+    and
+14. a separate GitHub-hosted job with no protected environment or staging
+    secrets that downloads the producer artifact, verifies its digest index,
+    receipt signature/evidence chain, acceptance semantics, and rejection of
+    tampered image, base-model, adapter, and teardown identities before
+    publishing the final evidence index.
 
 The workflows share one non-cancelling concurrency group, so Gate 4 and Gate 5
 cannot overlap. Never mutate a release manifest in place: create a versioned
