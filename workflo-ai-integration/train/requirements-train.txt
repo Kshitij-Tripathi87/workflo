@@ -1,0 +1,13 @@
+# Training-side dependencies (GPU machine only — NOT runtime dependencies).
+# The runtime package (pyproject.toml) stays free of torch/peft/trl on purpose.
+#
+# Pin exact versions on the training host before a release run and record
+# them in the release evidence alongside the llama.cpp commit.
+torch>=2.2,<3
+transformers>=4.44,<5
+peft>=0.12,<1
+trl>=0.9,<1
+datasets>=2.20,<4
+accelerate>=0.33,<2
+bitsandbytes>=0.43,<1
+sentencepiece>=0.1.99

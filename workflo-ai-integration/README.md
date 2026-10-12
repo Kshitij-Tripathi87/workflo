@@ -59,6 +59,12 @@ serving/
 scripts/
   verify_artifact_manifest.py  image/path/content/runtime-config verification
   convert_peft_to_gguf.*       conversion helper; conversion tool must be pinned
+train/
+  README.md                    end-to-end adapter training runbook
+  dataset_sources.py           authoritative reviewable training examples
+  validate_datasets.py         datasets must pass the serving schemas + gates
+  train_qlora.py               QLoRA training on ORIGINAL HF weights (GPU)
+  make_manifest.py             hashes real artifacts into the frozen manifest
 ```
 
 The old Ollama modules remain in the worker only as an explicitly selected
