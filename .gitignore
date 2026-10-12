@@ -95,3 +95,9 @@ test_plan.md
 ideas.md
 receipt_test.json
 template.json
+
+# Local frozen artifact manifest (version identities only; commit only when the release owner authorizes)
+workflo-ai-integration/serving/model-artifacts.json
+
+# Training run outputs (checkpoints, intermediate adapters)
+workflo-ai-integration/train/out/
