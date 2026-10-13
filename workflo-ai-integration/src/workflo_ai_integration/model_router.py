@@ -272,15 +272,16 @@ class ModelRouter:
             raise GenerationValidationError("llama.cpp returned empty completion content")
         return content
 
-    def generate_for_flag(self, flag: str, system_prompt: str, user_prompt: str):
+    def generate_for_task(self, task: TaskType, system_prompt: str, user_prompt: str):
         """
-        Full pipeline: flag -> task -> adapter -> generation -> schema
-        validation -> compile-check gate. Returns a validated schema object.
+        Full pipeline for a directly-named task (HTTP service path):
+        task -> adapter -> generation -> schema validation -> gates.
         Raises GenerationValidationError on anything that fails, which the
         caller should treat as "discard this candidate," not as a crash —
         a bad generation should cost a wasted call, never a false result.
         """
-        task = self.task_for_flag(flag)
+        if task not in SCHEMA_BY_TASK:
+            raise ValueError(f"unknown task '{task}'")
         raw = self._chat(task, system_prompt, user_prompt)
 
         try:
@@ -309,6 +310,16 @@ class ModelRouter:
                     raise GenerationValidationError(f"compile-check failed: {result.reason}")
 
         return obj
+
+    def generate_for_flag(self, flag: str, system_prompt: str, user_prompt: str):
+        """
+        Full pipeline: flag -> task -> adapter -> generation -> schema
+        validation -> compile-check gate. Returns a validated schema object.
+        Raises GenerationValidationError on anything that fails, which the
+        caller should treat as "discard this candidate," not as a crash —
+        a bad generation should cost a wasted call, never a false result.
+        """
+        return self.generate_for_task(self.task_for_flag(flag), system_prompt, user_prompt)
 
     def generate_report(self, results_json: dict) -> ReportNarrative:
         """Reporting adapter path — takes only structured results, never source."""
