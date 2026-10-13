@@ -1,5 +1,10 @@
 """Fail-closed llama.cpp routing and validation for Workflo."""
 
+from workflo_ai_integration.artifact_registry import (
+    ArtifactRegistry,
+    ArtifactRegistryError,
+    ArtifactSnapshot,
+)
 from workflo_ai_integration.model_router import (
     ADAPTER_REGISTRY,
     FLAG_TASK_MAP,
@@ -18,6 +23,9 @@ __all__ = [
     "ADAPTER_REGISTRY",
     "FLAG_TASK_MAP",
     "AdapterLoadError",
+    "ArtifactRegistry",
+    "ArtifactRegistryError",
+    "ArtifactSnapshot",
     "GenerationValidationError",
     "ModelRouter",
     "ProposeInvariantCall",

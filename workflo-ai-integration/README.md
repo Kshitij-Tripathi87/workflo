@@ -52,6 +52,9 @@ src/workflo_ai_integration/
   model_router.py              adapter discovery, routing, structured generation
   schemas.py                   Pydantic output contracts
   safety_gate.py               path, expression, AST, and compile checks
+  artifact_registry.py         fail-closed manifest loader + digest verification
+  service.py                   HTTP API over the router (FastAPI)
+  service_defaults.py          serving system prompts (pinned to training)
 serving/
   docker-compose.llamacpp.yml  hardened standalone serving shape
   model-artifacts.example.json versioned frozen-artifact template
@@ -119,6 +122,43 @@ model ID is empty, or `llama-server` is missing.
 server. It is gated by the manifest verifier, mounts artifacts read-only, drops
 capabilities, sets a read-only root filesystem, and exposes no host port. It
 deliberately does not persist prompt caches.
+
+## HTTP serving API
+
+`src/workflo_ai_integration/service.py` exposes the adapters over HTTP
+(FastAPI). It is the product-facing surface for the sprint release and reuses
+the exact same fail-closed pipeline as the worker router.
+
+| Endpoint | Adapter | Validated output | Input |
+| --- | --- | --- | --- |
+| `POST /v1/test_gen` | `test-gen` | `WriteTestCall` (+ `compile_check`) | `{user_prompt, system_prompt?}` |
+| `POST /v1/reasoning` | `reasoning` | `ProposeInvariantCall` (+ `property_expr_check`) | `{user_prompt, system_prompt?}` |
+| `POST /v1/reporting` | `reporting` | `ReportNarrative` | `{results: object}` (structured outcomes only) |
+| `GET /v1/health` | — | adapter discovery + artifact identities | — |
+
+Fail-closed behavior:
+
+- `create_app()` loads `serving/model-artifacts.json` via
+  `artifact_registry.ArtifactRegistry`, which verifies the SHA-256 of every
+  GGUF on disk. A missing, malformed, or tampered manifest prevents startup.
+  Override the manifest location with `WORKFLO_ARTIFACT_MANIFEST`.
+- Every successful response embeds an `artifacts` block (image digest, base
+  model sha256, adapter sha256s) so logs can always answer "which exact
+  weights produced this output".
+- Adapter-discovery failures return HTTP 503; schema/safety-gate rejections
+  return HTTP 422. A bad generation costs a wasted call, never a false result.
+
+Run it (defaults to the loopback llama-server at `127.0.0.1:8080`):
+
+```bash
+pip install -e 'workflo-ai-integration[service]'
+uvicorn workflo_ai_integration.service:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+`tests/test_dataset_contract_harness.py` pins the 57 authoritative ChatML
+training examples to the serving schemas/gates and requires the serving
+system prompts (`service_defaults.py`) to stay byte-identical to
+`train/dataset_sources.py`.
 
 ## Tests and real acceptance
 
