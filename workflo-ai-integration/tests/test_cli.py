@@ -21,7 +21,7 @@ def runner() -> CliRunner:
 @pytest.fixture()
 def fake_router(monkeypatch) -> FakeRouter:
     router = FakeRouter()
-    monkeypatch.setattr(cli_module, "build_router", lambda base_url=None: router)
+    monkeypatch.setattr(cli_module, "build_router", lambda *args, **kwargs: router)
     return router
 
 
@@ -88,7 +88,7 @@ def test_generate_validation_failure_exit_1(runner, monkeypatch):
         def generate_for_task(self, task, system_prompt, user_prompt):
             raise GenerationValidationError("compile-check failed: disallowed call: eval")
 
-    monkeypatch.setattr(cli_module, "build_router", lambda base_url=None: Rejecting())
+    monkeypatch.setattr(cli_module, "build_router", lambda *args, **kwargs: Rejecting())
     result = runner.invoke(cli_module.cli, ["generate", "--task", "test_gen", "--prompt", "p"])
     assert result.exit_code == 1
     err = json.loads(result.output)
@@ -100,7 +100,7 @@ def test_generate_server_down_exit_2(runner, monkeypatch):
         def generate_for_task(self, task, system_prompt, user_prompt):
             raise AdapterLoadError("failed to list llama.cpp adapters")
 
-    monkeypatch.setattr(cli_module, "build_router", lambda base_url=None: Down())
+    monkeypatch.setattr(cli_module, "build_router", lambda *args, **kwargs: Down())
     result = runner.invoke(cli_module.cli, ["generate", "--task", "test_gen", "--prompt", "p"])
     assert result.exit_code == 2
     assert json.loads(result.output)["error"] == "adapter_load_failed"
@@ -184,7 +184,7 @@ def test_health_degraded_exit_2(runner, monkeypatch):
         def discover_adapters(self, force=False):
             raise AdapterLoadError("failed to list llama.cpp adapters")
 
-    monkeypatch.setattr(cli_module, "build_router", lambda base_url=None: Down())
+    monkeypatch.setattr(cli_module, "build_router", lambda *args, **kwargs: Down())
     result = runner.invoke(cli_module.cli, ["health"])
     assert result.exit_code == 2
     assert json.loads(result.output)["status"] == "degraded"

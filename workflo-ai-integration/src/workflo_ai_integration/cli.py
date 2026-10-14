@@ -44,9 +44,17 @@ TASK_ALIASES: dict[str, TaskType] = {
 MAX_REPORT_RESULTS_BYTES = 262_144
 
 
-def build_router(base_url: str | None = None) -> ModelRouter:
-    config = RouterConfig(base_url=base_url) if base_url else RouterConfig()
-    return ModelRouter(config)
+def build_router(
+    base_url: str | None = None, timeout_sec: float | None = None
+) -> ModelRouter:
+    if base_url is None and timeout_sec is None:
+        return ModelRouter()
+    config_kwargs: dict = {}
+    if base_url:
+        config_kwargs["base_url"] = base_url
+    if timeout_sec:
+        config_kwargs["timeout_sec"] = timeout_sec
+    return ModelRouter(RouterConfig(**config_kwargs))
 
 
 def load_registry():
@@ -91,6 +99,7 @@ def cli() -> None:
 @click.option("--prompt", required=True, help="User prompt (module/behavior description).")
 @click.option("--system-prompt", default=None, help="Override the trained system prompt.")
 @click.option("--base-url", default=None, help="llama-server loopback URL (default 127.0.0.1:8080).")
+@click.option("--timeout", "timeout_sec", type=float, default=600.0, show_default=True, help="Completion timeout in seconds (CPU-only servers need large values).")
 @click.option("--with-artifacts", is_flag=True, help="Include verified artifact identities in the output.")
 @click.option("--compact/--pretty", "compact", default=False, help="Compact JSON output.")
 def generate(
@@ -98,6 +107,7 @@ def generate(
     prompt: str,
     system_prompt: str | None,
     base_url: str | None,
+    timeout_sec: float,
     with_artifacts: bool,
     compact: bool,
 ) -> None:
@@ -105,7 +115,7 @@ def generate(
     task = TASK_ALIASES[task_alias]
     router = None
     try:
-        router = build_router(base_url)
+        router = build_router(base_url, timeout_sec)
         effective_system = system_prompt or SYSTEM_PROMPTS[task]
         start = time.perf_counter()
         result = router.generate_for_task(task, effective_system, prompt)
@@ -138,12 +148,14 @@ def generate(
     help="Path to a JSON file with structured results ('-' for stdin).",
 )
 @click.option("--base-url", default=None, help="llama-server loopback URL (default 127.0.0.1:8080).")
+@click.option("--timeout", "timeout_sec", type=float, default=600.0, show_default=True, help="Completion timeout in seconds (CPU-only servers need large values).")
 @click.option("--with-artifacts", is_flag=True, help="Include verified artifact identities in the output.")
 @click.option("--compact/--pretty", "compact", default=False, help="Compact JSON output.")
 def report(
     results: str | None,
     results_file: str | None,
     base_url: str | None,
+    timeout_sec: float,
     with_artifacts: bool,
     compact: bool,
 ) -> None:
@@ -168,7 +180,7 @@ def report(
         _fail("invalid_results_json", "results must be a JSON object", 2)
 
     try:
-        router = build_router(base_url)
+        router = build_router(base_url, timeout_sec)
         start = time.perf_counter()
         result = router.generate_report(results_json)
         latency_ms = round((time.perf_counter() - start) * 1000)
