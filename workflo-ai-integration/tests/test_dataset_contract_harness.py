@@ -1,4 +1,4 @@
-"""Contract harness: the 57 authoritative ChatML examples must satisfy the
+"""Contract harness: the 120 authoritative ChatML examples must satisfy the
 exact serving schemas and safety gates, and the serving system prompts must
 be byte-identical to the training prompts.
 
@@ -28,7 +28,7 @@ TASK_FILES = {
     "reporting": ("reporting.jsonl", ReportNarrative),
 }
 
-EXPECTED_COUNTS = {"test_gen": 20, "reasoning": 20, "reporting": 17}
+EXPECTED_COUNTS = {"test_gen": 40, "reasoning": 40, "reporting": 40}
 
 
 def _load(task: str) -> list[dict]:
@@ -47,7 +47,7 @@ def _load(task: str) -> list[dict]:
     return records
 
 
-def test_all_57_examples_exist():
+def test_all_120_examples_exist():
     total = 0
     for task in TASK_FILES:
         records = _load(task)
@@ -55,7 +55,7 @@ def test_all_57_examples_exist():
             f"{task}: expected {EXPECTED_COUNTS[task]} examples, found {len(records)}"
         )
         total += len(records)
-    assert total == 57
+    assert total == 120
 
 
 @pytest.mark.parametrize("task", sorted(TASK_FILES))
