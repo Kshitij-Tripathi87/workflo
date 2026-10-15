@@ -115,10 +115,10 @@ manifest is regenerated (the old digests become stale by design).
 ## 7. Execution checklist
 
 ```
-[ ] 1. Author +120 examples in dataset_sources.py, regenerate JSONL
-[ ] 2. validate_datasets.py -> 120/120
-[ ] 3. Update EXPECTED_COUNTS in test_dataset_contract_harness.py (40/40/40)
-[ ] 4. Full pytest suite green
+[x] 1. Author +120 examples in dataset_sources.py, regenerate JSONL
+[x] 2. validate_datasets.py -> 120/120
+[x] 3. Update EXPECTED_COUNTS in test_dataset_contract_harness.py (40/40/40)
+[x] 4. Full pytest suite green
 [ ] 5. Stratified 90/10 split; re-train reasoning adapter (rank 32, 5 epochs)
 [ ] 6. Eval vs gate (>=0.84 acc, 100 % schema, 100 % gates); iterate or early-stop
 [ ] 7. Same for reporting adapter
