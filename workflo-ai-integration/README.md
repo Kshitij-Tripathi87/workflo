@@ -160,6 +160,26 @@ training examples to the serving schemas/gates and requires the serving
 system prompts (`service_defaults.py`) to stay byte-identical to
 `train/dataset_sources.py`.
 
+## CLI
+
+`workflo-ai` is the model-serving CLI over the same fail-closed router
+(the product CLI is the separate `workflo` npm command; the two are
+independent by design):
+
+```bash
+pip install -e 'workflo-ai-integration[service]'
+workflo-ai --version
+workflo-ai health                                     # exit 2 when llama-server is unreachable
+workflo-ai generate --task test_gen --prompt "Module: app/cart.py
+Function: compute_total(lines) -> int
+Behavior: sums quantity * unit_price_cents; empty cart returns 0."
+workflo-ai report --results '{"passed": 97, "failed": 3}'
+```
+
+Output is a single JSON document (validated `result`, `latency_ms`,
+optional `artifacts` with `--with-artifacts`). Exit codes: 0 success,
+1 generation rejected, 2 server/usage error.
+
 ## Tests and real acceptance
 
 Mocked unit and integration coverage:
