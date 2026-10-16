@@ -1,8 +1,47 @@
 # Adapter re-train plan — target ≥ 84 % on every task
 
-Status: **planned** (not yet executed). This document is the execution
-runbook for the next training cycle. It exists so the re-train can be
-reviewed and launched without re-deriving the decisions.
+Status: **iteration 1 complete — token gate NOT yet met; more data required.**
+The training/eval tooling is built and validated; three training recipes were
+executed. Empirical results below replace the estimates in sections 2–4.
+
+## 5a. Empirical results (held-out 4 examples, unpadded teacher-forced)
+
+Evaluator: `train/eval_adapter.py` (joint tokenization, response-template
+boundary, greedy generation for schema/gate rates). Verified sound: the same
+probe measures 0.90 on training examples, so the eval gap is real
+generalization behavior, not a measurement artifact.
+
+| Run | Config | Token acc | Schema valid | Gates pass |
+|---|---|---|---|---|
+| reasoning iter1 | r32/a64/d0.05/lr2e-4/5ep, best-loss @ep1 | 0.806 | **100 %** | **100 %** |
+| reasoning iter2 | r16/a32/d0.10/lr1e-4/8ep, best @ep2 | 0.808 | 100 % | 75 % |
+| reasoning iter3 | r32/a64/d0.10/lr2e-4/8ep | 0.797 | 75 % | 75 % |
+| reporting | r32/a64/d0.05/lr2e-4/5ep, best-loss @ep1 | 0.751 | **100 %** | **100 %** |
+
+Findings:
+
+1. **Token accuracy plateaus at ~0.75–0.81 regardless of recipe.** Rank,
+   dropout, LR, and epoch-count changes moved held-out accuracy by < 0.02.
+   With 36 training examples the model fits the training set (0.90) but
+   cannot generalize to 0.84 — **data volume, not hyper-parameters, is the
+   binding constraint** (as predicted in section 2).
+2. **Regularization beyond d0.05 hurts the safety gates** (iter2/iter3
+   lost 25 % gate pass rate). Iteration-1 config (r32/a64/d0.05/lr2e-4)
+   is the only recipe that keeps schema+gates at 100 %.
+3. trl's in-training `eval_mean_token_accuracy` (0.84–0.88) reads higher
+   than the unpadded teacher-forced measurement on this hybrid
+   linear-attention (Qwen3.5) architecture; the unpadded number is the
+   conservative, trustworthy one.
+4. Per the regression guard, the **frozen serving adapters remain
+   deployed and untouched**; no GGUF conversion or manifest change was
+   made for the experimental runs.
+
+## 5b. Next lever: more data (before any further training run)
+
+The 84 % token gate needs roughly double the per-task training data
+(~70–80 train examples per task, i.e. ~80+ total authored per task). Steps 1–4
+of the checklist below are done; step 5+ resumes after the dataset grows
+again. All recipes/eval tooling are ready to re-run as-is.
 
 ## 1. Where we are (baseline)
 
@@ -119,11 +158,12 @@ manifest is regenerated (the old digests become stale by design).
 [x] 2. validate_datasets.py -> 120/120
 [x] 3. Update EXPECTED_COUNTS in test_dataset_contract_harness.py (40/40/40)
 [x] 4. Full pytest suite green
-[ ] 5. Stratified 90/10 split; re-train reasoning adapter (rank 32, 5 epochs)
-[ ] 6. Eval vs gate (>=0.84 acc, 100 % schema, 100 % gates); iterate or early-stop
-[ ] 7. Same for reporting adapter
+[x] 5. Stratified 90/10 split; re-train reasoning adapter (3 recipes executed)
+[x] 6. Eval vs gate -> NOT MET (0.797-0.808 < 0.84; see section 5a)
+[x] 7. Reporting adapter trained + evaluated -> NOT MET (0.751 < 0.84;
+       schema+gates 100 % with iter-1 config)
 [ ] 8. Decide on test-gen re-train (optional; frozen one already passes)
-[ ] 9. Convert -> manifest -> verify -> pytest
+[ ] 9. Convert -> manifest -> verify -> pytest (blocked on step 5b data)
 [ ] 10. Refresh p4-staging vars + staged GGUFs; PR with new metrics table
 ```
 

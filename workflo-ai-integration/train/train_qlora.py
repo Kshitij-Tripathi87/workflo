@@ -81,6 +81,24 @@ def main() -> int:
     parser.add_argument("--dropout", type=float, default=0.05)
     parser.add_argument("--epochs", type=float, default=3.0)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
+    parser.add_argument(
+        "--warmup-ratio",
+        type=float,
+        default=0.0,
+        help="fraction of total steps used for LR warm-up (retrain plan: 0.1)",
+    )
+    parser.add_argument(
+        "--eval-dataset",
+        type=Path,
+        default=None,
+        help="held-out JSONL; enables per-epoch eval loss + early stopping",
+    )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=2,
+        help="eval epochs without eval-loss improvement before stopping",
+    )
     parser.add_argument("--max-seq-len", type=int, default=4096)
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--grad-accum", type=int, default=8)
@@ -111,7 +129,15 @@ def main() -> int:
     # fused forward works and gradients flow through standard ops.
     import trl.trainer.utils as _trl_utils
 
-    if _trl_utils._ChunkedLogProbFunction is None:
+    # Older trl (<0.2x) referenced a Triton-based fused kernel that is
+    # Linux-only; on Windows it was set to None but still patched into the
+    # model forward, crashing on the first step. Newer trl (>=0.29) dropped
+    # that mechanism entirely (pure-torch loss, optional Liger), so the
+    # patch must only apply when the attribute actually exists.
+    if (
+        hasattr(_trl_utils, "_ChunkedLogProbFunction")
+        and _trl_utils._ChunkedLogProbFunction is None
+    ):
 
         class _TorchChunkedLogProb:
             """torch-native ChunkedLogProbFunction (same contract, autograd via standard ops)."""
@@ -284,6 +310,26 @@ def main() -> int:
         [{**record, "text": render_example(record)} for record in records]
     )
 
+    eval_records = None
+    eval_dataset = None
+    if args.eval_dataset:
+        eval_records = load_dataset(args.eval_dataset)
+        eval_dataset = Dataset.from_list(
+            [{**record, "text": render_example(record)} for record in eval_records]
+        )
+        print(
+            f"held-out eval: {len(eval_records)} examples "
+            f"(early-stop patience {args.early_stopping_patience})"
+        )
+
+    # warmup_ratio was removed in transformers v5; warmup_steps exists in
+    # both 4.x and 5.x, so translate the ratio into an absolute step count.
+    steps_per_epoch = -(-len(records) // (args.batch_size * args.grad_accum))
+    total_steps = int(steps_per_epoch * args.epochs)
+    warmup_steps = int(total_steps * args.warmup_ratio)
+    if warmup_steps:
+        print(f"warm-up: {warmup_steps} of {total_steps} optimizer steps")
+
     config = SFTConfig(
         output_dir=str(args.output_dir),
         num_train_epochs=args.epochs,
@@ -291,8 +337,14 @@ def main() -> int:
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.learning_rate,
         lr_scheduler_type="cosine",
+        warmup_steps=warmup_steps,
         logging_steps=5,
         save_strategy="epoch",
+        eval_strategy="epoch" if eval_dataset is not None else "no",
+        load_best_model_at_end=eval_dataset is not None,
+        metric_for_best_model="eval_loss" if eval_dataset is not None else None,
+        greater_is_better=False,
+        save_total_limit=2,
         bf16=True,
         max_length=args.max_seq_len,
         packing=False,
@@ -309,9 +361,18 @@ def main() -> int:
         model=model,
         args=config,
         train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         peft_config=lora,
         processing_class=tokenizer,
     )
+    if eval_dataset is not None:
+        from transformers import EarlyStoppingCallback
+
+        trainer.add_callback(
+            EarlyStoppingCallback(
+                early_stopping_patience=args.early_stopping_patience
+            )
+        )
     trainer.train()
     trainer.save_model(str(args.output_dir / "final"))
 
