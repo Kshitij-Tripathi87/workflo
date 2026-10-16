@@ -1694,6 +1694,1080 @@ TEST_GEN: list[dict] = [
             ),
         },
     },
+    {
+        "user": (
+            "Module: app/text/vowels.py\n"
+            "Function: count_vowels(text: str) -> int\n"
+            "Behavior: counts ASCII vowels (a e i o u) case-insensitively. "
+            "Empty string returns 0."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_count_vowels.py",
+            "content": (
+                '"""Generated tests for vowel counting."""\n'
+                "from app.text.vowels import count_vowels\n"
+                "\n"
+                "\n"
+                "def test_mixed_case_counts():\n"
+                "    assert count_vowels(\"AeiOu\") == 5\n"
+                "\n"
+                "\n"
+                "def test_no_vowels():\n"
+                "    assert count_vowels(\"rhythm\") == 0\n"
+                "\n"
+                "\n"
+                "def test_empty_string():\n"
+                "    assert count_vowels(\"\") == 0\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers case-insensitive matching, the zero case, and the "
+                "empty contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/palindrome.py\n"
+            "Function: is_palindrome(text: str) -> bool\n"
+            "Behavior: ignores case and non-alphanumeric characters; "
+            "returns True when the remaining characters read the same "
+            "forwards and backwards. Empty string returns True."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_is_palindrome.py",
+            "content": (
+                '"""Generated tests for palindrome detection."""\n'
+                "from app.text.palindrome import is_palindrome\n"
+                "\n"
+                "\n"
+                "def test_simple_palindrome():\n"
+                "    assert is_palindrome(\"level\") is True\n"
+                "\n"
+                "\n"
+                "def test_ignores_case_and_punctuation():\n"
+                "    assert is_palindrome(\"A man, a plan!\") is False\n"
+                "    assert is_palindrome(\"No lemon, no melon\") is True\n"
+                "\n"
+                "\n"
+                "def test_non_palindrome():\n"
+                "    assert is_palindrome(\"workflo\") is False\n"
+                "\n"
+                "\n"
+                "def test_empty_is_palindrome():\n"
+                "    assert is_palindrome(\"\") is True\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins normalization rules, a true negative, and the empty "
+                "contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/matrix/diag.py\n"
+            "Function: diag_sum(matrix: list[list[int]]) -> int\n"
+            "Behavior: returns the sum of the main diagonal (row i, column "
+            "i). Requires a square matrix; non-square input raises "
+            "ValueError. Empty matrix returns 0."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_diag_sum.py",
+            "content": (
+                '"""Generated tests for diagonal sum."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.matrix.diag import diag_sum\n"
+                "\n"
+                "\n"
+                "def test_sums_main_diagonal():\n"
+                "    assert diag_sum([[1, 2], [3, 4]]) == 5\n"
+                "\n"
+                "\n"
+                "def test_empty_matrix_returns_zero():\n"
+                "    assert diag_sum([]) == 0\n"
+                "\n"
+                "\n"
+                "def test_non_square_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        diag_sum([[1, 2, 3], [4, 5, 6]])\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers diagonal indexing, the empty contract, and the "
+                "square-shape validation."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/reverse_words.py\n"
+            "Function: reverse_word_order(text: str) -> str\n"
+            "Behavior: reverses the order of whitespace-separated words "
+            "and collapses runs of whitespace to single spaces. Empty or "
+            "whitespace-only input returns \"\"."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_reverse_word_order.py",
+            "content": (
+                '"""Generated tests for word-order reversal."""\n'
+                "from app.text.reverse_words import reverse_word_order\n"
+                "\n"
+                "\n"
+                "def test_reverses_word_order():\n"
+                "    assert reverse_word_order(\"ship the order\") == (\n"
+                "        \"order the ship\"\n"
+                "    )\n"
+                "\n"
+                "\n"
+                "def test_collapses_whitespace():\n"
+                "    assert reverse_word_order(\"  a\\t b  \") == \"b a\"\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert reverse_word_order(\"\") == \"\"\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers ordering, whitespace normalization, and the empty "
+                "contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/stats/consecutive.py\n"
+            "Function: max_consecutive_ones(bits: list[int]) -> int\n"
+            "Behavior: returns the longest run of consecutive 1s. Empty "
+            "list or all-zero input returns 0."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_max_consecutive_ones.py",
+            "content": (
+                '"""Generated tests for consecutive-ones streaks."""\n'
+                "from app.stats.consecutive import max_consecutive_ones\n"
+                "\n"
+                "\n"
+                "def test_finds_longest_streak():\n"
+                "    assert max_consecutive_ones([1, 1, 0, 1, 1, 1]) == 3\n"
+                "\n"
+                "\n"
+                "def test_all_zeros_returns_zero():\n"
+                "    assert max_consecutive_ones([0, 0]) == 0\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_zero():\n"
+                "    assert max_consecutive_ones([]) == 0\n"
+                "\n"
+                "\n"
+                "def test_all_ones():\n"
+                "    assert max_consecutive_ones([1, 1, 1]) == 3\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers streak tracking, degenerate inputs, and the "
+                "all-ones identity."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/calendar/leap.py\n"
+            "Function: is_leap_year(year: int) -> bool\n"
+            "Behavior: Gregorian rules — divisible by 4 is a leap year "
+            "unless divisible by 100, unless also divisible by 400."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_is_leap_year.py",
+            "content": (
+                '"""Generated tests for leap-year rules."""\n'
+                "from app.calendar.leap import is_leap_year\n"
+                "\n"
+                "\n"
+                "def test_divisible_by_four():\n"
+                "    assert is_leap_year(2024) is True\n"
+                "\n"
+                "\n"
+                "def test_century_not_leap():\n"
+                "    assert is_leap_year(1900) is False\n"
+                "\n"
+                "\n"
+                "def test_quadricentennial_is_leap():\n"
+                "    assert is_leap_year(2000) is True\n"
+                "\n"
+                "\n"
+                "def test_common_year():\n"
+                "    assert is_leap_year(2023) is False\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins all three Gregorian branches with canonical years."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/format/size.py\n"
+            "Function: format_size(num_bytes: int) -> str\n"
+            "Behavior: renders byte counts with binary units — B, KiB, "
+            "MiB, GiB — always one decimal (except B, which has none), "
+            "e.g. 1536 -> \"1.5 KiB\". Negative input raises ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_format_size.py",
+            "content": (
+                '"""Generated tests for byte-size formatting."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.format.size import format_size\n"
+                "\n"
+                "\n"
+                "def test_bytes_have_no_decimal():\n"
+                "    assert format_size(512) == \"512 B\"\n"
+                "\n"
+                "\n"
+                "def test_kib_boundary():\n"
+                "    assert format_size(1536) == \"1.5 KiB\"\n"
+                "\n"
+                "\n"
+                "def test_mib():\n"
+                "    assert format_size(2 * 1024 * 1024) == \"2.0 MiB\"\n"
+                "\n"
+                "\n"
+                "def test_negative_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        format_size(-1)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins unit boundaries, the one-decimal rule, and "
+                "validation."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/secret/mask.py\n"
+            "Function: mask_secret(value: str, visible: int = 2) -> str\n"
+            "Behavior: keeps the first `visible` characters and replaces "
+            "the rest with \"*\"; values with length <= visible are "
+            "entirely masked. visible must be >= 0, otherwise ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_mask_secret.py",
+            "content": (
+                '"""Generated tests for secret masking."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.secret.mask import mask_secret\n"
+                "\n"
+                "\n"
+                "def test_keeps_prefix():\n"
+                "    assert mask_secret(\"sk-123456\", 3) == \"sk-******\"\n"
+                "\n"
+                "\n"
+                "def test_short_value_fully_masked():\n"
+                "    assert mask_secret(\"abc\", 5) == \"***\"\n"
+                "\n"
+                "\n"
+                "def test_zero_visible_masks_all():\n"
+                "    assert mask_secret(\"token\", 0) == \"*****\"\n"
+                "\n"
+                "\n"
+                "def test_negative_visible_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        mask_secret(\"x\", -1)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers prefix visibility, short-value masking, the zero "
+                "case, and validation."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/collections/unique_sorted.py\n"
+            "Function: unique_sorted(items: list[int]) -> list[int]\n"
+            "Behavior: returns the distinct values sorted ascending. Empty "
+            "list returns []."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_unique_sorted.py",
+            "content": (
+                '"""Generated tests for distinct sorted values."""\n'
+                "from app.collections.unique_sorted import unique_sorted\n"
+                "\n"
+                "\n"
+                "def test_dedupes_and_sorts():\n"
+                "    assert unique_sorted([3, 1, 3, 2]) == [1, 2, 3]\n"
+                "\n"
+                "\n"
+                "def test_negatives_sort_before_positives():\n"
+                "    assert unique_sorted([0, -2, -2, 7]) == [-2, 0, 7]\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert unique_sorted([]) == []\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers dedupe-then-sort ordering, negatives, and the "
+                "empty contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/net/query.py\n"
+            "Function: parse_query(query: str) -> dict[str, str]\n"
+            "Behavior: parses \"k=v&k2=v2\" pairs; values are kept raw (no "
+            "decoding). A pair without \"=\" is skipped. Empty string "
+            "returns {}."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_parse_query.py",
+            "content": (
+                '"""Generated tests for query-string parsing."""\n'
+                "from app.net.query import parse_query\n"
+                "\n"
+                "\n"
+                "def test_parses_pairs():\n"
+                "    assert parse_query(\"a=1&b=2\") == {\"a\": \"1\", \"b\": \"2\"}\n"
+                "\n"
+                "\n"
+                "def test_pair_without_equals_is_skipped():\n"
+                "    assert parse_query(\"a=1&flag\") == {\"a\": \"1\"}\n"
+                "\n"
+                "\n"
+                "def test_empty_string_returns_empty_dict():\n"
+                "    assert parse_query(\"\") == {}\n"
+                "\n"
+                "\n"
+                "def test_value_may_be_empty():\n"
+                "    assert parse_query(\"a=\") == {\"a\": \"\"}\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers pair parsing, malformed-pair tolerance, empty "
+                "values, and the empty contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/crypto/caesar.py\n"
+            "Function: caesar_shift(text: str, shift: int) -> str\n"
+            "Behavior: shifts ASCII letters within their case, wrapping "
+            "the alphabet; non-letters pass through unchanged. Negative "
+            "shifts wrap backwards."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_caesar_shift.py",
+            "content": (
+                '"""Generated tests for Caesar shifting."""\n'
+                "from app.crypto.caesar import caesar_shift\n"
+                "\n"
+                "\n"
+                "def test_basic_shift():\n"
+                "    assert caesar_shift(\"abc\", 1) == \"bcd\"\n"
+                "\n"
+                "\n"
+                "def test_wraps_alphabet():\n"
+                "    assert caesar_shift(\"xyz\", 3) == \"abc\"\n"
+                "\n"
+                "\n"
+                "def test_preserves_case_and_non_letters():\n"
+                "    assert caesar_shift(\"Ab, z!\", 1) == \"Bc, a!\"\n"
+                "\n"
+                "\n"
+                "def test_negative_shift_wraps_backwards():\n"
+                "    assert caesar_shift(\"abc\", -1) == \"zab\"\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins wraparound in both directions, case preservation, "
+                "and pass-through of non-letters."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/collections/interleave.py\n"
+            "Function: interleave(a: list, b: list) -> list\n"
+            "Behavior: alternates elements a[0], b[0], a[1], b[1], ...; "
+            "when one list is longer its tail is appended in order. Empty "
+            "inputs return the other list."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_interleave.py",
+            "content": (
+                '"""Generated tests for list interleaving."""\n'
+                "from app.collections.interleave import interleave\n"
+                "\n"
+                "\n"
+                "def test_equal_lengths_alternate():\n"
+                "    assert interleave([1, 2], [\"x\", \"y\"]) == [1, \"x\", 2, \"y\"]\n"
+                "\n"
+                "\n"
+                "def test_longer_tail_is_appended():\n"
+                "    assert interleave([1, 2, 3], [\"x\"]) == [1, \"x\", 2, 3]\n"
+                "\n"
+                "\n"
+                "def test_empty_b_returns_a():\n"
+                "    assert interleave([1, 2], []) == [1, 2]\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers alternation, tail preservation, and empty-input "
+                "pass-through."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/anagram.py\n"
+            "Function: is_anagram(a: str, b: str) -> bool\n"
+            "Behavior: case-insensitive, whitespace-insensitive anagram "
+            "check. Empty vs empty returns True; empty vs non-empty "
+            "returns False."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_is_anagram.py",
+            "content": (
+                '"""Generated tests for anagram detection."""\n'
+                "from app.text.anagram import is_anagram\n"
+                "\n"
+                "\n"
+                "def test_simple_anagram():\n"
+                "    assert is_anagram(\"listen\", \"silent\") is True\n"
+                "\n"
+                "\n"
+                "def test_ignores_case_and_spaces():\n"
+                "    assert is_anagram(\"Dormitory\", \"dirty room\") is True\n"
+                "\n"
+                "\n"
+                "def test_not_anagram():\n"
+                "    assert is_anagram(\"hello\", \"world\") is False\n"
+                "\n"
+                "\n"
+                "def test_empty_handling():\n"
+                "    assert is_anagram(\"\", \"\") is True\n"
+                "    assert is_anagram(\"\", \"a\") is False\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers normalization, negatives, and both empty-edge "
+                "cases."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/math/clampf.py\n"
+            "Function: clampf(value: float, low: float, high: float) -> "
+            "float\n"
+            "Behavior: clamps value into [low, high]. If low > high, "
+            "raises ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_clampf.py",
+            "content": (
+                '"""Generated tests for float clamping."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.math.clampf import clampf\n"
+                "\n"
+                "\n"
+                "def test_value_in_range_unchanged():\n"
+                "    assert clampf(2.5, 0.0, 10.0) == 2.5\n"
+                "\n"
+                "\n"
+                "def test_below_low_clamps():\n"
+                "    assert clampf(-5.0, 0.0, 10.0) == 0.0\n"
+                "\n"
+                "\n"
+                "def test_above_high_clamps():\n"
+                "    assert clampf(99.0, 0.0, 10.0) == 10.0\n"
+                "\n"
+                "\n"
+                "def test_inverted_bounds_raise():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        clampf(1.0, 10.0, 0.0)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers pass-through, both clamp directions, and bound "
+                "validation."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/stats/pct_change.py\n"
+            "Function: pct_change(old: float, new: float) -> float\n"
+            "Behavior: returns (new - old) / old * 100. old == 0 raises "
+            "ValueError (percentage change is undefined from zero)."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_pct_change.py",
+            "content": (
+                '"""Generated tests for percentage change."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.stats.pct_change import pct_change\n"
+                "\n"
+                "\n"
+                "def test_positive_change():\n"
+                "    assert pct_change(100.0, 125.0) == 25.0\n"
+                "\n"
+                "\n"
+                "def test_negative_change():\n"
+                "    assert pct_change(200.0, 150.0) == -25.0\n"
+                "\n"
+                "\n"
+                "def test_zero_base_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        pct_change(0.0, 10.0)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers both change directions and the undefined-zero-base "
+                "error."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/dict/deep_get.py\n"
+            "Function: deep_get(data: dict, path: list[str], default=None)\n"
+            "Behavior: walks nested dicts by key path; a missing key "
+            "anywhere along the path returns `default`. Empty path "
+            "returns the dict itself."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_deep_get.py",
+            "content": (
+                '"""Generated tests for nested key lookup."""\n'
+                "from app.dict.deep_get import deep_get\n"
+                "\n"
+                "\n"
+                "def test_resolves_nested_path():\n"
+                "    data = {\"a\": {\"b\": {\"c\": 7}}}\n"
+                "    assert deep_get(data, [\"a\", \"b\", \"c\"]) == 7\n"
+                "\n"
+                "\n"
+                "def test_missing_key_returns_default():\n"
+                "    assert deep_get({\"a\": {}}, [\"a\", \"x\"], \"dft\") == \"dft\"\n"
+                "\n"
+                "\n"
+                "def test_empty_path_returns_dict():\n"
+                "    assert deep_get({\"a\": 1}, []) == {\"a\": 1}\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers nested resolution, default fallback, and the "
+                "empty-path identity."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/title_case.py\n"
+            "Function: title_case(text: str) -> str\n"
+            "Behavior: capitalizes the first letter of each word and "
+            "lowercases the rest; words separated by any whitespace. Empty "
+            "string returns \"\"."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_title_case.py",
+            "content": (
+                '"""Generated tests for title casing."""\n'
+                "from app.text.title_case import title_case\n"
+                "\n"
+                "\n"
+                "def test_capitalizes_each_word():\n"
+                "    assert title_case(\"hello wide world\") == \"Hello Wide World\"\n"
+                "\n"
+                "\n"
+                "def test_lowercases_rest():\n"
+                "    assert title_case(\"HTTP SERVER\") == \"Http Server\"\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert title_case(\"\") == \"\"\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers per-word capitalization, rest-lowercasing, and "
+                "the empty contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/dict/invert.py\n"
+            "Function: invert_dict(data: dict) -> dict\n"
+            "Behavior: swaps keys and values; duplicate values keep the "
+            "last key encountered (iteration order). Empty dict returns "
+            "{}."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_invert_dict.py",
+            "content": (
+                '"""Generated tests for dict inversion."""\n'
+                "from app.dict.invert import invert_dict\n"
+                "\n"
+                "\n"
+                "def test_swaps_keys_and_values():\n"
+                "    assert invert_dict({\"a\": 1, \"b\": 2}) == {1: \"a\", 2: \"b\"}\n"
+                "\n"
+                "\n"
+                "def test_duplicate_values_keep_last_key():\n"
+                "    assert invert_dict({\"a\": 1, \"b\": 1}) == {1: \"b\"}\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert invert_dict({}) == {}\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins the swap, the duplicate-value last-wins rule, and "
+                "the empty contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/math/gcd.py\n"
+            "Function: gcd(a: int, b: int) -> int\n"
+            "Behavior: greatest common divisor of two non-negative "
+            "integers; gcd(x, 0) == x; gcd(0, 0) == 0. Negative input "
+            "raises ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_gcd.py",
+            "content": (
+                '"""Generated tests for greatest common divisor."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.math.gcd import gcd\n"
+                "\n"
+                "\n"
+                "def test_common_case():\n"
+                "    assert gcd(12, 18) == 6\n"
+                "\n"
+                "\n"
+                "def test_coprime():\n"
+                "    assert gcd(9, 28) == 1\n"
+                "\n"
+                "\n"
+                "def test_zero_operand():\n"
+                "    assert gcd(7, 0) == 7\n"
+                "    assert gcd(0, 0) == 0\n"
+                "\n"
+                "\n"
+                "def test_negative_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        gcd(-4, 6)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers common divisors, coprimality, zero identities, "
+                "and validation."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/math/fib.py\n"
+            "Function: fib(n: int) -> int\n"
+            "Behavior: nth Fibonacci number with fib(0) == 0, fib(1) == 1. "
+            "Negative n raises ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_fib.py",
+            "content": (
+                '"""Generated tests for Fibonacci numbers."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.math.fib import fib\n"
+                "\n"
+                "\n"
+                "def test_base_cases():\n"
+                "    assert fib(0) == 0\n"
+                "    assert fib(1) == 1\n"
+                "\n"
+                "\n"
+                "def test_known_values():\n"
+                "    assert fib(7) == 13\n"
+                "    assert fib(10) == 55\n"
+                "\n"
+                "\n"
+                "def test_negative_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        fib(-1)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins the base cases, known values, and the validation "
+                "error."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/collections/is_sorted.py\n"
+            "Function: is_sorted(items: list[int]) -> bool\n"
+            "Behavior: returns True when items are in non-decreasing "
+            "order. Empty and single-element lists return True."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_is_sorted.py",
+            "content": (
+                '"""Generated tests for sorted-order checking."""\n'
+                "from app.collections.is_sorted import is_sorted\n"
+                "\n"
+                "\n"
+                "def test_sorted_list():\n"
+                "    assert is_sorted([1, 2, 2, 3]) is True\n"
+                "\n"
+                "\n"
+                "def test_unsorted_list():\n"
+                "    assert is_sorted([2, 1]) is False\n"
+                "\n"
+                "\n"
+                "def test_degenerate_lengths():\n"
+                "    assert is_sorted([]) is True\n"
+                "    assert is_sorted([5]) is True\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins non-decreasing semantics (duplicates allowed) and "
+                "degenerate lengths."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/rld.py\n"
+            "Function: decode_rle(encoded: str) -> str\n"
+            "Behavior: inverse of run-length encoding — \"a3b2\" -> "
+            "\"aaabb\". Counts are always present. Empty string returns "
+            "\"\". A trailing letter without a count raises ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_decode_rle.py",
+            "content": (
+                '"""Generated tests for run-length decoding."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.text.rld import decode_rle\n"
+                "\n"
+                "\n"
+                "def test_basic_decoding():\n"
+                "    assert decode_rle(\"a3b2\") == \"aaabb\"\n"
+                "\n"
+                "\n"
+                "def test_single_counts():\n"
+                "    assert decode_rle(\"a1b1\") == \"ab\"\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert decode_rle(\"\") == \"\"\n"
+                "\n"
+                "\n"
+                "def test_missing_count_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        decode_rle(\"ab\")\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Complements the RLE-encode vectors and pins the "
+                "fail-closed handling of malformed pairs."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/join_human.py\n"
+            "Function: human_list(items: list[str]) -> str\n"
+            "Behavior: joins names for display — one item as-is; two as "
+            "\"a and b\"; three or more as \"a, b, and c\". Empty list "
+            "returns \"\"."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_human_list.py",
+            "content": (
+                '"""Generated tests for human-readable joining."""\n'
+                "from app.text.join_human import human_list\n"
+                "\n"
+                "\n"
+                "def test_single_item():\n"
+                "    assert human_list([\"a\"]) == \"a\"\n"
+                "\n"
+                "\n"
+                "def test_two_items():\n"
+                "    assert human_list([\"a\", \"b\"]) == \"a and b\"\n"
+                "\n"
+                "\n"
+                "def test_three_items_oxford():\n"
+                "    assert human_list([\"a\", \"b\", \"c\"]) == \"a, b, and c\"\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert human_list([]) == \"\"\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins all four cardinality branches including the Oxford "
+                "comma."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/stats/moving_avg.py\n"
+            "Function: moving_average(values: list[float], window: int) -> "
+            "list[float]\n"
+            "Behavior: mean of each contiguous window, in order; fewer "
+            "items than window returns []. window must be >= 1, otherwise "
+            "ValueError."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_moving_average.py",
+            "content": (
+                '"""Generated tests for moving averages."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.stats.moving_avg import moving_average\n"
+                "\n"
+                "\n"
+                "def test_basic_windows():\n"
+                "    assert moving_average([1.0, 2.0, 3.0], 2) == [1.5, 2.5]\n"
+                "\n"
+                "\n"
+                "def test_window_larger_than_input():\n"
+                "    assert moving_average([1.0], 3) == []\n"
+                "\n"
+                "\n"
+                "def test_non_positive_window_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        moving_average([1.0], 0)\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers window means, the short-input empty contract, and "
+                "validation."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/collections/rotate.py\n"
+            "Function: rotate(items: list, k: int) -> list\n"
+            "Behavior: rotates right by k positions; k larger than the "
+            "length wraps. Empty list returns []."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_rotate.py",
+            "content": (
+                '"""Generated tests for list rotation."""\n'
+                "from app.collections.rotate import rotate\n"
+                "\n"
+                "\n"
+                "def test_basic_rotation():\n"
+                "    assert rotate([1, 2, 3, 4], 1) == [4, 1, 2, 3]\n"
+                "\n"
+                "\n"
+                "def test_wrap_beyond_length():\n"
+                "    assert rotate([1, 2, 3], 4) == [3, 1, 2]\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_empty():\n"
+                "    assert rotate([], 3) == []\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers rotation, modulo wraparound, and the empty "
+                "contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/collections/first_dupe.py\n"
+            "Function: first_duplicate(items: list) -> object | None\n"
+            "Behavior: returns the first element that appears a second "
+            "time (scanning left to right), else None. Empty list returns "
+            "None."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_first_duplicate.py",
+            "content": (
+                '"""Generated tests for duplicate detection."""\n'
+                "from app.collections.first_dupe import first_duplicate\n"
+                "\n"
+                "\n"
+                "def test_returns_first_repeated_element():\n"
+                "    assert first_duplicate([\"a\", \"b\", \"a\", \"b\"]) == \"a\"\n"
+                "\n"
+                "\n"
+                "def test_no_duplicates_returns_none():\n"
+                "    assert first_duplicate([1, 2, 3]) is None\n"
+                "\n"
+                "\n"
+                "def test_empty_returns_none():\n"
+                "    assert first_duplicate([]) is None\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins first-repeated semantics, the none case, and the "
+                "empty contract."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/text/hamming.py\n"
+            "Function: hamming(a: str, b: str) -> int\n"
+            "Behavior: number of differing positions; different lengths "
+            "raise ValueError. Two empty strings return 0."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_hamming.py",
+            "content": (
+                '"""Generated tests for Hamming distance."""\n'
+                "import pytest\n"
+                "\n"
+                "from app.text.hamming import hamming\n"
+                "\n"
+                "\n"
+                "def test_counts_differences():\n"
+                "    assert hamming(\"karolin\", \"kathrin\") == 3\n"
+                "\n"
+                "\n"
+                "def test_identical_is_zero():\n"
+                "    assert hamming(\"same\", \"same\") == 0\n"
+                "\n"
+                "\n"
+                "def test_length_mismatch_raises():\n"
+                "    with pytest.raises(ValueError):\n"
+                "        hamming(\"ab\", \"abc\")\n"
+                "\n"
+                "\n"
+                "def test_empty_pair_is_zero():\n"
+                "    assert hamming(\"\", \"\") == 0\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers distance counting, identity, length validation, "
+                "and the empty identity."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/tree/depth.py\n"
+            "Function: max_depth(node: dict) -> int\n"
+            "Behavior: depth of nested dicts — a flat dict is depth 1, a "
+            "dict containing a dict is depth 2. Non-dict values do not "
+            "add depth. Empty dict returns 1."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_max_depth.py",
+            "content": (
+                '"""Generated tests for nested-dict depth."""\n'
+                "from app.tree.depth import max_depth\n"
+                "\n"
+                "\n"
+                "def test_flat_dict_is_depth_one():\n"
+                "    assert max_depth({\"a\": 1}) == 1\n"
+                "\n"
+                "\n"
+                "def test_nested_dict_adds_depth():\n"
+                "    assert max_depth({\"a\": {\"b\": {\"c\": 1}}}) == 3\n"
+                "\n"
+                "\n"
+                "def test_non_dict_values_ignored():\n"
+                "    assert max_depth({\"a\": [1, 2], \"b\": 3}) == 1\n"
+                "\n"
+                "\n"
+                "def test_empty_dict_is_depth_one():\n"
+                "    assert max_depth({}) == 1\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins depth counting, the non-dict exemption, and the "
+                "empty-dict identity."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/math/power_two.py\n"
+            "Function: is_power_of_two(n: int) -> bool\n"
+            "Behavior: True only for positive powers of two (1, 2, 4, "
+            "...). Zero and negatives return False."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_is_power_of_two.py",
+            "content": (
+                '"""Generated tests for powers of two."""\n'
+                "from app.math.power_two import is_power_of_two\n"
+                "\n"
+                "\n"
+                "def test_powers_of_two():\n"
+                "    assert is_power_of_two(1) is True\n"
+                "    assert is_power_of_two(1024) is True\n"
+                "\n"
+                "\n"
+                "def test_non_powers():\n"
+                "    assert is_power_of_two(6) is False\n"
+                "    assert is_power_of_two(0) is False\n"
+                "    assert is_power_of_two(-8) is False\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Pins the positive-powers rule and the zero/negative "
+                "rejections."
+            ),
+        },
+    },
+    {
+        "user": (
+            "Module: app/collections/pick.py\n"
+            "Function: pick(data: dict, keys: list[str]) -> dict\n"
+            "Behavior: returns a new dict containing only the requested "
+            "keys that exist, preserving data's value order. Missing keys "
+            "are skipped silently. Empty keys returns {}."
+        ),
+        "assistant": {
+            "path": "workflo_generated_tests/test_pick.py",
+            "content": (
+                '"""Generated tests for key picking."""\n'
+                "from app.collections.pick import pick\n"
+                "\n"
+                "\n"
+                "def test_picks_requested_keys():\n"
+                "    assert pick({\"a\": 1, \"b\": 2}, [\"a\"]) == {\"a\": 1}\n"
+                "\n"
+                "\n"
+                "def test_missing_keys_skipped():\n"
+                "    assert pick({\"a\": 1}, [\"a\", \"zzz\"]) == {\"a\": 1}\n"
+                "\n"
+                "\n"
+                "def test_empty_keys_returns_empty():\n"
+                "    assert pick({\"a\": 1}, []) == {}\n"
+            ),
+            "framework": "pytest",
+            "rationale": (
+                "Covers projection, silent skipping of missing keys, and "
+                "the empty-keys contract."
+            ),
+        },
+    },
 ]
 
 REASONING: list[dict] = [
@@ -2657,6 +3731,701 @@ REASONING: list[dict] = [
             ),
             "property_check": (
                 "total_pages >= 1 and total_pages == (total_items + page_size - 1) // page_size"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.documents.get_document(doc_id: "
+            "str, tenant_id: str) -> Document | None\n"
+            "Documents are stored per tenant. Propose the tenant isolation "
+            "invariant."
+        ),
+        "assistant": {
+            "description": (
+                "A document is visible only to its owning tenant; any "
+                "doc_id from another tenant must behave exactly like a "
+                "nonexistent document."
+            ),
+            "target": "app.documents.get_document",
+            "category": "tenant_isolation",
+            "hypothesis_strategy": (
+                "st.tuples(st.text(min_size=1, max_size=16), "
+                "st.text(min_size=1, max_size=16))"
+            ),
+            "property_check": (
+                "document is None or document.tenant_id == tenant_id"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.reports.build_report(rows: list, "
+            "chunk_size: int) -> list[list]\n"
+            "Propose the invariant guaranteeing no row is lost or "
+            "duplicated by chunking."
+        ),
+        "assistant": {
+            "description": (
+                "Concatenating the chunks in order must reproduce exactly "
+                "the original row list, and every chunk except possibly "
+                "the last must have exactly chunk_size rows."
+            ),
+            "target": "app.reports.build_report",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.tuples(st.lists(st.integers(), max_size=40), "
+                "st.integers(min_value=1, max_value=10))"
+            ),
+            "property_check": (
+                "sum(chunks, []) == rows"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.auth.token_expiry.expired(token: "
+            "Token, now: int) -> bool\n"
+            "Propose the boundary invariant for expiry decisions."
+        ),
+        "assistant": {
+            "description": (
+                "Expiry must be exclusive at the boundary: a token with "
+                "expires_at equal to now is already expired, and any "
+                "strictly later expiry is still valid at now."
+            ),
+            "target": "app.auth.token_expiry.expired",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.tuples(st.integers(min_value=0, max_value=2**31), "
+                "st.integers(min_value=0, max_value=2**31))"
+            ),
+            "property_check": (
+                "expired == (token.expires_at <= now)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.money.apply_percentage(amount: "
+            "int, pct: int) -> int\n"
+            "pct in 0..100. Propose the range-preservation invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The result must stay between zero and the original "
+                "amount, be exactly the amount at 100 percent, and zero "
+                "at 0 percent."
+            ),
+            "target": "app.money.apply_percentage",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.tuples(st.integers(min_value=0, max_value=10**7), "
+                "st.integers(min_value=0, max_value=100))"
+            ),
+            "property_check": (
+                "0 <= result <= amount"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.search.dedup_results(results: "
+            "list[dict]) -> list[dict]\n"
+            "Results carry an id. Propose the dedup invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The output must contain no duplicate ids, and the set of "
+                "ids must be exactly the set present in the input — "
+                "nothing dropped, nothing invented."
+            ),
+            "target": "app.search.dedup_results",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.lists(st.fixed_dictionaries({\"id\": st.integers("
+                "min_value=0, max_value=20)}), max_size=30)"
+            ),
+            "property_check": (
+                "len({r[\"id\"] for r in deduped}) == len(deduped)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.tenants.filter_by_tenant(records: "
+            "list, tenant_id: str) -> list\n"
+            "Propose the isolation invariant for shared-table filtering."
+        ),
+        "assistant": {
+            "description": (
+                "Every returned record must carry the requested tenant_id "
+                "and the result must be exactly the subsequence of input "
+                "records owned by that tenant, in original order."
+            ),
+            "target": "app.tenants.filter_by_tenant",
+            "category": "tenant_isolation",
+            "hypothesis_strategy": (
+                "st.lists(st.tuples(st.sampled_from([\"t1\", \"t2\"]), "
+                "st.integers(max_value=100)), max_size=20)"
+            ),
+            "property_check": (
+                "all(r.tenant_id == tenant_id for r in filtered)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.ratelimit.window_count(stamps: "
+            "list[int], now: int, window: int) -> int\n"
+            "Propose the window-membership invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The count must equal the number of timestamps in the "
+                "inclusive window [now - window, now]; stamps outside the "
+                "window must never affect it."
+            ),
+            "target": "app.ratelimit.window_count",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.lists(st.integers(min_value=0, max_value=2000), "
+                "max_size=20)"
+            ),
+            "property_check": (
+                "count == sum(1 for t in stamps if now - window <= t <= now)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.api.key_masking.mask(key: str) "
+            "-> str\n"
+            "API keys must never appear in logs. Propose the masking "
+            "invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The masked output must never contain more than the "
+                "documented number of leading characters of the key, and "
+                "must never equal the full key."
+            ),
+            "target": "app.api.key_masking.mask",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.text(min_size=1, max_size=40, alphabet=st.characters("
+                "min_codepoint=48, max_codepoint=122))"
+            ),
+            "property_check": (
+                "masked != key"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.orders.cancel_then_refund(order: "
+            "Order) -> Order\n"
+            "Cancellation may happen at most once. Propose the "
+            "idempotency invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Cancelling an already-cancelled order must change "
+                "nothing, and a cancelled order can never return to "
+                "active state through cancellation."
+            ),
+            "target": "app.orders.cancel_then_refund",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.sampled_from([\"active\", \"cancelled\", \"refunded\"])"
+            ),
+            "property_check": (
+                "(not cancelled_once) or (second_cancel == first_cancel)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.exports.field_allowlist(row: "
+            "dict, allowed: list[str]) -> dict\n"
+            "Propose the export-surface invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Every exported key must be in the allowlist and every "
+                "allowlisted key present in the input must appear — the "
+                "export surface is exactly the allowlist intersection."
+            ),
+            "target": "app.exports.field_allowlist",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.tuples(st.dictionaries(st.sampled_from([\"id\", \"name\", "
+                "\"secret\"]), st.text(max_size=8), max_size=4), "
+                "st.just([\"id\", \"name\"]))"
+            ),
+            "property_check": (
+                "set(exported) <= set(allowed)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.billing.round_cents(x: float) -> "
+            "int\n"
+            "Propose the nearest-integer rounding invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Rounding must never move the value away from the nearest "
+                "integer by more than one cent, and must be exact at "
+                "integral inputs."
+            ),
+            "target": "app.billing.round_cents",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.floats(min_value=0.0, max_value=10**6, allow_nan=False, "
+                "allow_infinity=False)"
+            ),
+            "property_check": (
+                "abs(rounded - x) <= 0.5"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.sessions.logout_all(user_id: "
+            "str) -> int\n"
+            "Propose the session-revocation invariant."
+        ),
+        "assistant": {
+            "description": (
+                "After logout_all, no session for that user may still "
+                "validate, and sessions of other users must be untouched."
+            ),
+            "target": "app.sessions.logout_all",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.text(min_size=1, max_size=8, alphabet=st.characters("
+                "min_codepoint=97, max_codepoint=122))"
+            ),
+            "property_check": (
+                "all(not s.valid for s in sessions if s.user_id == user_id)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.files.path_within(root: str, "
+            "candidate: str) -> bool\n"
+            "Propose the containment invariant guarding path traversal."
+        ),
+        "assistant": {
+            "description": (
+                "The predicate must accept exactly the paths that resolve "
+                "inside the root directory and must reject traversal "
+                "sequences regardless of how deeply they are nested."
+            ),
+            "target": "app.files.path_within",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.sampled_from([\"a/b.txt\", \"../x.txt\", \"a/../../x\", "
+                "\"ok.txt\"])"
+            ),
+            "property_check": (
+                "(\"..\" not in candidate) == within"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.stats.percentile_rank(scores: "
+            "list[int], value: int) -> float\n"
+            "Propose the ranking-range invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The percentile rank must always lie in [0, 100], be "
+                "minimal when the value is the smallest, and maximal when "
+                "it is the largest."
+            ),
+            "target": "app.stats.percentile_rank",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.lists(st.integers(min_value=0, max_value=1000), "
+                "min_size=1, max_size=30)"
+            ),
+            "property_check": (
+                "0 <= rank <= 100"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.inbox.mark_read(messages: list, "
+            "message_id: str) -> int\n"
+            "Propose the state-transition invariant for read marking."
+        ),
+        "assistant": {
+            "description": (
+                "Exactly one message changes state per call, it becomes "
+                "read, and the total message count is unchanged."
+            ),
+            "target": "app.inbox.mark_read",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.lists(st.fixed_dictionaries({\"id\": st.text("
+                "alphabet=st.sampled_from(\"ab\"), max_size=3), "
+                "\"read\": st.booleans()}), max_size=6)"
+            ),
+            "property_check": (
+                "sum(1 for m in messages if m[\"read\"]) == before_unread + 1"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.workspace.transfer_owner"
+            "(workspace: Workspace, new_owner: str, actor: str) -> "
+            "Workspace\n"
+            "Only the current owner may transfer ownership. Propose the "
+            "authorization invariant."
+        ),
+        "assistant": {
+            "description": (
+                "A transfer attempted by anyone other than the current "
+                "owner must leave the workspace unchanged, and a "
+                "successful transfer must make the new owner the only "
+                "owner."
+            ),
+            "target": "app.workspace.transfer_owner",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.tuples(st.sampled_from([\"alice\", \"bob\"]), "
+                "st.sampled_from([\"alice\", \"bob\"]))"
+            ),
+            "property_check": (
+                "(actor == workspace.owner) or (workspace.owner == old_owner)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.metrics.percentiles.bucket"
+            "(latency_ms: int) -> str\n"
+            "Buckets: <100 'fast', <1000 'normal', else 'slow'. Propose "
+            "the partition invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Buckets must partition all non-negative latencies into "
+                "exactly three disjoint classes with no gaps."
+            ),
+            "target": "app.metrics.percentiles.bucket",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.integers(min_value=0, max_value=10**6)"
+            ),
+            "property_check": (
+                "bucket in (\"fast\", \"normal\", \"slow\")"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.tenants.merge_accounts(primary: "
+            "str, secondary: str, actor_tenant: str) -> Account\n"
+            "Accounts from different tenants must never merge. Propose "
+            "the cross-tenant guard."
+        ),
+        "assistant": {
+            "description": (
+                "Merging must be refused unless both accounts belong to "
+                "the actor's tenant, and a refused merge must leave both "
+                "accounts intact."
+            ),
+            "target": "app.tenants.merge_accounts",
+            "category": "tenant_isolation",
+            "hypothesis_strategy": (
+                "st.tuples(st.sampled_from([\"t1\", \"t2\"]), "
+                "st.sampled_from([\"t1\", \"t2\"]))"
+            ),
+            "property_check": (
+                "(primary.tenant_id == secondary.tenant_id) or (not merged)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.retry.max_attempts(fn: callable, "
+            "attempts: int) -> object\n"
+            "Propose the attempt-bound invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The function must be invoked at most `attempts` times, "
+                "and at least once, regardless of how often it fails."
+            ),
+            "target": "app.retry.max_attempts",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.integers(min_value=1, max_value=10)"
+            ),
+            "property_check": (
+                "1 <= calls <= attempts"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.webhooks.payload_size_guard"
+            "(payload: bytes, max_bytes: int = 65536) -> bool\n"
+            "Propose the size-limit invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Acceptance must depend only on the byte length relative "
+                "to the limit — exactly the payloads with length <= "
+                "max_bytes pass."
+            ),
+            "target": "app.webhooks.payload_size_guard",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.tuples(st.binary(max_size=100), "
+                "st.integers(min_value=1, max_value=100))"
+            ),
+            "property_check": (
+                "accepted == (len(payload) <= max_bytes)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.ledger.reconcile(entries: list) "
+            "-> int\n"
+            "Propose the reconciliation invariant for duplicate detection."
+        ),
+        "assistant": {
+            "description": (
+                "Reconciliation must count each distinct entry id exactly "
+                "once, and duplicates must be reported, never silently "
+                "merged."
+            ),
+            "target": "app.ledger.reconcile",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.lists(st.integers(min_value=0, max_value=15), "
+                "max_size=30)"
+            ),
+            "property_check": (
+                "reconciled == len(set(entry_ids))"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.config.validate_range(name: str, "
+            "value: int, low: int, high: int) -> None\n"
+            "Propose the validation invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Validation must accept exactly the values within the "
+                "inclusive range and raise for everything outside, with "
+                "no side effects on valid input."
+            ),
+            "target": "app.config.validate_range",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.tuples(st.integers(min_value=0, max_value=100), "
+                "st.integers(min_value=0, max_value=100))"
+            ),
+            "property_check": (
+                "accepted == (low <= value <= high)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.search.sort_results(results: "
+            "list, key: str) -> list\n"
+            "Sorting must be stable. Propose the stability invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Equal-key elements must retain their original relative "
+                "order, and the sorted output must be a permutation of "
+                "the input."
+            ),
+            "target": "app.search.sort_results",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.lists(st.fixed_dictionaries({\"k\": st.integers("
+                "min_value=0, max_value=3), \"i\": st.integers("
+                "max_value=100)}), max_size=20)"
+            ),
+            "property_check": (
+                "len(sorted_results) == len(results)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.api.cursor_stable_id(record: "
+            "dict) -> str\n"
+            "Propose the determinism invariant for cursor identifiers."
+        ),
+        "assistant": {
+            "description": (
+                "The same record must always produce the same id, and two "
+                "records differing in any payload field must produce "
+                "different ids."
+            ),
+            "target": "app.api.cursor_stable_id",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.fixed_dictionaries({\"id\": st.integers(min_value=0, "
+                "max_value=1000)})"
+            ),
+            "property_check": (
+                "stable_id(record) == stable_id(record)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.auth.password_never_logged"
+            "(logger_name: str, kwargs: dict) -> None\n"
+            "Logging must never include the password field. Propose the "
+            "redaction invariant."
+        ),
+        "assistant": {
+            "description": (
+                "No log record may contain the password value, and the "
+                "redaction must hold regardless of nesting or casing of "
+                "the field name."
+            ),
+            "target": "app.auth.password_never_logged",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.text(min_size=1, max_size=20, alphabet=st.characters("
+                "min_codepoint=48, max_codepoint=122))"
+            ),
+            "property_check": (
+                "password_value not in log_output"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.cron.next_run(schedule: dict, "
+            "after: int) -> int\n"
+            "Propose the monotonicity invariant for scheduled runs."
+        ),
+        "assistant": {
+            "description": (
+                "The next run must be strictly after the given time and "
+                "identical when queried again at any moment before it "
+                "fires."
+            ),
+            "target": "app.cron.next_run",
+            "category": "business_logic",
+            "hypothesis_strategy": (
+                "st.integers(min_value=0, max_value=2**31)"
+            ),
+            "property_check": (
+                "next_run > after"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.i18n.format_message(template: "
+            "str, params: dict) -> str\n"
+            "Propose the placeholder-substitution invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Every supplied parameter must appear in the output and "
+                "no raw placeholder braces may remain after formatting."
+            ),
+            "target": "app.i18n.format_message",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.fixed_dictionaries({\"name\": st.text(min_size=1, "
+                "max_size=8, alphabet=st.characters(min_codepoint=97, "
+                "max_codepoint=122))})"
+            ),
+            "property_check": (
+                "params[\"name\"] in formatted"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.deletion.soft_delete(record: "
+            "Record, actor: str) -> Record\n"
+            "Soft-deleted records stay in the table but vanish from "
+            "default queries. Propose the visibility invariant."
+        ),
+        "assistant": {
+            "description": (
+                "After a soft delete the record must be absent from "
+                "default listings while still retrievable explicitly, "
+                "and repeated deletes must be idempotent."
+            ),
+            "target": "app.deletion.soft_delete",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.integers(min_value=1, max_value=50)"
+            ),
+            "property_check": (
+                "record not in default_listing(record.tenant_id)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.rbac.scope_check(requested: "
+            "list[str], granted: list[str]) -> bool\n"
+            "Propose the privilege-escalation invariant."
+        ),
+        "assistant": {
+            "description": (
+                "The check must pass only when every requested scope is "
+                "granted; requesting anything beyond the granted set "
+                "must fail."
+            ),
+            "target": "app.rbac.scope_check",
+            "category": "auth",
+            "hypothesis_strategy": (
+                "st.lists(st.sampled_from([\"read\", \"write\", \"admin\"]), "
+                "max_size=4)"
+            ),
+            "property_check": (
+                "set(requested) <= set(granted)"
+            ),
+        },
+    },
+    {
+        "user": (
+            "Function under analysis: app.events.at_least_once_deliver"
+            "(event_id: str) -> int\n"
+            "Delivery is at-least-once. Propose the delivery-count "
+            "invariant."
+        ),
+        "assistant": {
+            "description": (
+                "Every acknowledged event must have been delivered at "
+                "least once, and no event may be delivered more than the "
+                "configured retry bound."
+            ),
+            "target": "app.events.at_least_once_deliver",
+            "category": "data_integrity",
+            "hypothesis_strategy": (
+                "st.integers(min_value=1, max_value=5)"
+            ),
+            "property_check": (
+                "1 <= delivery_count <= max_retries"
             ),
         },
     },
@@ -4203,6 +5972,875 @@ REPORTING: list[dict] = [
             ],
             "priority_order": [
                 "upstream abort left six shards unscheduled"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1101", "totals": {"passed": 64, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 28400, '
+            '"failures": ['
+            '{"test": "test_email_domain_extract", "outcome": "FAILED", '
+            '"duration_ms": 80}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "64 of 65 tests passed. The single failure is in email "
+                "domain extraction, a small and well-isolated parsing "
+                "path."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "email domain extraction returns the wrong part"
+                    ),
+                    "affected_tests": ["test_email_domain_extract"],
+                    "severity": "low",
+                    "explanation": (
+                        "One isolated parser test failing with the rest "
+                        "of the suite green suggests a narrow input "
+                        "case, not a systemic break."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "email domain extraction returns the wrong part"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1102", "totals": {"passed": 9, "failed": 7, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 61200, '
+            '"failures": ['
+            '{"test": "test_queue_enqueue", "outcome": "FAILED", "duration_ms": 3100}, '
+            '{"test": "test_queue_dequeue", "outcome": "FAILED", "duration_ms": 3050}, '
+            '{"test": "test_queue_peek", "outcome": "FAILED", "duration_ms": 3080}, '
+            '{"test": "test_queue_size", "outcome": "FAILED", "duration_ms": 3060}, '
+            '{"test": "test_queue_clear", "outcome": "FAILED", "duration_ms": 3040}, '
+            '{"test": "test_queue_drain", "outcome": "FAILED", "duration_ms": 3070}, '
+            '{"test": "test_queue_priority", "outcome": "FAILED", "duration_ms": 3060}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "Nine tests passed while all seven queue-surface tests "
+                "failed with near-identical durations. A whole module "
+                "failing uniformly points to a shared initialization "
+                "failure rather than seven separate bugs."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "queue subsystem fails to initialize in the test "
+                        "environment"
+                    ),
+                    "affected_tests": [
+                        "test_queue_enqueue",
+                        "test_queue_dequeue",
+                        "test_queue_peek",
+                        "test_queue_size",
+                        "test_queue_clear",
+                        "test_queue_drain",
+                        "test_queue_priority",
+                    ],
+                    "severity": "high",
+                    "explanation": (
+                        "Uniform failure of every operation on one "
+                        "surface indicates the dependency, fixture, or "
+                        "connection backing the queue is absent."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "queue subsystem fails to initialize in the test environment"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1103", "totals": {"passed": 37, "failed": 0, '
+            '"error": 0, "timeout": 2, "not_run": 0}, "duration_ms": 180500, '
+            '"failures": ['
+            '{"test": "test_index_rebuild_large", "outcome": "TIMEOUT", '
+            '"duration_ms": 90000}, '
+            '{"test": "test_vacuum_large_table", "outcome": "TIMEOUT", '
+            '"duration_ms": 90000}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "37 maintenance-path tests passed while the two "
+                "large-dataset maintenance tests each hit the 90-second "
+                "ceiling. The operations appear to run indefinitely on "
+                "big inputs."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "index rebuild and vacuum exceed the timeout on "
+                        "large tables"
+                    ),
+                    "affected_tests": [
+                        "test_index_rebuild_large",
+                        "test_vacuum_large_table",
+                    ],
+                    "severity": "high",
+                    "explanation": (
+                        "Maintenance operations that never complete at "
+                        "scale risk production stalls; profile the "
+                        "large-input path."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "index rebuild and vacuum exceed the timeout on large tables"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1104", "totals": {"passed": 55, "failed": 2, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 40100, '
+            '"failures": ['
+            '{"test": "test_search_relevance_order", "outcome": "FAILED", '
+            '"duration_ms": 240}, '
+            '{"test": "test_search_result_ranking", "outcome": "FAILED", '
+            '"duration_ms": 260}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "55 of 57 tests passed. Both failures are in search "
+                "ranking and likely share one root cause in the ordering "
+                "logic."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "search ranking produces wrong result order"
+                    ),
+                    "affected_tests": [
+                        "test_search_relevance_order",
+                        "test_search_result_ranking",
+                    ],
+                    "severity": "medium",
+                    "explanation": (
+                        "Ordering and ranking failing together on the "
+                        "same surface suggests a single comparator or "
+                        "scoring change."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "search ranking produces wrong result order"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1105", "totals": {"passed": 41, "failed": 0, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 15100, '
+            '"failures": [], '
+            '"notes": "4 flaky tests passed on internal retry (see retry log)"}'
+        ),
+        "assistant": {
+            "summary": (
+                "All 41 tests passed, but four required an internal retry "
+                "to get there. The run is green while masking timing or "
+                "ordering sensitivity."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "four tests are retry-dependent"
+                    ),
+                    "affected_tests": [],
+                    "severity": "low",
+                    "explanation": (
+                        "Retry-masked flakiness tends to grow; identify "
+                        "the four tests from the retry log and stabilize "
+                        "their assumptions."
+                    ),
+                }
+            ],
+            "priority_order": [],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1106", "totals": {"passed": 22, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 19300, '
+            '"failures": ['
+            '{"test": "test_api_key_hash_format", "outcome": "FAILED", '
+            '"duration_ms": 70}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "22 of 23 tests passed. The failure verifies the API-key "
+                "hash format, part of the security-labeled surface, so "
+                "it should be resolved before release even though the "
+                "rest of the suite is green."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "api key hashes no longer match the documented "
+                        "format"
+                    ),
+                    "affected_tests": ["test_api_key_hash_format"],
+                    "severity": "medium",
+                    "explanation": (
+                        "Format drift in credential hashing can break "
+                        "verification for existing keys; reconcile the "
+                        "implementation with the documented scheme."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "api key hashes no longer match the documented format"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1107", "totals": {"passed": 0, "failed": 0, '
+            '"error": 3, "timeout": 0, "not_run": 9}, "duration_ms": 2400, '
+            '"failures": ['
+            '{"test": "test_bootstrap_config", "outcome": "ERROR", '
+            '"duration_ms": 800}, '
+            '{"test": "test_bootstrap_secrets", "outcome": "ERROR", '
+            '"duration_ms": 790}, '
+            '{"test": "test_bootstrap_signals", "outcome": "ERROR", '
+            '"duration_ms": 800}], '
+            '"notes": "collection aborted: bootstrap module raised at import"}'
+        ),
+        "assistant": {
+            "summary": (
+                "The suite aborted at collection: a bootstrap module "
+                "raises on import, erroring three tests and leaving nine "
+                "unrun. Nothing about the product code under test was "
+                "exercised."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "bootstrap module raises at import time"
+                    ),
+                    "affected_tests": [
+                        "test_bootstrap_config",
+                        "test_bootstrap_secrets",
+                        "test_bootstrap_signals",
+                    ],
+                    "severity": "high",
+                    "explanation": (
+                        "Import-time failure blocks the entire suite; "
+                        "fix the module-level exception first, then "
+                        "re-run to get real coverage."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "bootstrap module raises at import time"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1108", "totals": {"passed": 48, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 33900, '
+            '"failures": ['
+            '{"test": "test_cache_eviction_order", "outcome": "FAILED", '
+            '"duration_ms": 310}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "48 of 49 tests passed. The single failure is the cache "
+                "eviction order, which affects which entries survive "
+                "under memory pressure."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "cache evicts in the wrong order"
+                    ),
+                    "affected_tests": ["test_cache_eviction_order"],
+                    "severity": "medium",
+                    "explanation": (
+                        "Wrong eviction order can evict hot entries and "
+                        "degrade hit rates; verify the LRU bookkeeping."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "cache evicts in the wrong order"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1109", "totals": {"passed": 30, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 22600, '
+            '"failures": ['
+            '{"test": "test_export_csv_escaping", "outcome": "FAILED", '
+            '"duration_ms": 140}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "30 of 31 tests passed. The failure covers CSV escaping, "
+                "which protects against malformed and injection-prone "
+                "export output."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "csv export does not escape special characters"
+                    ),
+                    "affected_tests": ["test_export_csv_escaping"],
+                    "severity": "high",
+                    "explanation": (
+                        "Unescaped CSV output can corrupt downstream "
+                        "imports and enable formula injection in "
+                        "spreadsheets."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "csv export does not escape special characters"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1110", "totals": {"passed": 17, "failed": 1, '
+            '"error": 1, "timeout": 0, "not_run": 0}, "duration_ms": 12800, '
+            '"failures": ['
+            '{"test": "test_task_retry_backoff", "outcome": "FAILED", '
+            '"duration_ms": 420}, '
+            '{"test": "test_task_retry_gives_up", "outcome": "ERROR", '
+            '"duration_ms": 380}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "17 of 19 tests passed. The retry subsystem shows one "
+                "assertion failure and one error, both on the retry "
+                "path, so the backoff and give-up logic changed "
+                "behavior together."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "retry backoff and give-up semantics diverged "
+                        "from contract"
+                    ),
+                    "affected_tests": [
+                        "test_task_retry_backoff",
+                        "test_task_retry_gives_up",
+                    ],
+                    "severity": "medium",
+                    "explanation": (
+                        "Two distinct failure modes on one path usually "
+                        "mean a shared retry-policy change; review the "
+                        "latest policy edit."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "retry backoff and give-up semantics diverged from contract"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1111", "totals": {"passed": 26, "failed": 0, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 9800, '
+            '"failures": [], '
+            '"notes": "wall clock down 55 percent vs prior run"}'
+        ),
+        "assistant": {
+            "summary": (
+                "All 26 tests passed and wall-clock time dropped 55 "
+                "percent versus the prior run. A speedup this large "
+                "often means cached dependencies or a changed fixture "
+                "scope."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "suite duration dropped 55 percent unexpectedly"
+                    ),
+                    "affected_tests": [],
+                    "severity": "info",
+                    "explanation": (
+                        "Confirm the speedup comes from intended "
+                        "caching and not from tests silently skipping "
+                        "work."
+                    ),
+                }
+            ],
+            "priority_order": [],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1112", "totals": {"passed": 33, "failed": 2, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 47500, '
+            '"failures": ['
+            '{"test": "test_ws_connect_stale_token", "outcome": "FAILED", '
+            '"duration_ms": 2100}, '
+            '{"test": "test_ws_disconnect_cleanup", "outcome": "FAILED", '
+            '"duration_ms": 2050}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "33 of 35 tests passed. Both websocket failures concern "
+                "connection lifecycle: stale-token rejection and "
+                "disconnect cleanup."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "websocket lifecycle handling regressed"
+                    ),
+                    "affected_tests": [
+                        "test_ws_connect_stale_token",
+                        "test_ws_disconnect_cleanup",
+                    ],
+                    "severity": "medium",
+                    "explanation": (
+                        "Stale tokens being accepted and unclean "
+                        "disconnects both indicate the connection "
+                        "handler was refactored without preserving the "
+                        "lifecycle contract."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "websocket lifecycle handling regressed"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1113", "totals": {"passed": 44, "failed": 0, '
+            '"error": 0, "timeout": 0, "not_run": 2}, "duration_ms": 30800, '
+            '"failures": [], '
+            '"notes": "2 not_run: feature flag \'new_billing\' disabled in env"}'
+        ),
+        "assistant": {
+            "summary": (
+                "All 44 active tests passed. Two billing tests were "
+                "skipped because the new_billing feature flag is "
+                "disabled, so the new billing path has no coverage in "
+                "this run."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "new_billing flag disabled left two tests unrun"
+                    ),
+                    "affected_tests": [],
+                    "severity": "info",
+                    "explanation": (
+                        "Plan a flagged-on run before releasing the "
+                        "billing change so the disabled path gets "
+                        "coverage."
+                    ),
+                }
+            ],
+            "priority_order": [],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1114", "totals": {"passed": 19, "failed": 3, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 25100, '
+            '"failures": ['
+            '{"test": "test_rbac_editor_cannot_delete", "outcome": "FAILED", '
+            '"duration_ms": 130}, '
+            '{"test": "test_rbac_viewer_cannot_write", "outcome": "FAILED", '
+            '"duration_ms": 125}, '
+            '{"test": "test_rbac_unknown_role_denied", "outcome": "FAILED", '
+            '"duration_ms": 128}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "19 of 22 tests passed. All three failures are RBAC "
+                "deny-path tests, meaning the permission layer stopped "
+                "denying what it must deny."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "rbac deny paths no longer enforced"
+                    ),
+                    "affected_tests": [
+                        "test_rbac_editor_cannot_delete",
+                        "test_rbac_viewer_cannot_write",
+                        "test_rbac_unknown_role_denied",
+                    ],
+                    "severity": "high",
+                    "explanation": (
+                        "Authorization denying nothing is a "
+                        "privilege-escalation risk; treat as "
+                        "release-blocking."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "rbac deny paths no longer enforced"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1115", "totals": {"passed": 52, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 36700, '
+            '"failures": ['
+            '{"test": "test_migration_adds_index", "outcome": "FAILED", '
+            '"duration_ms": 890}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "52 of 53 tests passed. The migration test failed, "
+                "meaning the schema migration does not produce the "
+                "index it promises."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "migration does not create the documented index"
+                    ),
+                    "affected_tests": ["test_migration_adds_index"],
+                    "severity": "medium",
+                    "explanation": (
+                        "A missing index typically surfaces later as a "
+                        "performance regression; fix the migration "
+                        "before it ships to more environments."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "migration does not create the documented index"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1116", "totals": {"passed": 28, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 17200, '
+            '"failures": ['
+            '{"test": "test_log_output_has_no_stack_trace_leak", '
+            '"outcome": "FAILED", "duration_ms": 95}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "28 of 29 tests passed. The failure guards against stack "
+                "traces leaking into user-facing logs, an information-"
+                "disclosure concern."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "stack traces leak into log output"
+                    ),
+                    "affected_tests": [
+                        "test_log_output_has_no_stack_trace_leak"
+                    ],
+                    "severity": "medium",
+                    "explanation": (
+                        "Internal frames in logs aid attackers probing "
+                        "the system; sanitize error rendering before "
+                        "release."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "stack traces leak into log output"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1117", "totals": {"passed": 15, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 44300, '
+            '"failures": ['
+            '{"test": "test_bulk_import_rate", "outcome": "FAILED", '
+            '"duration_ms": 21000}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "15 of 16 tests passed. The bulk-import throughput test "
+                "failed after running for 21 seconds, so the import "
+                "pipeline is functionally correct but slower than the "
+                "committed threshold."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "bulk import throughput below the committed rate"
+                    ),
+                    "affected_tests": ["test_bulk_import_rate"],
+                    "severity": "low",
+                    "explanation": (
+                        "A performance-threshold miss with correct "
+                        "output warrants profiling rather than a "
+                        "functional fix."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "bulk import throughput below the committed rate"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1118", "totals": {"passed": 39, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 29500, '
+            '"failures": ['
+            '{"test": "test_tenant_header_required", "outcome": "FAILED", '
+            '"duration_ms": 110}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "39 of 40 tests passed. The failure shows requests "
+                "without a tenant header are being served instead of "
+                "rejected, which undermines the isolation model."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "missing tenant header no longer rejected"
+                    ),
+                    "affected_tests": ["test_tenant_header_required"],
+                    "severity": "high",
+                    "explanation": (
+                        "Serving tenant-less requests risks defaulting "
+                        "to the wrong tenant scope; restore the strict "
+                        "header check."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "missing tenant header no longer rejected"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1119", "totals": {"passed": 23, "failed": 0, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 11200, '
+            '"failures": [], '
+            '"notes": "teardown verified: all 12 temp workspaces removed"}'
+        ),
+        "assistant": {
+            "summary": (
+                "All 23 tests passed and teardown verification confirmed "
+                "all 12 temporary workspaces were removed. This is a "
+                "fully clean run with no follow-up items."
+            ),
+            "findings": [],
+            "priority_order": [],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1120", "totals": {"passed": 31, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 20400, '
+            '"failures": ['
+            '{"test": "test_cursor_survives_restart", "outcome": "FAILED", '
+            '"duration_ms": 460}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "31 of 32 tests passed. The failure is cursor "
+                "persistence across restarts, which affects long-running "
+                "imports resuming after downtime."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "pagination cursor not persisted across restart"
+                    ),
+                    "affected_tests": ["test_cursor_survives_restart"],
+                    "severity": "medium",
+                    "explanation": (
+                        "Non-persistent cursors force full reprocessing "
+                        "after restarts; verify the checkpoint write "
+                        "path."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "pagination cursor not persisted across restart"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1121", "totals": {"passed": 46, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 33200, '
+            '"failures": ['
+            '{"test": "test_encrypted_field_roundtrip", "outcome": '
+            '"FAILED", "duration_ms": 160}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "46 of 47 tests passed. The encryption round-trip test "
+                "failed, so encrypted fields are not being restored to "
+                "their original values."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "field encryption round-trip loses data"
+                    ),
+                    "affected_tests": ["test_encrypted_field_roundtrip"],
+                    "severity": "high",
+                    "explanation": (
+                        "Broken round-trips on encrypted fields mean "
+                        "silent data corruption; block release until "
+                        "verified."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "field encryption round-trip loses data"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1122", "totals": {"passed": 20, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 14300, '
+            '"failures": ['
+            '{"test": "test_duplicate_webhook_dropped", "outcome": '
+            '"FAILED", "duration_ms": 130}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "20 of 21 tests passed. The duplicate-webhook guard "
+                "failed, meaning replayed deliveries are being processed "
+                "twice."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "duplicate webhook deliveries not deduplicated"
+                    ),
+                    "affected_tests": ["test_duplicate_webhook_dropped"],
+                    "severity": "medium",
+                    "explanation": (
+                        "Double processing can double-charge or "
+                        "double-notify; check the idempotency key "
+                        "lookup."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "duplicate webhook deliveries not deduplicated"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1123", "totals": {"passed": 42, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 28900, '
+            '"failures": ['
+            '{"test": "test_gzip_response_valid", "outcome": "FAILED", '
+            '"duration_ms": 210}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "42 of 43 tests passed. The gzip response test failed, "
+                "so compressed responses may be malformed for some "
+                "clients."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "gzip compression produces invalid output"
+                    ),
+                    "affected_tests": ["test_gzip_response_valid"],
+                    "severity": "medium",
+                    "explanation": (
+                        "Invalid compressed bodies break clients "
+                        "silently; verify the compression middleware "
+                        "ordering."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "gzip compression produces invalid output"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1124", "totals": {"passed": 13, "failed": 2, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 16900, '
+            '"failures": ['
+            '{"test": "test_metric_histogram_buckets", "outcome": "FAILED", '
+            '"duration_ms": 90}, '
+            '{"test": "test_metric_labels_present", "outcome": "FAILED", '
+            '"duration_ms": 85}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "13 of 15 tests passed. Both observability tests failed "
+                "together, meaning exported metrics are missing "
+                "buckets and labels the dashboards expect."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "metric export missing buckets and labels"
+                    ),
+                    "affected_tests": [
+                        "test_metric_histogram_buckets",
+                        "test_metric_labels_present",
+                    ],
+                    "severity": "low",
+                    "explanation": (
+                        "Dashboards and alerts will silently lose "
+                        "signal; reconcile the metric definitions with "
+                        "the monitoring contract."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "metric export missing buckets and labels"
+            ],
+        },
+    },
+    {
+        "user": (
+            '{"run_id": "run-1125", "totals": {"passed": 36, "failed": 1, '
+            '"error": 0, "timeout": 0, "not_run": 0}, "duration_ms": 24700, '
+            '"failures": ['
+            '{"test": "test_timezone_aware_parse", "outcome": "FAILED", '
+            '"duration_ms": 105}]}'
+        ),
+        "assistant": {
+            "summary": (
+                "36 of 37 tests passed. The timezone-aware parsing test "
+                "failed, which typically shifts stored timestamps for "
+                "non-UTC clients."
+            ),
+            "findings": [
+                {
+                    "root_cause": (
+                        "timezone-aware timestamps parsed incorrectly"
+                    ),
+                    "affected_tests": ["test_timezone_aware_parse"],
+                    "severity": "medium",
+                    "explanation": (
+                        "Naive parsing of aware timestamps causes "
+                        "off-by-hours data; enforce UTC normalization "
+                        "at the boundary."
+                    ),
+                }
+            ],
+            "priority_order": [
+                "timezone-aware timestamps parsed incorrectly"
             ],
         },
     },
