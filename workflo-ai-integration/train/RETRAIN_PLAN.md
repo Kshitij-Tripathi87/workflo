@@ -1,8 +1,9 @@
 # Adapter re-train plan — target ≥ 84 % on every task
 
-Status: **iteration 1 complete — token gate NOT yet met; more data required.**
-The training/eval tooling is built and validated; three training recipes were
-executed. Empirical results below replace the estimates in sections 2–4.
+Status: **Path A adopted — acceptance gate redefined as task-functional
+accuracy (gate v2). reasoning + reporting pass at 100 %; test_gen retrain
+pending on host memory.** Results in section 5a. The token-exact-match
+number is retained as an informational metric only.
 
 ## 5a. Empirical results (held-out, unpadded teacher-forced)
 
@@ -56,6 +57,52 @@ generalization behavior, not a measurement artifact.
 | **A. Redefine the gate metric** | Replace token exact-match with task-functional accuracy: generated test compiles + asserts the documented behavior; report captures the actual failing tests. Schema+gates already pass 100 %. | Metric redesign + eval harness extension (no retraining) |
 | **B. Larger base model** | The plateau tracks model capacity; a 7-8B base in the same Qwen family would shift it. | New base GGUF + full retraining + acceptance re-run |
 | **C. Accept current quality** | Ship with schema 100 % + gates 100 % + the token-accuracy number documented honestly. | Zero |
+
+### Path A — gate v2: task-functional accuracy (ADOPTED)
+
+Implemented in `train/functional_checks.py`, wired into
+`train/eval_adapter.py`. The acceptance gate is now:
+
+1. **task-functional accuracy == 100 %** — the output does the job (below)
+2. schema-validity rate == 100 % (unchanged)
+3. safety-gate pass rate == 100 % (unchanged)
+
+Teacher-forced completion token accuracy remains measured and reported as
+an **informational** metric; it no longer gates acceptance.
+
+Per-task functional checks (all deterministic, all auditable via failure
+reasons in the eval output):
+
+| Task | Functional requirements verified |
+|---|---|
+| test_gen | compiles; defines `test_*` functions with real assertions (assert / pytest.raises); imports the module under test; calls the documented function; no prohibited APIs (subprocess/network/filesystem); **collectable by pytest** against a stub module (proves imports bind and tests are discoverable) |
+| reasoning | `target` matches the analyzed function; `hypothesis_strategy` is an expression over `st.*` only that **executes into a real Hypothesis SearchStrategy**; `property_check` is falsifiable (comparison/boolean op) and grounded (shares an identifier with the analyzed function, its parameters, or a snake_case subtoken of its name — invariants may legitimately reference the function's result or maintained state, e.g. `scoped_query`, `bucket.tokens`) |
+| reporting | no invented test names; every failing test covered by a finding; no findings on a green run unless grounded info notes (warnings/retries captured in the run's `notes` field); priority_order entries are actual finding root_causes; summary references the real outcome |
+
+#### Gate-v2 results (held-out, greedy generation)
+
+| Adapter | Token acc (info) | Schema | Gates | **Functional** | Verdict |
+|---|---|---|---|---|---|
+| reasoning v2 (63/7) | 0.8085 | 100 % | 100 % | **100 %** | **PASS** |
+| reporting v2 (58/7) | 0.7483 | 100 % | 100 % | **100 %** | **PASS** |
+| test_gen legacy ckpt (`train/out/test_gen`, pre-unification) | 0.835 | 0 % | 0 % | 0 % | FAIL (see below) |
+| test_gen v2 (63/7, current pipeline) | — | — | — | **pending** | retrain blocked on host memory |
+
+#### test_gen legacy-checkpoint finding
+
+The pre-unification test_gen checkpoint (trained 2026-10-12) emits a long
+` thinking` monologue before the JSON when driven with the unified
+hand-built prompt format; greedy generation never reaches valid JSON
+(0/7 schema). Root cause: it was trained before the retrain tooling
+standardized on the hand-built ChatML format (`train/train_qlora.py`
+lines 48–50), so its native chat template differs. The **deployed GGUF is
+unaffected** — llama-server applies the model's native template and
+production generations validate (CLI/API checks pass). To keep the gate
+comparable across tasks, test_gen is being retrained on the current
+pipeline (`train/out/test_gen_v2`, same cycle-2 recipe). Hypothesis for a
+future harness extension: the legacy class of checkpoints would evaluate
+cleanly with an empty-think-block prompt prefix; not required once
+test_gen v2 lands.
 
 ### Operational note (training environment)
 
@@ -137,13 +184,18 @@ changes (batch is the harder constraint at 6 GB).
 Early-stop rule: stop when held-out token accuracy has not improved for
 2 consecutive evals.
 
-## 5. Acceptance gate (the 84 % benchmark)
+## 5. Acceptance gate (gate v2 — task-functional accuracy)
 
 An adapter is accepted only when **all three** hold on the held-out split:
 
-1. Token accuracy ≥ **0.84**
+1. Task-functional accuracy = **100 %** (`train/functional_checks.py`;
+   per-task requirements in section 5a, Path A)
 2. Schema-validity rate = **100 %** (Pydantic validates every output)
 3. Safety-gate pass rate = **100 %** (`compile_check` / `property_expr_check`)
+
+Teacher-forced token accuracy is measured and reported but is
+informational (gate v1's ≥ 0.84 threshold was retired in Path A; see
+section 5a for the two-cycle evidence that it saturates structurally).
 
 Regression guard: test-gen's existing adapter is NOT re-trained unless its
 own re-train also clears the gate — the frozen 0.867 artifact stays

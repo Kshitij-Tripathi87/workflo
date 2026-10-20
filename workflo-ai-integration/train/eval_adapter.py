@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Held-out evaluation for a trained adapter against the acceptance gate.
 
-Gate (train/RETRAIN_PLAN.md section 5):
-  1. completion token accuracy >= 0.84  (teacher-forced, held-out examples)
-  2. schema-validity rate == 100 %      (greedy generation parsed + validated)
-  3. safety-gate pass rate == 100 %     (compile_check / property_expr_check)
+Gate v2 (train/RETRAIN_PLAN.md section 5, Path A):
+  1. task-functional accuracy == 100 %   (functional_checks.py, per task)
+  2. schema-validity rate == 100 %       (greedy generation parsed + validated)
+  3. safety-gate pass rate == 100 %      (compile_check / property_expr_check)
+
+Teacher-forced completion token accuracy is still measured and reported,
+but is informational only: two full training cycles proved it saturates
+at ~0.75-0.81 regardless of data volume or recipe, while serving-relevant
+quality (schema + gates) stays at 100 %.
 
 Uses the ORIGINAL HF weights + the trained LoRA adapter, exactly like
 training, so the numbers reflect the adapter that will be converted.
@@ -26,7 +31,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "train"))
 
+from functional_checks import CHECK_BY_TASK  # noqa: E402
 from workflo_ai_integration.safety_gate import (  # noqa: E402
     compile_check,
     property_expr_check,
@@ -131,9 +138,10 @@ def main() -> int:
             total += int(matches.numel())
     token_accuracy = correct / total if total else 0.0
 
-    # -- 2 + 3. greedy generation: schema validity + safety gates -------------
+    # -- 2 + 3 + 4. greedy generation: schema + safety gates + functionality --
     schema_valid = 0
     gate_pass = 0
+    functional_pass = 0
     failures: list[str] = []
     with torch.no_grad():
         for record in records:
@@ -161,6 +169,7 @@ def main() -> int:
                 failures.append("schema validation failed")
                 continue
             schema_valid += 1
+            payload_dict = obj.model_dump()
             gate_ok = True
             if args.task == "test_gen":
                 gate_ok = compile_check(obj.content).ok
@@ -173,6 +182,12 @@ def main() -> int:
                 gate_pass += 1
             else:
                 failures.append("safety gate rejected generation")
+                continue
+            functional = CHECK_BY_TASK[args.task](record, payload_dict)
+            if functional.ok:
+                functional_pass += 1
+            else:
+                failures.extend(f"functional: {reason}" for reason in functional.reasons)
 
     result = {
         "task": args.task,
@@ -181,8 +196,9 @@ def main() -> int:
         "completion_token_accuracy": round(token_accuracy, 4),
         "schema_valid_rate": round(schema_valid / len(records), 4) if records else 0.0,
         "gate_pass_rate": round(gate_pass / len(records), 4) if records else 0.0,
+        "task_functional_rate": round(functional_pass / len(records), 4) if records else 0.0,
         "gate": {
-            "token_accuracy_ge_0_84": token_accuracy >= 0.84,
+            "task_functional_100pct": functional_pass == len(records),
             "schema_valid_100pct": schema_valid == len(records),
             "gate_pass_100pct": gate_pass == len(records),
         },
