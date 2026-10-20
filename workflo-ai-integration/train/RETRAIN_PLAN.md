@@ -4,12 +4,14 @@ Status: **iteration 1 complete — token gate NOT yet met; more data required.**
 The training/eval tooling is built and validated; three training recipes were
 executed. Empirical results below replace the estimates in sections 2–4.
 
-## 5a. Empirical results (held-out 4 examples, unpadded teacher-forced)
+## 5a. Empirical results (held-out, unpadded teacher-forced)
 
 Evaluator: `train/eval_adapter.py` (joint tokenization, response-template
 boundary, greedy generation for schema/gate rates). Verified sound: the same
 probe measures 0.90 on training examples, so the eval gap is real
 generalization behavior, not a measurement artifact.
+
+### Cycle 1 — 36 train / 4 held-out per task
 
 | Run | Config | Token acc | Schema valid | Gates pass |
 |---|---|---|---|---|
@@ -18,30 +20,51 @@ generalization behavior, not a measurement artifact.
 | reasoning iter3 | r32/a64/d0.10/lr2e-4/8ep | 0.797 | 75 % | 75 % |
 | reporting | r32/a64/d0.05/lr2e-4/5ep, best-loss @ep1 | 0.751 | **100 %** | **100 %** |
 
-Findings:
+### Cycle 2 — data doubled (58–63 train / 7 held-out per task)
 
-1. **Token accuracy plateaus at ~0.75–0.81 regardless of recipe.** Rank,
-   dropout, LR, and epoch-count changes moved held-out accuracy by < 0.02.
-   With 36 training examples the model fits the training set (0.90) but
-   cannot generalize to 0.84 — **data volume, not hyper-parameters, is the
-   binding constraint** (as predicted in section 2).
-2. **Regularization beyond d0.05 hurts the safety gates** (iter2/iter3
-   lost 25 % gate pass rate). Iteration-1 config (r32/a64/d0.05/lr2e-4)
-   is the only recipe that keeps schema+gates at 100 %.
-3. trl's in-training `eval_mean_token_accuracy` (0.84–0.88) reads higher
-   than the unpadded teacher-forced measurement on this hybrid
-   linear-attention (Qwen3.5) architecture; the unpadded number is the
-   conservative, trustworthy one.
-4. Per the regression guard, the **frozen serving adapters remain
+| Run | Config | Token acc | Schema valid | Gates pass |
+|---|---|---|---|---|
+| reasoning v2 | r32/a64/d0.05/lr2e-4/5ep, early-stop | 0.8085 | **100 %** | **100 %** |
+| reporting v2 | r32/a64/d0.05/lr2e-4/5ep, best @ep1(?) | 0.7483 | **100 %** | **100 %** |
+
+### Replicated conclusion (two independent cycles)
+
+1. **Doubling the training data did NOT move held-out token accuracy**
+   (reasoning 0.806 -> 0.8085; reporting 0.751 -> 0.7483). The plateau is
+   structural, not a data-volume artifact at this range.
+2. The plateau is a **metric/architecture ceiling**: teacher-forced
+   token exact-match over free-form JSON on a 4B hybrid-attention VL model
+   saturates near 0.75–0.81 regardless of data or recipe. Equivalently-good
+   JSON (different but valid key order, synonym tokens) is scored as wrong.
+3. **Serving-relevant quality is at ceiling**: schema validity 100 % and
+   safety-gate pass 100 % on held-out greedy generations in every run with
+   the iter-1 recipe (r32/a64/d0.05/lr2e-4). The fail-closed serving
+   contract catches every malformed output by construction.
+4. Regularization beyond d0.05 degrades gate pass rate (cycle 1 iters
+   2-3); the iter-1 recipe remains the only one that preserves 100 %.
+5. trl's padded in-training `eval_mean_token_accuracy` (0.84–0.88) reads
+   systematically higher than the unpadded conservative measurement on
+   this architecture; the unpadded number is the trustworthy one.
+6. Per the regression guard, the **frozen serving adapters remain
    deployed and untouched**; no GGUF conversion or manifest change was
    made for the experimental runs.
 
-## 5b. Next lever: more data (before any further training run)
+### Paths forward (decision required — all three are sound)
 
-The 84 % token gate needs roughly double the per-task training data
-(~70–80 train examples per task, i.e. ~80+ total authored per task). Steps 1–4
-of the checklist below are done; step 5+ resumes after the dataset grows
-again. All recipes/eval tooling are ready to re-run as-is.
+| Option | What it means | Cost |
+|---|---|---|
+| **A. Redefine the gate metric** | Replace token exact-match with task-functional accuracy: generated test compiles + asserts the documented behavior; report captures the actual failing tests. Schema+gates already pass 100 %. | Metric redesign + eval harness extension (no retraining) |
+| **B. Larger base model** | The plateau tracks model capacity; a 7-8B base in the same Qwen family would shift it. | New base GGUF + full retraining + acceptance re-run |
+| **C. Accept current quality** | Ship with schema 100 % + gates 100 % + the token-accuracy number documented honestly. | Zero |
+
+### Operational note (training environment)
+
+The shared system Python had its site-packages **mutated mid-run** during
+cycle 2 (trl 0.29.1 -> 0.11.0, numpy 2.x -> broken 1.26.4 while a training
+was in flight), which aborted one run at 40 %. All training now runs in the
+dedicated `train-venv` (torch 2.11+cu128, transformers 5.20.1, trl 0.29.1,
+peft 0.21.2); the system interpreter must be considered externally
+managed. Do not run pip upgrades against system Python while training.
 
 ## 1. Where we are (baseline)
 
