@@ -144,15 +144,32 @@ def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 300,
     )
 
 
+def normalize_repo_source(repo: str) -> str:
+    """Make a local repository path absolute.
+
+    `git clone` runs with the temporary work directory as its cwd, so a
+    relative local path (the common `--repo .` invocation) resolves against
+    the tempdir and the clone fails with `repository '.' does not exist`.
+    Remote URLs (https://, git@, file://) are returned unchanged.
+    """
+    candidate = Path(repo).expanduser()
+    if candidate.is_dir():
+        return str(candidate.resolve())
+    return repo
+
+
 def clone_repo(repo_url: str, work: Path) -> Path:
     """Shallow clone of the repo into work/repo.
+
+    A local path is resolved before cloning because the clone runs with
+    `work` as its cwd (see normalize_repo_source).
 
     Raises subprocess.CalledProcessError on clone failure so callers can
     fail loud rather than silently continuing with a broken state.
     """
     target = work / "repo"
     subprocess.run(
-        ["git", "clone", "--depth=50", repo_url, str(target)],
+        ["git", "clone", "--depth=50", normalize_repo_source(repo_url), str(target)],
         cwd=work, check=True, capture_output=True, text=True, timeout=300,
     )
     return target
@@ -239,13 +256,21 @@ class Gate:
     command: list[str]
     timeout: int = 300
     required: bool = True  # fail the whole pipeline if False
+    # Extra environment for the gate process, applied on top of the inherited
+    # environment. Relative entries (e.g. PYTHONPATH) resolve against the
+    # clone root because gates run with the checkout as their cwd.
+    env: dict[str, str] = field(default_factory=dict)
 
 
 DEFAULT_GATES: list[Gate] = [
     Gate(
         name="import-check",
+        # The control plane ships an `app` package rooted at apps/control-plane
+        # (installing it puts `app` on sys.path, but a plain `pip install -e`
+        # of the repo does not), so point the gate at the checkout explicitly.
         command=["python", "-c", "from app.main import create_app; print('OK')"],
         timeout=60,
+        env={"PYTHONPATH": "apps/control-plane"},
     ),
     Gate(
         name="pytest",
@@ -257,6 +282,11 @@ DEFAULT_GATES: list[Gate] = [
             "-q", "--no-header", "-p", "no:cacheprovider",
         ],
         timeout=300,
+        env={
+            "PYTHONPATH": os.pathsep.join(
+                ["apps/control-plane", "apps/workflo-cli", "packages/cortex-auth"]
+            )
+        },
     ),
 ]
 
@@ -265,10 +295,16 @@ def run_gate(gate: Gate, cwd: Path, venv_python: str | None = None) -> GateResul
     cmd = gate.command
     if venv_python and cmd[0] == "python":
         cmd = [venv_python, *cmd[1:]]
+    # Gates never inherit PYTHONPATH from the host: they must import the
+    # packages of the checkout under review, not the operator's environment.
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.update(gate.env)
     start = time.monotonic()
     try:
         proc = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, timeout=gate.timeout
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=gate.timeout,
+            env=env,
         )
     except subprocess.TimeoutExpired as e:
         return GateResult(

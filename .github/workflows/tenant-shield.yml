@@ -1,48 +1,102 @@
 name: Workflo QA
 
+# Self-test for the shipped composite action (`action.yml`).
+#
+# The previous version of this workflow reused the action against external
+# services with secrets that are not configured here, and called CLI flags
+# that do not exist (`--output-json`, `workflo report`) after installing a
+# package that cannot be installed (`pip install workflo`). It exited 127 on
+# every run, including the nightly schedule.
+#
+# Job 1 proves the action produces a valid run plan from a clean checkout.
+# Job 2 proves the same action fails closed when the sandbox runtime is
+# unreachable, instead of reporting a result it never produced.
+#
+# The authoritative *live* isolation proof is `linux-gate.yml` (bwrap,
+# cgroups, netns, golden runs, receipt verification); this workflow does not
+# duplicate it, and it needs no repository secrets.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   schedule:
-    # Nightly run at 03:00 UTC — useful for the heavier regression matrix
+    # Nightly regression, as before.
     - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  isolation:
-    name: Workflo QA tests
+  action-dry-run:
+    name: Action produces a valid run plan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ./
+      - name: Run the composite action in dry-run mode
+        uses: ./
         with:
-          python-version: "3.11"
-          pytest-args: "-m 'security or integration'"
-          report-format: html
-        env:
-          TEST_ENV: ci
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          TENANT_ID: ${{ vars.TENANT_ID }}
-          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
-          COMPANY1_TOKEN: ${{ secrets.COMPANY1_TOKEN }}
-          COMPANY2_TOKEN: ${{ secrets.COMPANY2_TOKEN }}
+          tiers: test
+          dry-run: "true"
+          results-path: reports/workflo-plan.json
 
-  smoke:
-    name: Smoke tests
+      - name: Assert the plan is valid
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import sys
+
+          plan = json.load(open("reports/workflo-plan.json"))
+          problems = []
+          if plan.get("mode") != "dry-run":
+              problems.append(f"mode is {plan.get('mode')!r}, expected 'dry-run'")
+          if plan.get("spec_valid") is not True:
+              problems.append(f"spec_valid is {plan.get('spec_valid')!r}")
+          if "surface" not in (plan.get("probe_groups") or []):
+              problems.append(f"probe_groups missing 'surface': {plan.get('probe_groups')!r}")
+          if not plan.get("selected_worker_image"):
+              problems.append("no worker image selected")
+          import os
+          if plan.get("repo_path") != os.getcwd():
+              problems.append(f"repo_path is {plan.get('repo_path')!r}, expected {os.getcwd()!r}")
+          if problems:
+              for problem in problems:
+                  print(f"::error::{problem}")
+              sys.exit(1)
+          print(f"[ok] valid run plan: {plan['probe_groups']} on {plan['selected_worker_image']}")
+          PY
+
+  action-fail-closed:
+    name: Action fails closed without a sandbox runtime
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: ./
-        with:
-          pytest-args: "-m smoke"
-          install-playwright: "true"
+
+      # DOCKER_HOST is pointed at a socket that does not exist, so any attempt
+      # to create a sandbox must fail. A run that "succeeds" here would mean
+      # the CLI reported an execution it never performed.
+      - name: Run the composite action with no reachable sandbox runtime
+        id: workflo
+        continue-on-error: true
+        uses: ./
         env:
-          TEST_ENV: ci
-          BASE_URL: ${{ secrets.BASE_URL }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          TENANT_ID: ${{ vars.TENANT_ID }}
-          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
-          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          DOCKER_HOST: unix:///nonexistent-workflo-test.sock
+        with:
+          tiers: test
+          dry-run: "false"
+          results-path: reports/workflo-results.json
+
+      - name: Assert the failure was reported, not hidden
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.workflo.outcome }}" != "failure" ]; then
+            echo "::error::A run with no reachable sandbox runtime reported success."
+            exit 1
+          fi
+          echo "[ok] the CLI failed closed instead of emitting a fake result"

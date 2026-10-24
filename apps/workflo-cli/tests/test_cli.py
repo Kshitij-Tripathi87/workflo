@@ -356,6 +356,30 @@ class TestCLIDryRun:
             assert "security" in plan["probe_groups"]
             assert plan["security_config"] == {"start_command": "python app.py", "port": 5000}
 
+    def test_dry_run_writes_the_plan_to_output(self, runner, tmp_path):
+        """`--dry-run --output` must write the plan file.
+
+        The published GitHub Action (and any CI caller) treats the plan file
+        as its checkable artifact; printing the plan to stdout only meant
+        `--output` was silently ignored in dry-run mode.
+        """
+        out = tmp_path / "plan.json"
+        with patch("workflo_cli.main.SandboxExecutor") as mock_executor_cls:
+            result = runner.invoke(cli, [
+                "run", "--path", str(tmp_path),
+                "--test", "--dry-run", "--output", str(out),
+            ])
+
+            assert result.exit_code == 0, f"Failed: {result.output}\n{result.exception}"
+            mock_executor_cls.assert_not_called()
+
+        import json as _json
+        plan = _json.loads(out.read_text())
+        assert plan["mode"] == "dry-run"
+        assert plan["spec_valid"] is True
+        assert plan["repo_path"] == str(tmp_path)
+        assert "surface" in plan["probe_groups"]
+
     def test_plan_only_is_alias_for_dry_run(self, runner):
         """`--plan-only` must work as an alias for `--dry-run`."""
         with patch("workflo_cli.main.SandboxExecutor") as mock_executor_cls:

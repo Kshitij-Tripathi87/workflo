@@ -50,8 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The Dockerfile COPYs sibling workspace packages (packages/*,
+      # workflo-ai-integration/*), so the build context is the repository
+      # root. Passing apps/worker-engine as the context made every COPY of a
+      # repo-root path fail ("/apps/worker-engine/src: not found").
       - uses: docker/build-push-action@v5
         with:
-          context: apps/worker-engine
+          context: .
+          file: apps/worker-engine/Dockerfile
           push: false
           tags: workflo/worker-engine:latest

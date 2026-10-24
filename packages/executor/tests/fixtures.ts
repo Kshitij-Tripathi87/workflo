@@ -63,7 +63,7 @@ export const NODE_FIXTURE_FILES: Record<string, string> = {
       type: "module",
       scripts: {
         start: "node src/server.js",
-        test: "node --test tests",
+        test: "node --test tests/*.test.js",
       },
     },
     null,
@@ -119,7 +119,7 @@ test("health endpoint returns ok", async () => {
 export const CRASH_FIXTURE_FILES: Record<string, string> = {
   "package.json": JSON.stringify({
     name: "fixture-crash-app", type: "module",
-    scripts: { start: "node src/server.js", test: "node --test tests" },
+    scripts: { start: "node src/server.js", test: "node --test tests/*.test.js" },
   }),
   "src/server.js": `console.error("boom: cannot bind"); process.exit(3);`,
   "tests/x.test.js": `import { test } from "node:test"; test("noop", () => {});`,
@@ -128,7 +128,7 @@ export const CRASH_FIXTURE_FILES: Record<string, string> = {
 export const HANG_FIXTURE_FILES: Record<string, string> = {
   "package.json": JSON.stringify({
     name: "fixture-hang-app", type: "module",
-    scripts: { start: "node src/server.js", test: "node --test tests" },
+    scripts: { start: "node src/server.js", test: "node --test tests/*.test.js" },
   }),
   "src/server.js": `setInterval(() => {}, 1000); // listens on nothing, never ready`,
   "tests/x.test.js": `import { test } from "node:test"; test("noop", () => {});`,
@@ -137,7 +137,7 @@ export const HANG_FIXTURE_FILES: Record<string, string> = {
 export const TESTFAIL_FIXTURE_FILES: Record<string, string> = {
   "package.json": JSON.stringify({
     name: "fixture-testfail-app", type: "module",
-    scripts: { start: "node src/server.js", test: "node --test tests" },
+    scripts: { start: "node src/server.js", test: "node --test tests/*.test.js" },
   }),
   "src/server.js": `
 import http from "node:http";
@@ -158,7 +158,7 @@ test("deliberately failing", () => { assert.equal(1, 2); });
 export const CHILD_DAEMON_FIXTURE_FILES: Record<string, string> = {
   "package.json": JSON.stringify({
     name: "fixture-daemon-app", type: "module",
-    scripts: { start: "node src/server.js", test: "node --test tests" },
+    scripts: { start: "node src/server.js", test: "node --test tests/*.test.js" },
   }),
   "src/server.js": `
 import http from "node:http";

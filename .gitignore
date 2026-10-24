@@ -63,7 +63,10 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Runtime data
+.workflo/
 .workflo-dev/
+# Marker written by packages/npm-workflo postinstall on every install
+packages/npm-workflo/.workflo-install.json
 
 # Model artifacts are staged out-of-band and pinned by SHA-256 in the release
 # manifest; never commit multi-GB weights or adapters to Git.
