@@ -31,26 +31,35 @@ for (const s of ["scripts/postinstall.js", "scripts/build-wheels.py"]) {
 }
 new Function(strip(fs.readFileSync(path.join(pkgRoot, "scripts", "postinstall.js"), "utf8")));
 
-// exactly the six expected wheels vendored — no pre-rename strays
-const WHEELS = [
-  "workflo_schema-1.1.1-py3-none-any.whl",
-  "sandbox_isolation-1.1.1-py3-none-any.whl",
-  "workflo_probe_engine-1.1.1-py3-none-any.whl",
-  "workflo_executor-1.1.1-py3-none-any.whl",
-  "cortex_auth-1.1.1-py3-none-any.whl",
-  "workflo_cli-1.1.1-py3-none-any.whl",
-];
+// The vendored wheel set comes from vendor/manifest.json, which
+// scripts/build-wheels.py generates at pack time — no second hardcoded list
+// to drift out of sync with the CLI's dependencies.
 const vendor = path.join(pkgRoot, "vendor");
 const actual = fs.existsSync(vendor) ? fs.readdirSync(vendor) : [];
+const manifestPath = path.join(vendor, "manifest.json");
+check("vendor/manifest.json exists", fs.existsSync(manifestPath));
+
+let WHEELS = [];
+try {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  WHEELS = manifest.wheels.map((w) => path.basename(w));
+} catch {
+  WHEELS = [];
+}
+check("manifest lists wheels", WHEELS.length > 0);
+
 for (const w of WHEELS) {
   check(`vendor/${w}`, actual.includes(w));
 }
 const strays = actual.filter((f) => f.endsWith(".whl") && !WHEELS.includes(f));
 check("no stray wheels", strays.length === 0, strays.join(", "));
 check(
-  "wheel count == 6",
-  actual.filter((f) => f.endsWith(".whl")).length === 6
+  `wheel count == ${WHEELS.length}`,
+  actual.filter((f) => f.endsWith(".whl")).length === WHEELS.length
 );
+// Dependency order: the CLI is last, so every internal dist it requires is
+// already in the venv when pip resolves it.
+check("CLI wheel installed last", /^workflo_cli-/.test(WHEELS[WHEELS.length - 1] || ""));
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed`);

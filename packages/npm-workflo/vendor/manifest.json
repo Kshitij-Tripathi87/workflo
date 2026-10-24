@@ -1,0 +1,13 @@
+{
+  "description": "Ordered internal wheels installed by postinstall.js",
+  "wheels": [
+    "vendor/workflo_schema-1.1.1-py3-none-any.whl",
+    "vendor/sandbox_runtime-0.1.0-py3-none-any.whl",
+    "vendor/sandbox_isolation-1.1.1-py3-none-any.whl",
+    "vendor/workflo_probe_engine-1.1.1-py3-none-any.whl",
+    "vendor/workflo_executor-1.1.1-py3-none-any.whl",
+    "vendor/cortex_auth-1.1.1-py3-none-any.whl",
+    "vendor/workflo_supervisor-0.1.0-py3-none-any.whl",
+    "vendor/workflo_cli-1.1.1-py3-none-any.whl"
+  ]
+}
