@@ -36,6 +36,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      # build-wheels.py shells out to `python -m build`; the runner's Python
+      # does not ship it, so without this step the job died on its first
+      # command with "The 'build' package is required".
+      - name: Install wheel build backend
+        run: python -m pip install --upgrade build
+
       - name: Build vendor wheels
         working-directory: packages/npm-workflo
         run: python scripts/build-wheels.py
@@ -43,6 +49,8 @@ jobs:
       - name: Pack tarball
         working-directory: packages/npm-workflo
         run: |
+          # `npm pack --pack-destination` does not create the directory.
+          mkdir -p dist
           IPATH=$(pwd)
           npm pack --pack-destination dist
           ls -la "$IPATH/dist"
@@ -125,11 +133,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install wheel build backend
+        run: python -m pip install --upgrade build
+
       - name: Build + pack (fresh, reproducible)
         working-directory: packages/npm-workflo
         run: |
           python scripts/build-wheels.py
           node scripts/smoke-test.js
+          mkdir -p dist
           npm pack --pack-destination dist
 
       - name: Publish to npm
