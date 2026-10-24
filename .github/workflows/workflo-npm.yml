@@ -101,9 +101,29 @@ jobs:
           # ("dist/x.tgz") as a GitHub shorthand and runs
           # `git ls-remote ssh://git@github.com/dist/x.tgz.git`, which fails
           # with exit 128 on every matrix leg.
-          TARBALL=$(find "$PWD/dist" -name "*.tgz" | head -1)
+          TARBALL=$(find "$PWD/dist" -type f -name "*.tgz" | head -1)
           echo "Installing: $TARBALL"
-          npm install -g "$TARBALL" --foreground-scripts
+          ls -la dist || true
+          echo "node $(node --version) / npm $(npm --version)"
+          echo "python: $(python --version 2>&1) at $(command -v python || echo none)"
+          echo "npm prefix: $(npm config get prefix)"
+          LOG="$RUNNER_TEMP/npm-install.log"
+          if npm install -g "$TARBALL" --foreground-scripts >"$LOG" 2>&1; then
+            cat "$LOG"
+          else
+            STATUS=$?
+            cat "$LOG"
+            # Job logs live on Azure blob storage, which is unreachable from
+            # this sandbox; annotations come from api.github.com, so mirror the
+            # failure there.
+            ESCAPED=$(tail -c 3000 "$LOG" | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=npm install -g failed (${{ matrix.os }} / node ${{ matrix.node }})::${ESCAPED}"
+            echo "--- interpreter probes ---"
+            python -m venv --help >/dev/null 2>&1 && echo "venv module: OK" || echo "venv module: MISSING"
+            python -m pip --version 2>&1 || true
+            python -c "import ensurepip; print('ensurepip: OK')" 2>&1 || echo "ensurepip: MISSING"
+            exit $STATUS
+          fi
 
       - name: Verify CLI
         shell: bash
