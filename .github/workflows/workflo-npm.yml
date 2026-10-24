@@ -97,9 +97,13 @@ jobs:
       - name: Install tarball globally
         shell: bash
         run: |
-          TARBALL=$(find dist -name "*.tgz" | head -1)
+          # Absolute path on purpose: npm parses a bare relative path
+          # ("dist/x.tgz") as a GitHub shorthand and runs
+          # `git ls-remote ssh://git@github.com/dist/x.tgz.git`, which fails
+          # with exit 128 on every matrix leg.
+          TARBALL=$(find "$PWD/dist" -name "*.tgz" | head -1)
           echo "Installing: $TARBALL"
-          npm install -g "$TARBALL" --allow-scripts=@cortexstudio/workflo
+          npm install -g "$TARBALL" --foreground-scripts
 
       - name: Verify CLI
         shell: bash
