@@ -24,6 +24,7 @@ from validate_phase2.orchestrator import (
     Gate,
     GateResult,
     clone_repo,
+    normalize_repo_source,
     resolve_baseline,
     run_gate,
     run_validation,
@@ -84,9 +85,13 @@ class TestSandboxIsolation:
         assert "# test" in marker.read_text()
 
     def test_gate_command_does_not_leak_host_path(self, local_git_repo):
-        """A gate's recorded command must not reference the host temp dir.
-        The command list is captured as a space-joined string; check that
-        it doesn't include /tmp/ or any tempdir path."""
+        """A gate's recorded command must not reference the host repo/work dir.
+
+        The command list is captured as a space-joined string, so assert on
+        the actual paths this test owns instead of the substring "tmp" —
+        that substring also matches a virtualenv under /tmp, which made this
+        test fail for reasons unrelated to path leakage.
+        """
         gate = Gate(
             name="echo-test",
             command=[sys.executable, "-c", "print('hello')"],
@@ -94,7 +99,7 @@ class TestSandboxIsolation:
         )
         result = run_gate(gate, cwd=local_git_repo)
         assert result.command == " ".join(gate.command)
-        assert "tmp" not in result.command.lower()
+        assert str(local_git_repo.parent) not in result.command
         assert result.passed
 
     def test_run_validation_uses_tempfile(self, local_git_repo):
@@ -123,3 +128,36 @@ class TestSandboxIsolation:
         # Tempdir should still exist but be empty (no partial clone)
         assert temp_work_dir.exists()
         assert list(temp_work_dir.iterdir()) == []
+
+
+class TestLocalRepoSource:
+    """`--repo .` / a relative local path must clone the intended repository.
+
+    `git clone` runs with the temp work directory as its cwd, so an
+    unresolved relative path pointed at an empty tempdir and the pipeline
+    died with `repository '.' does not exist` before writing any report.
+    """
+
+    def test_relative_local_path_is_resolved_against_the_callers_cwd(
+        self, local_git_repo, temp_work_dir, monkeypatch
+    ):
+        work = temp_work_dir / "work"
+        work.mkdir()
+        monkeypatch.chdir(local_git_repo)
+
+        target = clone_repo(".", work)
+
+        assert (target / "README.md").read_text() == "# test\n"
+        assert (target / ".git").exists()
+
+    def test_remote_urls_are_passed_through_unchanged(self, temp_work_dir):
+        for remote in (
+            "https://github.com/pallets/click.git",
+            "git@github.com:pallets/click.git",
+            "file:///srv/mirrors/click.git",
+        ):
+            assert normalize_repo_source(remote) == remote
+
+    def test_normalize_repo_source_returns_an_absolute_local_path(self, local_git_repo):
+        assert normalize_repo_source(str(local_git_repo)) == str(local_git_repo.resolve())
+        assert Path(normalize_repo_source(str(local_git_repo))).is_absolute()

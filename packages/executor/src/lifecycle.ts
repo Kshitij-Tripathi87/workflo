@@ -6,7 +6,7 @@ import { ProcessScope, type SandboxRunner } from "@workflo/sandbox";
 import { buildSandboxEnv } from "./env-policy";
 import { probeHealth, type HealthResult } from "./health";
 import { classifyResult } from "./result";
-import { killTree, pidAlive } from "./process-utils";
+import { collectDescendants, killPid, killTree, pidAlive } from "./process-utils";
 import type { TestOutcome } from "./result";
 
 /**
@@ -265,13 +265,26 @@ export async function runExecutionPipeline(opts: PipelineOptions): Promise<Pipel
   }
 
   // ---- STOP + TEARDOWN + VERIFY -------------------------------------------
+  // Snapshot the descendant tree BEFORE signalling: a child that detached
+  // from its parent's process group (setsid / detached spawn) is missed by a
+  // group kill, and once its parent exits it is reparented to init, so the
+  // tree can no longer be discovered. Capturing first is what makes the
+  // "no surviving processes" claim true for daemons too.
+  const registered = scope.list();
+  const descendants = await collectDescendants(runner, registered);
+
   scope.killAll("SIGTERM");
   await scope.waitAll(3000);
   // Tree-kill EVERY registered pid: on Windows, killing a shell wrapper does
-  // not kill its node children; taskkill /T does. This also catches daemons.
-  const registered = scope.list();
+  // not kill its node children; taskkill /T does. This also catches daemons
+  // that stayed in the parent's process group.
   for (const pid of registered) {
     await killTree(runner, pid);
+  }
+  // Detached descendants are not in the parent's process group; kill them
+  // explicitly by pid.
+  for (const pid of descendants) {
+    await killPid(runner, pid);
   }
   await scope.waitAll(2000);
 
@@ -284,7 +297,10 @@ export async function runExecutionPipeline(opts: PipelineOptions): Promise<Pipel
     await runner.removeTree(repo.workspacePath).catch(() => undefined);
   }
 
-  const deadChecks = await Promise.all(registered.map(async (pid) => !(await pidAlive(runner, pid))));
+  const trackedPids = [...registered, ...descendants];
+  const deadChecks = await Promise.all(
+    trackedPids.map(async (pid) => !(await pidAlive(runner, pid))),
+  );
   const teardownVerified = deadChecks.every(Boolean);
   await event({
     kind: "TEARDOWN_VERIFIED", role: "EXECUTOR",
