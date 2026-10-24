@@ -7,7 +7,7 @@ export type GitExec = (
 ) => Promise<{ code: number; stdout: string; stderr: string }>;
 
 export const realGit: GitExec = (args, opts) =>
-  new Promise((resolve, reject) => {
+  new Promise((resolve) => {
     execFile(
       "git",
       args,

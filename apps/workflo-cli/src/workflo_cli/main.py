@@ -1065,7 +1065,20 @@ def run(
             # Redacted LLM summary — api_key can never appear here.
             "llm": describe_llm_config() if (deep or aggressive) else {"configured": False},
         }
-        click.echo(json.dumps(plan, indent=2, sort_keys=True))
+        plan_json = json.dumps(plan, indent=2, sort_keys=True)
+        # `--output` is honoured in dry-run too: CI callers (including the
+        # published GitHub Action) use the plan file as the checkable artifact.
+        if output_path:
+            if len(plan_json.encode("utf-8")) > MAX_OUTPUT_BYTES:
+                click.echo(f"Output too large ({MAX_OUTPUT_BYTES} byte limit)", err=True)
+                sys.exit(1)
+            try:
+                output_path.write_text(plan_json, encoding="utf-8")
+            except OSError as e:
+                click.echo(f"Failed to write report to {output_path}: {e}", err=True)
+                sys.exit(1)
+            click.echo(f"Plan written to {output_path}", err=True)
+        click.echo(plan_json)
         sys.exit(0)
 
     # --- 6. Via-API run: round-trip through the frozen REST contract ---
