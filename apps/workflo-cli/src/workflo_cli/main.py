@@ -58,7 +58,12 @@ from workflo_cli.config_commands import LLM_NOT_CONFIGURED_HINT, config_group
 from workflo_cli.security_gate import security_gate
 
 # Exit-code contract (Phase 7)
-from workflo_cli.exit_codes import classify_run_outcome
+from workflo_cli.exit_codes import (
+    EXIT_CONFIGURATION_ERROR,
+    EXIT_VERIFIED,
+    EXIT_VERIFICATION_FAILED,
+    EXIT_INFRASTRUCTURE_ERROR,
+)
 
 # LLM config (deep-tier)
 from workflo_cli.llm_config import (
@@ -1184,6 +1189,8 @@ def run(
     elapsed = getattr(result, "elapsed_seconds", None)
     if isinstance(elapsed, (int, float)):
         click.echo(f"  Duration: {elapsed:.2f}s", err=True)
+    if not result.success and getattr(result, "error", None):
+        click.echo(f"  Error: {result.error}", err=True)
 
     # --- Sign the receipt in the CLI process ---
     # The supervisor never holds the signing key: it returns an unsigned
@@ -1312,19 +1319,23 @@ def run(
         click.echo(output_json)
 
     # Exit code contract (run_contract.md §6): exit codes are part of the
-    # public API. Failed tests or agent findings → VERIFIED_WITH_FINDINGS (1);
-    # verified + clean → VERIFIED (0).
-    failed_tests = 0
-    if receipt is not None:
-        failed_tests = int(getattr(receipt.run_report, "failed", 0) or 0)
-    sys.exit(classify_run_outcome(
-        result.success,
-        failed_tests=failed_tests,
-        findings_count=getattr(result, "findings_count", 0)
-        or (len(receipt.run_report.findings)
-            if receipt is not None and hasattr(receipt.run_report, "findings")
-            else 0),
-    ))
+    # public API. Map failure_stage first, then fall back to outcome classification.
+    failure_stage = getattr(result, "failure_stage", None)
+    if not result.success and failure_stage:
+        exit_code = classify_failure_stage(failure_stage)
+    else:
+        failed_tests = 0
+        if receipt is not None:
+            failed_tests = int(getattr(receipt.run_report, "failed", 0) or 0)
+        exit_code = classify_run_outcome(
+            result.success,
+            failed_tests=failed_tests,
+            findings_count=getattr(result, "findings_count", 0)
+            or (len(receipt.run_report.findings)
+                if receipt is not None and hasattr(receipt.run_report, "findings")
+                else 0),
+        )
+    sys.exit(exit_code)
 
 
 def _run_via_api(
@@ -1514,17 +1525,17 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
         receipt_text = _safe_read_text(receipt_file, MAX_RECEIPT_BYTES)
     except (OSError, UnicodeDecodeError) as e:
         click.echo(f"FAILED: cannot read receipt file: {e}", err=True)
-        sys.exit(1)
+        sys.exit(EXIT_CONFIGURATION_ERROR)
 
     try:
         receipt_data = json.loads(receipt_text)
     except json.JSONDecodeError as e:
         click.echo(f"FAILED: receipt is not valid JSON: {e}", err=True)
-        sys.exit(1)
+        sys.exit(EXIT_CONFIGURATION_ERROR)
 
     if not isinstance(receipt_data, dict):
         click.echo(f"FAILED: receipt root must be a JSON object, got {type(receipt_data).__name__}", err=True)
-        sys.exit(1)
+        sys.exit(EXIT_CONFIGURATION_ERROR)
 
     receipt_dict = receipt_data.get("receipt", receipt_data)
 
@@ -1541,7 +1552,7 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
             )
         else:
             click.echo(f"FAILED: receipt does not match schema: {e}", err=True)
-        sys.exit(1)
+        sys.exit(EXIT_CONFIGURATION_ERROR)
 
     # Resolve public key: prefer auto-fetch by key_id (provenance), fall back to --pubkey
     public_key = None
@@ -1562,14 +1573,14 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
             )
         except httpx.HTTPError as e:
             click.echo(f"FAILED: cannot reach control plane: {e}", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_INFRASTRUCTURE_ERROR)
 
         if resp.status_code == 404:
             click.echo(f"FAILED: key_id {receipt.key_id} not found in control plane directory", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_CONFIGURATION_ERROR)
         if resp.status_code != 200:
             click.echo(f"FAILED: control plane error (HTTP {resp.status_code}): {resp.text[:200]}", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_INFRASTRUCTURE_ERROR)
 
         key_info = resp.json()
         key_status = key_info.get("status")
@@ -1582,14 +1593,14 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
 
         if key_status == "revoked":
             click.echo(f"FAILED: signing key has been REVOKED (revoked_at={key_info.get('revoked_at')})", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_VERIFICATION_FAILED)
 
         # Load PEM from response
         try:
             public_key = _load_ed25519_pubkey_from_string(key_info["public_key"])
         except Exception as e:
             click.echo(f"FAILED: control plane returned invalid public key: {e}", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_CONFIGURATION_ERROR)
 
         click.echo(f"Auto-fetched public key from control plane (key_id={receipt.key_id})", err=True)
     elif pubkey:
@@ -1599,7 +1610,7 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
             public_key = _load_ed25519_pubkey(pubkey_file)
         except click.BadParameter as e:
             click.echo(f"FAILED: {e.message}", err=True)
-            sys.exit(1)
+            sys.exit(EXIT_CONFIGURATION_ERROR)
     else:
         # Local-run fallback: the run saved its public key under
         # ~/.config/workflo/keys/<fingerprint>.pub.pem, so receipts produced
@@ -1610,7 +1621,7 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
                 "Cannot verify without a public key.",
                 err=True,
             )
-            sys.exit(1)
+            sys.exit(EXIT_CONFIGURATION_ERROR)
         key_file = Path.home() / ".config" / "workflo" / "keys" / f"{receipt.public_key_fingerprint}.pub.pem"
         if key_file.exists():
             try:
@@ -1618,14 +1629,14 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
                 click.echo(f"Loaded local public key for fingerprint {receipt.public_key_fingerprint}", err=True)
             except Exception as e:
                 click.echo(f"FAILED: local public key invalid: {e}", err=True)
-                sys.exit(1)
+                sys.exit(EXIT_CONFIGURATION_ERROR)
         else:
             click.echo(
                 f"FAILED: local public key not found at {key_file}. "
                 "Provide --pubkey or run from a machine that executed the sandbox.",
                 err=True,
             )
-            sys.exit(1)
+            sys.exit(EXIT_CONFIGURATION_ERROR)
 
     if fingerprint:
         expected = fingerprint.lower().strip()
@@ -1638,7 +1649,7 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
                 f"FAILED: fingerprint mismatch! Expected {expected}, got {actual}",
                 err=True,
             )
-            sys.exit(1)
+            sys.exit(EXIT_CONFIGURATION_ERROR)
 
     # Verify signature
     from workflo_schema.sandbox import SignedReceipt
@@ -1646,7 +1657,7 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
 
     if not sig_ok:
         click.echo("FAILED: signature verification failed", err=True)
-        sys.exit(1)
+        sys.exit(EXIT_VERIFICATION_FAILED)
 
     click.echo("OK: receipt signature verified", err=True)
 
@@ -1726,12 +1737,12 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
                 click.echo(f"OK: evidence bundle verified ({ev_dir})", err=True)
             else:
                 click.echo("FAILED: evidence binding verification failed", err=True)
-                sys.exit(1)
+                sys.exit(EXIT_VERIFICATION_FAILED)
     else:
         click.echo("NOTE: receipt has no evidence binding (legacy Docker receipt)", err=True)
 
     if not teardown_ok:
-        sys.exit(1)
+        sys.exit(EXIT_VERIFICATION_FAILED)
 
     # Print key status if available
     if key_status:

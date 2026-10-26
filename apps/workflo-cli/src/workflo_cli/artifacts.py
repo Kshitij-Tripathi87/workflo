@@ -124,7 +124,7 @@ class FindingView:
 class EvidenceBundleView:
     """Outcome of evidence discovery + ledger verification (7B.10)."""
 
-    status: str
+    status: str = EVIDENCE_UNKNOWN
     evidence_dir_recorded: Optional[str] = None
     binding: Optional[Any] = None
     chain_ok: bool = False

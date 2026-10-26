@@ -340,6 +340,7 @@ class Supervisor:
                 evidence_dir=self.evidence.evidence_dir,
                 teardown_verified=teardown_ok,
                 elapsed_seconds=elapsed,
+                failure_stage=None if teardown_ok else self.failure_stage,
             )
 
         except Exception as e:
@@ -367,6 +368,7 @@ class Supervisor:
                     self.teardown_verification and self.teardown_verification.all_verified
                 ),
                 elapsed_seconds=elapsed,
+                failure_stage=self.failure_stage,
             )
 
     async def _preflight(self):

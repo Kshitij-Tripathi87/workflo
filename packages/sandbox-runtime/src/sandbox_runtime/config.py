@@ -280,3 +280,7 @@ class RunResult:
     # resource (processes, cgroup, netns, writable dirs) is gone.
     teardown_verified: bool = False
     elapsed_seconds: float = 0.0
+    # Stage where the run failed (preflight, config, snapshot, deps, rootfs,
+    # isolation, app, tests, teardown, receipt, probes, agent).
+    # Used to map to the correct exit code per run_contract.md §6.
+    failure_stage: Optional[str] = None

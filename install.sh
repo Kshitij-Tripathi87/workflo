@@ -53,7 +53,7 @@ fi
 # Hide pip's "new release available" nags so the demo narration stays clean.
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# One resolver graph for the four local packages so pip does not try to
+# One resolver graph for the local packages so pip does not try to
 # fetch workflo-schema / sandbox-isolation / etc. from PyPI.
 # Install them before the CLI: workflo-cli declares those names as deps.
 echo "  → Installing core packages..."
@@ -61,7 +61,8 @@ pip install --quiet \
     -e packages/workflo-schema \
     -e packages/sandbox-isolation \
     -e apps/sandbox-executor \
-    -e packages/probe-engine
+    -e packages/probe-engine \
+    -e packages/workflo-utils
 
 echo "  → Installing workflo CLI..."
 pip install --quiet -e apps/workflo-cli

@@ -68,3 +68,53 @@ def classify_config_error() -> int:
 
 def classify_infra_error() -> int:
     return EXIT_INFRASTRUCTURE_ERROR
+
+
+def classify_failure_stage(failure_stage: Optional[str]) -> int:
+    """Map a failure_stage to the correct exit code per run_contract.md §6.
+
+    This is called BEFORE classify_run_outcome for failed runs.
+    """
+    if failure_stage is None:
+        return EXIT_VERIFICATION_FAILED  # default: stricter signal
+
+    # Infrastructure errors (exit 6) - host cannot satisfy the backend
+    if failure_stage in ("preflight",):
+        return EXIT_INFRASTRUCTURE_ERROR
+
+    # Configuration errors (exit 5)
+    if failure_stage in ("config",):
+        return EXIT_CONFIGURATION_ERROR
+
+    # Execution failed (exit 3) - code didn't get in or app never booted
+    if failure_stage in ("snapshot", "deps", "rootfs", "app"):
+        return EXIT_EXECUTION_FAILED
+
+    # Tests failed but sandbox ran (exit 1) - unchanged behavior
+    if failure_stage in ("tests",):
+        return EXIT_VERIFIED_WITH_FINDINGS
+
+    # Verification failed (exit 4) - teardown, receipt, isolation claim failures
+    if failure_stage in ("teardown", "receipt"):
+        return EXIT_VERIFICATION_FAILED
+
+    # Isolation failures - depends on context
+    if failure_stage == "isolation":
+        # Could be infrastructure error (backend setup) or verification failure
+        # Default to verification failure (stricter)
+        return EXIT_VERIFICATION_FAILED
+
+    # Probe failures
+    if failure_stage == "probes":
+        # Could be harness crash (execution failed) or isolation violation
+        # Default to execution failed
+        return EXIT_EXECUTION_FAILED
+
+    # Agent failures
+    if failure_stage == "agent":
+        # Only exit 3 when deep-test was explicitly required and no fallback
+        # Otherwise degrade and continue - handled elsewhere
+        return EXIT_EXECUTION_FAILED
+
+    # Default for unknown stages: stricter signal
+    return EXIT_VERIFICATION_FAILED

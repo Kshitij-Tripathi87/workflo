@@ -102,24 +102,26 @@ docker run --rm -v $(pwd):/workspace workflo/agent run --tests --security
 ## 🚀 Quickstart & Usage
 
 ```bash
-# 1. Run tests in the current workspace
-workflo run --tests
+# 1. Run tests in the current workspace (local path)
+workflo run --path . --test
 
 # 2. Run tests on a remote repository with security scanning
-workflo run --repo https://github.com/pallets/click.git --tests --security
+workflo run --repo https://github.com/pallets/click.git --test --security
 
 # 3. Run AI agent deep test with live application execution
 workflo run --repo https://github.com/pallets/click.git --deep-test --security
 
-# 4. Target a specific environment
-workflo run --tests --environment staging
+# 4. Run with explicit backend selection
+workflo run --path . --test --backend docker
 
-# 5. Generate a cryptographic receipt
-workflo run --tests --receipt
+# 5. Generate a cryptographic receipt (always generated)
+workflo run --path . --test
 
 # 6. Independently verify a signed execution receipt
-workflo verify wf://receipts/0ec7-9b20
+workflo verify receipt.json
 ```
+
+---
 
 ---
 
@@ -127,15 +129,23 @@ workflo verify wf://receipts/0ec7-9b20
 
 | Command / Flag | Description |
 |---|---|
-| `run --tests` | Execute test suite in an isolated sandbox |
-| `--repo <url>` | Clone and execute tests against a remote git repository |
-| `--security` | Enable security scanning (SAST, dependencies, secret detection) |
+| `run --test` | Execute test suite in an isolated sandbox |
+| `run --path <dir>` | Local directory to test (mutually exclusive with --repo) |
+| `run --repo <url>` | Clone and execute tests against a remote git repository |
+| `--security` | Enable security scanning (tenant isolation, network canary, teardown proof) |
 | `--deep-test` | Enable AI tool-calling agent to exercise routes and live endpoints |
-| `--receipt` | Generate a signed cryptographic execution receipt (`wf://receipts/...`) |
-| `--environment <name>` | Target environment (`dev`, `staging`, `production`) |
-| `--dry-run` | Validate run spec and policies without booting Docker containers |
+| `--aggressive-test` | Enable aggressive testing (fuzz, property-based, chaos) |
+| `--web` | Enable Playwright browser probes against a running app |
+| `--backend auto\|docker\|namespaces` | Backend selection (default: auto) |
+| `--start-command <cmd>` | Command to start the app under test (for --web/--security) |
+| `--port <n>` | Port the app under test binds (for --web/--security) |
+| `--dry-run` | Validate run spec and policies without booting containers |
+| `verify <receipt>` | Validate cryptographic signatures and inspect teardown proof |
+| `inspect <receipt>` | Read-only receipt inspection: what happened |
+| `explain <receipt>` | Explain recorded findings from a receipt |
 | `auth login` | Authenticate using OAuth 2.0 Device Flow (RFC 8628) |
-| `verify <receipt-uri>` | Validate cryptographic signatures and inspect teardown proof |
+| `doctor` | Check host readiness for sandboxed execution |
+| `init` | Auto-detect project and generate .workflo config |
 
 ---
 ## 🔒 Privacy & Verifiable Teardown
