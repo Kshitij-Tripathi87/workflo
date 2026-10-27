@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "schema_version": 1,
+      "req_id": "REQ-001",
+      "text": "The API rejects unauthenticated requests with 401.",
+      "source_file": "requirements.md",
+      "source_line": 12,
+      "priority": 1
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "description": "Suspicious behavior \u2014 never a confirmed finding.",
+  "properties": {
+    "candidate_id": {
+      "minLength": 1,
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "expected": {
+      "minLength": 1,
+      "title": "Expected",
+      "type": "string"
+    },
+    "observed": {
+      "minLength": 1,
+      "title": "Observed",
+      "type": "string"
+    },
+    "origin": {
+      "enum": [
+        "baseline",
+        "llm"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "probe_id": {
+      "minLength": 1,
+      "title": "Probe Id",
+      "type": "string"
+    },
+    "req_id": {
+      "anyOf": [
+        {
+          "pattern": "^REQ-[0-9]{3,}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Req Id"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "probe_id",
+    "observed",
+    "expected",
+    "evidence_refs",
+    "origin"
+  ],
+  "title": "Candidate",
+  "type": "object"
+}

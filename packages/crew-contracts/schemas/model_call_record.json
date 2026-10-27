@@ -1,0 +1,78 @@
+{
+  "additionalProperties": false,
+  "description": "Provenance of one model call. Prompt/response bodies are forbidden \u2014\nonly the prompt hash may be stored. extra=forbid makes any body field a\nvalidation error.",
+  "properties": {
+    "call_id": {
+      "minLength": 1,
+      "title": "Call Id",
+      "type": "string"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "privacy_mode": {
+      "enum": [
+        "local-only",
+        "hybrid",
+        "observation-only"
+      ],
+      "title": "Privacy Mode",
+      "type": "string"
+    },
+    "prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Prompt Sha256",
+      "type": "string"
+    },
+    "provider": {
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "analyst",
+        "explorer",
+        "reporter"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "minLength": 1,
+      "title": "Status",
+      "type": "string"
+    },
+    "tokens_in": {
+      "minimum": 0,
+      "title": "Tokens In",
+      "type": "integer"
+    },
+    "tokens_out": {
+      "minimum": 0,
+      "title": "Tokens Out",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "call_id",
+    "role",
+    "provider",
+    "model_id",
+    "privacy_mode",
+    "tokens_in",
+    "tokens_out",
+    "prompt_sha256",
+    "status"
+  ],
+  "title": "ModelCallRecord",
+  "type": "object"
+}

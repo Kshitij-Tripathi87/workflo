@@ -1,0 +1,85 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "control_evidence_ref": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Control Evidence Ref"
+    },
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "fingerprint": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Fingerprint",
+      "type": "string"
+    },
+    "repro_evidence_refs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Repro Evidence Refs",
+      "type": "array"
+    },
+    "req_id": {
+      "anyOf": [
+        {
+          "pattern": "^REQ-[0-9]{3,}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Req Id"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "severity": {
+      "minLength": 1,
+      "title": "Severity",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "Confirmed",
+        "Flaky",
+        "Unconfirmed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "finding_id",
+    "fingerprint",
+    "status",
+    "confidence",
+    "severity",
+    "repro_evidence_refs"
+  ],
+  "title": "Finding",
+  "type": "object"
+}

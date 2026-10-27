@@ -1,0 +1,38 @@
+{
+  "run_summary": {
+    "run_id": "run-20261027-001",
+    "total": 5,
+    "passed": 4,
+    "failed": 1,
+    "skipped": 0,
+    "duration_seconds": 42.5
+  },
+  "findings": [
+    {
+      "finding_id": "fnd-0001",
+      "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "status": "Confirmed",
+      "confidence": 0.98,
+      "severity": "high",
+      "repro_evidence_refs": [
+        "ev-0001",
+        "ev-0002"
+      ],
+      "control_evidence_ref": "ev-ctl-0001",
+      "req_id": "REQ-001"
+    }
+  ],
+  "requirement_statuses": [
+    {
+      "req_id": "REQ-001",
+      "status": "maybe"
+    }
+  ],
+  "isolation_proof": {
+    "backend": "docker",
+    "canary_result": "blocked",
+    "teardown_verified": true
+  },
+  "model_stage_degraded": false,
+  "provider_provenance": []
+}

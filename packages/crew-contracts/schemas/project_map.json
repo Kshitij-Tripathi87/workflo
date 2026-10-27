@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "Route": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "minLength": 1,
+          "title": "Method",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "parsed",
+            "inferred"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "path",
+        "source"
+      ],
+      "title": "Route",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "deps_manifest_hashes": {
+      "additionalProperties": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Deps Manifest Hashes",
+      "type": "object"
+    },
+    "entry_points": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Entry Points",
+      "type": "array"
+    },
+    "ports": {
+      "items": {
+        "maximum": 65535,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Ports",
+      "type": "array"
+    },
+    "routes": {
+      "items": {
+        "$ref": "#/$defs/Route"
+      },
+      "title": "Routes",
+      "type": "array"
+    },
+    "run_commands": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Run Commands",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "stack": {
+      "minLength": 1,
+      "title": "Stack",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stack",
+    "entry_points",
+    "run_commands",
+    "ports",
+    "routes",
+    "deps_manifest_hashes"
+  ],
+  "title": "ProjectMap",
+  "type": "object"
+}

@@ -1,0 +1,9 @@
+{
+  "probes": [
+    {
+      "kind": "http_get",
+      "request": {},
+      "expected": "2xx"
+    }
+  ]
+}

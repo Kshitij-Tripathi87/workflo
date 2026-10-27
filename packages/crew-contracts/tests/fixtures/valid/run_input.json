@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "run_id": "run-20261027-001",
+  "repo_ref": "https://github.com/example/repo.git",
+  "commit": "9c8f2a1d0e5b",
+  "snapshot_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "backend": "docker",
+  "privacy_mode": "observation-only",
+  "config": {
+    "timeout_seconds": 600,
+    "memory_mb": 2048
+  }
+}

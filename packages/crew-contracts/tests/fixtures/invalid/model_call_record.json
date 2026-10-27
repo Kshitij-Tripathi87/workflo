@@ -1,0 +1,12 @@
+{
+  "call_id": "mc-0001",
+  "role": "explorer",
+  "provider": "openai-compatible",
+  "model_id": "qwen-finetuned-qa",
+  "privacy_mode": "observation-only",
+  "tokens_in": 512,
+  "tokens_out": 128,
+  "prompt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "status": "ok",
+  "response_body": "model output that is not evidence"
+}

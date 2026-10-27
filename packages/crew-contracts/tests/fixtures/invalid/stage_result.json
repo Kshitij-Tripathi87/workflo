@@ -1,0 +1,7 @@
+{
+  "stage": "analyze",
+  "ok": true,
+  "failure_stage": "app",
+  "failure_reason": null,
+  "duration_ms": 1200
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "finding_id": "fnd-0001",
+  "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "status": "Confirmed",
+  "confidence": 0.98,
+  "severity": "high",
+  "repro_evidence_refs": [
+    "ev-0001",
+    "ev-0002"
+  ],
+  "control_evidence_ref": "ev-ctl-0001",
+  "req_id": "REQ-001"
+}

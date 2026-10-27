@@ -1,0 +1,9 @@
+{
+  "run_id": "run-20261027-001",
+  "backend": "docker",
+  "app_url": "http://sandbox-internal:8080",
+  "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "network_profile": "sealed-egress-none",
+  "canary_result": "passed",
+  "started_at": "2026-10-27T10:00:00Z"
+}

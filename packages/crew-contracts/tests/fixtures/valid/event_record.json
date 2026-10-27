@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "run_id": "run-20261027-001",
+  "seq": 3,
+  "ts": "2026-10-27T10:00:05Z",
+  "stage": "sandbox_ready",
+  "kind": "CANARY_STORED",
+  "payload_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "stack": "node-express",
+  "entry_points": [
+    "src/server.js"
+  ],
+  "run_commands": [
+    "npm start"
+  ],
+  "ports": [
+    3000
+  ],
+  "routes": [
+    {
+      "schema_version": 1,
+      "method": "GET",
+      "path": "/health",
+      "source": "parsed"
+    },
+    {
+      "schema_version": 1,
+      "method": "POST",
+      "path": "/api/orders",
+      "source": "inferred"
+    }
+  ],
+  "deps_manifest_hashes": {
+    "package-lock.json": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  }
+}

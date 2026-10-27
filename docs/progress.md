@@ -7,8 +7,9 @@ Update after every step. This file is the only thing carried between context win
 |---|---|---|---|---|
 | S01-pack | Agent pack installed at repo root | done | 53194d9 | - |
 | S00 | Day-1 verification gate | done | 2346851 | standard |
-| S01 v2 | Repo guardrails (gate + verify.sh + smoke plan) | done | (this commit) | standard |
-| S02 | Contracts package | next | - | standard |
+| S01 v2 | Repo guardrails (gate + verify.sh + smoke plan) | done | 15f705f | standard |
+| S02 | Contracts package | done | (this commit) | standard |
+| S03 v2 | Run service, backend resolver, legacy decoupling | next | - | standard |
 
 History note: original Day-1 commit 7ba97a3 mixed the P0 fixes with the legacy/ move; split in S00.7 into 99124aa (Day 1a: move only, 478 pure renames) + b425483 (Day 1b: the 10 P0 fix files) + 53194d9 (S01-pack replay). Tree verified byte-identical to pre-split; branch `backup-pre-split` kept for audit, safe to delete.
 
@@ -80,3 +81,19 @@ Verify commands:
 - `python -m pytest scripts/ci/tests -q` (gate tests)
 - `python -m pytest apps/agent-cli/tests -q` (post-rename)
 - `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (workflow sanity)
+
+### S02 — Contracts package (2026-10-27)
+Plan (per tasks/S02.md + re-baseline): packages/crew-contracts with pydantic v2 models for all 12 contracts in docs/contracts.md; extra=forbid + schema_version on every model; invariants as validators; JSON Schemas exported to schemas/; valid+invalid fixture per contract; tests first.
+
+Done:
+1. Tests first: tests/test_contracts.py (round-trip + invalid-rejection parametrized over fixtures, unknown-field rejection per model, Confirmed >= 2 repro + control, Flaky/Unconfirmed relaxed, ReportDraft cited-ids subset via validate_report_draft, ModelCallRecord body-field rejection, StageResult ok/failure exclusivity) and tests/test_schemas.py (committed schemas must match models — drift guard).
+2. All 12 contracts implemented: RunInput, SandboxHandle (canary tri-state `blocked|leaked|not_run` per the re-baseline P0 — forward-fix for S06), ProjectMap (+Route), RequirementSet (+Requirement), ProbePlan (+Probe), Candidate, Finding, ModelCallRecord (roles analyst|explorer|reporter only; the Judge cannot appear — no LLM in the Judge), ReportDraft (+cross-check fn), ReportBundle (+RunSummary, RequirementStatus, IsolationProof, ProviderProvenance), StageResult, EventRecord.
+3. Invariants as validators: Confirmed needs >= 2 repro refs + 1 control ref; StageResult cannot be ok while carrying a failure (fail-closed mirror of run contract); extra=forbid rejects any body field on ModelCallRecord (prompt/response/messages).
+4. Fixtures generated THROUGH the models (a fixture that fails validation fails the generator): 12 valid + 12 invalid, reasons mapped in INVALID_REASON.
+5. `python -m workflo_crew_contracts.export` writes 12 schemas to packages/crew-contracts/schemas/; drift test compares committed schemas to model_json_schema().
+
+Deviations: canary tri-state and the Judge-role rejection are additions beyond docs/contracts.md, both mandated by the re-baselined roadmap (S06 P0 + Judge hard rule); noted here for the owner's S02 review.
+
+Verify commands:
+- `python -m pytest packages/crew-contracts/tests -q` → 43 passed
+- `python -m workflo_crew_contracts.export` (regenerates schemas; must be no-op diff)

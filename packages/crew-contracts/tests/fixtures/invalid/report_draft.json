@@ -1,0 +1,11 @@
+{
+  "finding_id": "fnd-0001",
+  "explanation": "The orders endpoint crashes when the cart payload is empty.",
+  "likely_cause_hypothesis": "HYPOTHESIS (unconfirmed): unhandled KeyError on cart.items in order_service.py:120.",
+  "remediation_hint": "Guard the empty-cart case before iterating items.",
+  "cited_evidence_ids": [
+    "ev-0001",
+    "ev-0002"
+  ],
+  "unexpected_field": "nope"
+}

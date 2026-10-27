@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "schema_version": 1,
+      "probe_id": "prb-0001",
+      "kind": "http_get",
+      "request": {
+        "method": "GET",
+        "path": "/health"
+      },
+      "expected": "2xx within 5s"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "additionalProperties": false,
+  "description": "LLM-written prose for one finding; facts must come from the Finding.",
+  "properties": {
+    "cited_evidence_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Cited Evidence Ids",
+      "type": "array"
+    },
+    "explanation": {
+      "minLength": 1,
+      "title": "Explanation",
+      "type": "string"
+    },
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "likely_cause_hypothesis": {
+      "minLength": 1,
+      "title": "Likely Cause Hypothesis",
+      "type": "string"
+    },
+    "remediation_hint": {
+      "minLength": 1,
+      "title": "Remediation Hint",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "finding_id",
+    "explanation",
+    "likely_cause_hypothesis",
+    "remediation_hint",
+    "cited_evidence_ids"
+  ],
+  "title": "ReportDraft",
+  "type": "object"
+}

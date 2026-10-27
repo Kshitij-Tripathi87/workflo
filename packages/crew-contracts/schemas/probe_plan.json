@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "Probe": {
+      "additionalProperties": false,
+      "properties": {
+        "expected": {
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "probe_id": {
+          "minLength": 1,
+          "title": "Probe Id",
+          "type": "string"
+        },
+        "req_id": {
+          "anyOf": [
+            {
+              "pattern": "^REQ-[0-9]{3,}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Req Id"
+        },
+        "request": {
+          "additionalProperties": true,
+          "title": "Request",
+          "type": "object"
+        },
+        "schema_version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "probe_id",
+        "kind",
+        "request",
+        "expected"
+      ],
+      "title": "Probe",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "probes": {
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Probes",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "probes"
+  ],
+  "title": "ProbePlan",
+  "type": "object"
+}

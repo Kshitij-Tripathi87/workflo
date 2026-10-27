@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "candidate_id": "cnd-0001",
+  "probe_id": "prb-0001",
+  "observed": "POST /api/orders returned 500; traceback present in app logs",
+  "expected": "2xx within 5s",
+  "evidence_refs": [
+    "ev-0001"
+  ],
+  "req_id": "REQ-001",
+  "origin": "baseline"
+}

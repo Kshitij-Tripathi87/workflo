@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "req_id": "REQ-1",
+      "text": "The API rejects unauthenticated requests with 401.",
+      "source_file": "requirements.md",
+      "source_line": 12,
+      "priority": 1
+    }
+  ]
+}
