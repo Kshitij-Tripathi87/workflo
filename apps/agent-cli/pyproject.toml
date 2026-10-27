@@ -19,7 +19,7 @@ dependencies = [
     "workflo-utils",
 ]
 [project.scripts]
-workflo = "workflo_agent.cli:main"
+workflo-agent = "workflo_agent.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

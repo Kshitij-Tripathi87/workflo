@@ -18,6 +18,40 @@ jobs:
   # services are covered by control-plane.yml, worker.yml, workflo-cli.yml
   # and linux-gate.yml. Do not add jobs that run code from legacy/.
 
+  # Owner review gate: any commit touching a security-critical path
+  # (docs/SECURITY_CRITICAL.md) must carry docs/reviews/<Sxx>.md with the
+  # line "APPROVED-BY: owner". Fail closed; no bypass switch exists.
+  security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine review range
+        id: range
+        shell: bash
+        run: |
+          base=""
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          elif [ -n "${{ github.event.before }}" ] \
+            && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "${{ github.event.before }}" 2>/dev/null; then
+            base="${{ github.event.before }}"
+          else
+            base="HEAD~1"
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce owner review on security-critical paths
+        run: python3 scripts/ci/check_security_review.py --base "${{ steps.range.outputs.base }}" --head HEAD
+
+      - name: The gate itself stays tested
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest scripts/ci/tests -q
+
   # The repository root is a pnpm project (package.json + pnpm-lock.yaml).
   # `pnpm install --frozen-lockfile`, `pnpm check` and `pnpm test` must work
   # from a clean checkout; CI verifies exactly those commands.

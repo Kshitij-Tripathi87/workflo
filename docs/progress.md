@@ -6,8 +6,9 @@ Update after every step. This file is the only thing carried between context win
 | Step | Title | Status | Commit | Review |
 |---|---|---|---|---|
 | S01-pack | Agent pack installed at repo root | done | 53194d9 | - |
-| S00 | Day-1 verification gate | done | (this commit) | standard |
-| S01 | Repo guardrails | next | - | standard |
+| S00 | Day-1 verification gate | done | 2346851 | standard |
+| S01 v2 | Repo guardrails (gate + verify.sh + smoke plan) | done | (this commit) | standard |
+| S02 | Contracts package | next | - | standard |
 
 History note: original Day-1 commit 7ba97a3 mixed the P0 fixes with the legacy/ move; split in S00.7 into 99124aa (Day 1a: move only, 478 pure renames) + b425483 (Day 1b: the 10 P0 fix files) + 53194d9 (S01-pack replay). Tree verified byte-identical to pre-split; branch `backup-pre-split` kept for audit, safe to delete.
 
@@ -26,13 +27,13 @@ History note: original Day-1 commit 7ba97a3 mixed the P0 fixes with the legacy/ 
 - (2026-10-27) CLAUDE.md Commands corrected against the verified repo (no fixtures/node-bugs exists; gate synthesizes its own fixture).
 
 ## Open issues
-1. workflo-cli hard-imports `workflo_supervisor` (only in legacy/) — decouple in S03 (run_service), then drop legacy/supervisor from install.sh + workflo-cli.yml.
-2. apps/agent-cli ships console script `workflo` — collides with workflo-cli's entry point; whichever installs last wins. Rename agent-cli's script (e.g. `workflo-agent`). Owner decision.
+1. workflo-cli hard-imports `workflo_supervisor` (only in legacy/) — being removed in S03 v2 (today); then drop legacy/supervisor from install.sh + workflo-cli.yml.
+2. RESOLVED (S01 v2): apps/agent-cli console script renamed `workflo` → `workflo-agent`; the entry-point collision is gone. Full retirement of the standalone agent CLI stays on the S17 list per the re-baselined roadmap.
 3. packages/executor adversarial/golden vitest suite on Windows: fixture teardown kills the invoking process tree (killed the verification shell twice), and vitest exited 0 with 2 failed tests (green-lying) — Windows-only hazard; keep JS CI on ubuntu; consider documenting, not weakening.
 4. apps/worker-engine 2 Windows-only failures: `os.getuid` (scripts/release/run_deep_image_smoke.py:76) and Unix-path `shutil.which` (llamacpp_runtime.py:206). Worker CI is ubuntu-only; recorded, not fixed.
-5. Preflight-failed receipts encode canary as `request_succeeded: true, error: "canary never ran"` → `workflo verify` fails closed calling it "isolation broken" (exit 4). Encoding question for S06 (probes/receipts).
-6. fresh-install-gate.yml runs its CI container with `--privileged` (to host bwrap) — CI gate infra, not a workflo workload; flag for owner review when S01 writes SECURITY_CRITICAL.md.
-7. Baseline claims need reconciling on Linux CI: workflo-cli claim "126" vs 125 collected; "1,560 across 15 suites" vs 1,572 combined observed on Windows.
+5. Preflight-failed receipts encode canary as `request_succeeded: true, error: "canary never ran"` → `workflo verify` fails closed calling it "isolation broken" (exit 4). Becomes the P0 tri-state canary fix in S06 v2 (blocked / leaked / not_run; only blocked passes; others exit 4).
+6. fresh-install-gate.yml runs its CI container with `--privileged` (to host bwrap) — CI gate infra, not a workflo workload; flag for owner review.
+7. RESOLVED (S00 + roadmap): baselines re-set at workflo-cli 125 / 1,424 total on the verified Windows run; Linux CI numbers become authoritative once the PR runs.
 8. apps/dashboard is npm-managed (own package-lock.json) inside the pnpm workspace — dual lockfile management; consolidate post-beta.
 
 ## Step notes
@@ -57,7 +58,25 @@ Env: Windows 11, Python 3.14.6, pnpm 9.12.0, node 26.4.0, WSL2 Ubuntu present, *
 
 Deviations: scope extended beyond the named grep set to setup.sh + root vite/vitest/tsconfig configs (same moved-dirs defect class); executor vitest suite not re-run on Linux locally (no container) — its result is recorded as Windows-observed only.
 
-Verify commands:
+Verify commands (S00):
 - Python per package (from package dir): `..\.workflo-venv\Scripts\python.exe -m pytest tests -q --timeout=180 --basetemp "C:\Users\21330\AppData\Local\Temp\opencode\wf-pytest"` (basetemp needed on this host: the default pytest temp root is access-denied).
 - JS: `pnpm check` (root).
 - Exit codes: `.workflo-venv\Scripts\workflo.exe run --path <dir> --test` (no backend → 6); `workflo verify --receipt <tampered>` (→ 4).
+
+### S01 v2 — Repo guardrails (2026-10-27, per re-baselined roadmap)
+Plan: SECURITY_CRITICAL.md with real paths; review gate script (tests first) wired as a required CI job; scripts/verify.sh as the one definition of green incl. CLI smoke; rename agent-cli console script (open issue 2).
+
+Done:
+1. `docs/SECURITY_CRITICAL.md`: sandbox backends + probes (sandbox-runtime, sandbox-isolation, sandbox, sandbox-executor, probe-engine), ToolGateway (tool-gateway), evidence ledger + receipts (notary, events), Judge (judge).
+2. `scripts/ci/check_security_review.py`: per-commit gate — a commit touching a listed path must be an Sxx step commit carrying `docs/reviews/<Sxx>.md` with the exact line `APPROVED-BY: owner`. Fail closed; no env/flag bypass (tested). Merge commits skipped; non-step commits touching critical paths fail.
+3. Tests first: `scripts/ci/tests/test_check_security_review.py` — 8 tests (pass paths, missing review, review without approval line, non-step commit, directory-prefix matching, env-var bypass attempts for 3 variable names, clean range). All green.
+4. ci.yml: new required `security-review` job (PR base sha / push event.before / HEAD~1 fallback) that runs the gate and its own test suite.
+5. `scripts/verify.sh`: pnpm install --frozen-lockfile + lint + typecheck + test, per-package pytest (14 suites), CLI smoke (--help, dry-run exit 0, no-backend `--backend namespaces` → exit 6 with a stderr reason). Note: the smoke's exit-6 step uses `--backend`, which lands with S03 later today — until then verify.sh fails closed on that step by design.
+6. agent-cli: console script renamed `workflo` → `workflo-agent` (collision resolved); agent-cli suite re-run: 34 passed.
+
+Deviations: none from the task; verify.sh full run deferred until S03 lands --backend (same day).
+
+Verify commands:
+- `python -m pytest scripts/ci/tests -q` (gate tests)
+- `python -m pytest apps/agent-cli/tests -q` (post-rename)
+- `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (workflow sanity)
