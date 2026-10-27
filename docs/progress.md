@@ -8,8 +8,9 @@ Update after every step. This file is the only thing carried between context win
 | S01-pack | Agent pack installed at repo root | done | 53194d9 | - |
 | S00 | Day-1 verification gate | done | 2346851 | standard |
 | S01 v2 | Repo guardrails (gate + verify.sh + smoke plan) | done | 15f705f | standard |
-| S02 | Contracts package | done | (this commit) | standard |
-| S03 v2 | Run service, backend resolver, legacy decoupling | next | - | standard |
+| S02 | Contracts package | done | 1dfe7eb | standard |
+| S03 v2 | Run service, backend resolver, legacy decoupling | done | (this commit) | standard |
+| S04 | Docker backend through SandboxExecutor | next | - | standard |
 
 History note: original Day-1 commit 7ba97a3 mixed the P0 fixes with the legacy/ move; split in S00.7 into 99124aa (Day 1a: move only, 478 pure renames) + b425483 (Day 1b: the 10 P0 fix files) + 53194d9 (S01-pack replay). Tree verified byte-identical to pre-split; branch `backup-pre-split` kept for audit, safe to delete.
 
@@ -28,7 +29,7 @@ History note: original Day-1 commit 7ba97a3 mixed the P0 fixes with the legacy/ 
 - (2026-10-27) CLAUDE.md Commands corrected against the verified repo (no fixtures/node-bugs exists; gate synthesizes its own fixture).
 
 ## Open issues
-1. workflo-cli hard-imports `workflo_supervisor` (only in legacy/) — being removed in S03 v2 (today); then drop legacy/supervisor from install.sh + workflo-cli.yml.
+1. RESOLVED (S03 v2): workflo-cli no longer imports `workflo_supervisor`; `apps/workflo-cli/src/workflo_cli/supervisor_client.py` deleted (run path → `sandbox_runtime.run_service`; its dead local-verify helper was unused — the CLI's verify command verifies locally already). `workflo-supervisor` removed from workflo-cli deps, install.sh and workflo-cli.yml. No active code references legacy/.
 2. RESOLVED (S01 v2): apps/agent-cli console script renamed `workflo` → `workflo-agent`; the entry-point collision is gone. Full retirement of the standalone agent CLI stays on the S17 list per the re-baselined roadmap.
 3. packages/executor adversarial/golden vitest suite on Windows: fixture teardown kills the invoking process tree (killed the verification shell twice), and vitest exited 0 with 2 failed tests (green-lying) — Windows-only hazard; keep JS CI on ubuntu; consider documenting, not weakening.
 4. apps/worker-engine 2 Windows-only failures: `os.getuid` (scripts/release/run_deep_image_smoke.py:76) and Unix-path `shutil.which` (llamacpp_runtime.py:206). Worker CI is ubuntu-only; recorded, not fixed.
@@ -97,3 +98,26 @@ Deviations: canary tri-state and the Judge-role rejection are additions beyond d
 Verify commands:
 - `python -m pytest packages/crew-contracts/tests -q` → 43 passed
 - `python -m workflo_crew_contracts.export` (regenerates schemas; must be no-op diff)
+
+### S03 v2 — Run service, backend resolver, legacy decoupling (2026-10-27)
+Plan (per tasks/S03.md + re-baseline): one run entry point in sandbox-runtime; table-tested backend resolver; `--backend` on the CLI; CLI and control-plane both routed through it; remove every legacy/ dependency; tests first.
+
+Done:
+1. Tests first: `packages/sandbox-runtime/tests/test_run_service.py` — 17 tests: table-driven resolve (docker-only / bwrap-only / both / neither / explicit-missing / unknown), dispatch pins (RunConfig→Supervisor on namespaces; RunConfig→executor via SandboxSpec conversion on docker; SandboxSpec→executor; SandboxSpec NEVER runs namespaces — PreflightError, the API cannot sign host-side), re-validation between resolve and dispatch (fail closed), RunResult.backend field (non-negotiable #6), and a CLI↔API docker parity test (success/error/lifecycle/receipt payload identical through the shared dispatch).
+2. `packages/sandbox-runtime/src/sandbox_runtime/run_service.py`: `PreflightError`, `_docker_info_ok`, `_bwrap_available`, `resolve_backend(requested)` (auto prefers docker → namespaces → fail naming BOTH missing pieces), `run(config, backend)` — the single entry point accepting RunConfig (CLI) or SandboxSpec (API). `RunResult` gained `backend` (names the backend that ran).
+3. CLI (`main.py`): `--backend auto|docker|namespaces` (default auto, config-file mergeable); resolves BEFORE the run and prints `Backend: <x>`; PreflightError → one-line stderr reason + exit 6 (EXIT_INFRASTRUCTURE_ERROR); dispatch only via run_service. `supervisor_client.py` DELETED (run path removed; its local-verify helper was dead code — verify verifies locally already).
+4. Legacy decoupling: `workflo-supervisor` removed from workflo-cli deps, install.sh and workflo-cli.yml; `legacy/supervisor` dropped from all install paths and path filters. Repo-wide grep: zero active references to workflo_supervisor / legacy/supervisor.
+5. Control-plane (`app/api/v1/runs.py`): `_execute_run` now calls `run_service.run(spec)` instead of constructing SandboxExecutor directly; `sandbox-runtime` added to control-plane deps; conftest pins `resolve_backend` → "docker" so the suite stays hermetic on docker-less machines.
+6. `scripts/verify.sh`: added `WORKFLO_PYTEST_BASETEMP` escape for hosts with a locked pytest temp root.
+7. Live verification on this backend-less Windows host: `--backend auto` → exit 6 "no sandbox backend available: docker (docker not found on PATH); bwrap not installed (namespaces)"; `--backend docker` → 6 (names docker); `--backend namespaces` → 6 (names bwrap); `--backend kube` → 2 (usage error); `--dry-run` still exit 0 without any backend.
+
+Deviations: the S03 "parity test" is implemented at the unit level (both input shapes through the shared dispatch produce the same truth); full CLI↔API HTTP parity needs a live docker stack and is deferred to the M1 gate.
+
+Verify commands:
+- `python -m pytest packages/sandbox-runtime/tests/test_run_service.py -q` → 17 passed
+- `python -m pytest apps/workflo-cli/tests -q` → 125 passed (seam moved: tests patch sandbox_runtime.run_service)
+- `python -m pytest apps/control-plane/tests -q` → 135 passed, 1 skipped
+- `bash scripts/verify.sh --skip-js` → green through sandbox-executor/validation-cli; fails closed at worker-engine's 2 known Windows-only failures (open issue 4); smoke verified live (exit 6 reasons above)
+- `workflo run --path <dir> --test --backend auto|docker|namespaces` on a backend-less host → exit 6 with the missing pieces named
+
+S03 is a security-critical step (touches packages/sandbox-runtime): `docs/reviews/S03.md` written per protocol and the step STOPS for owner sign-off (`APPROVED-BY: owner` added by the owner only). A required `smoke` job was added to workflo-cli.yml (CLI smoke = roadmap §8): --help, dry-run exit 0, and the exit-6 preflight with stderr reason.

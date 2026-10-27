@@ -39,8 +39,9 @@ from workflo_executor import SandboxExecutor
 from workflo_executor.executor import generate_sandbox_id
 from sandbox_isolation import generate_keypair, verify_receipt_signature
 
-# Supervisor integration
-from workflo_cli.supervisor_client import create_supervisor_client, SupervisorCLIClient
+# Single run entry point (S03): backend resolution + dispatch live in
+# sandbox_runtime.run_service; the CLI keeps no second run path.
+from sandbox_runtime import run_service
 
 # Auth commands
 from workflo_cli.auth_commands import (
@@ -596,11 +597,13 @@ def status(runs_dir, run_id):
               help="Validate and print what would run, then exit 0 — no Docker, no clone")
 @click.option("--config", "config_path", default=None,
               help="Load defaults from a YAML or JSON config file (CLI flags override)")
+@click.option("--backend", default=None, type=click.Choice(["auto", "docker", "namespaces"]),
+              help="Sandbox backend: auto (docker if available, else bwrap namespaces), docker, namespaces. Default: auto.")
 def run(
     repo, repo_path, surface, deep, aggressive, security, web, publish, start_command, port,
     commit_sha, instruction, output, worker_image, deep_worker_image, web_worker_image,
     timeout, memory, cpu, pubkey, force, dry_run, config_path, via_api, api_key,
-    git_ref,
+    git_ref, backend,
 ):
     """Run the sandbox pipeline against a repo.
 
@@ -674,6 +677,9 @@ def run(
     timeout = merge(timeout, "timeout", 600)
     memory = merge(memory, "memory", 2048)
     cpu = merge(cpu, "cpu", 2.0)
+    backend = merge(backend, "backend", "auto")
+    if backend not in ("auto", "docker", "namespaces"):
+        raise click.UsageError(f"invalid backend: {backend!r} (expected auto|docker|namespaces)")
     force = merge(force, "force", False)
     via_api = merge(via_api, "via_api")
     api_key = merge(api_key, "api_key")
@@ -1154,10 +1160,7 @@ def run(
     )
     click.echo("Starting sandbox run...", err=True)
 
-    # Use supervisor client (falls back to local execution if supervisor not running)
-    supervisor_client = create_supervisor_client()
-
-    # Build RunConfig for supervisor
+    # Build the run configuration consumed by the single entry point.
     from sandbox_runtime.config import RunConfig, DepMode
 
     run_config = RunConfig(
@@ -1178,13 +1181,26 @@ def run(
         mission=instruction,
     )
 
+    # Single run entry point (S03): resolve the backend, announce it, dispatch.
+    # No second run path and no silent fallback: a host without the requested
+    # backend fails closed with exit 6 (run_contract §6 preflight).
     try:
-        result = supervisor_client.run(run_config)
+        resolved_backend = run_service.resolve_backend(backend)
+    except run_service.PreflightError as e:
+        click.echo(f"Preflight failed: {e}", err=True)
+        sys.exit(EXIT_INFRASTRUCTURE_ERROR)
+    click.echo(f"Backend: {resolved_backend}", err=True)
+
+    try:
+        result = run_service.run(run_config, backend=resolved_backend)
+    except run_service.PreflightError as e:
+        click.echo(f"Preflight failed: {e}", err=True)
+        sys.exit(EXIT_INFRASTRUCTURE_ERROR)
     except KeyboardInterrupt:
         click.echo("Interrupted - sandbox may not be fully torn down.", err=True)
         sys.exit(130)
     except Exception as e:
-        click.echo(f"Supervisor error: {type(e).__name__}: {e}", err=True)
+        click.echo(f"Run error: {type(e).__name__}: {e}", err=True)
         sys.exit(2)
 
     click.echo(f"Run complete: {'SUCCESS' if result.success else 'FAILURE'}", err=True)

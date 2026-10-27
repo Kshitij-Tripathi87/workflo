@@ -1,0 +1,15 @@
+{
+  "files": [
+    "findings.json",
+    "observations.jsonl",
+    "provenance.json",
+    "receipt.json",
+    "receipt.sig",
+    "run_metrics.json",
+    "teardown_attestation.json",
+    "tool_calls.jsonl"
+  ],
+  "sandbox_id": "sbx-e2e-004",
+  "version": 1,
+  "written_at": "2026-10-27T19:20:58.504776+00:00"
+}

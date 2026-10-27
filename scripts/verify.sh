@@ -73,6 +73,12 @@ if [ "$SKIP_PYTHON" != "1" ]; then
   else
     VPY=".workflo-venv/Scripts/python.exe"
   fi
+  # Hosts with a locked default pytest temp root can override the basetemp:
+  #   WORKFLO_PYTEST_BASETEMP=/some/writable/dir ./scripts/verify.sh
+  PYTEST_BASETEMP_ARGS=()
+  if [ -n "${WORKFLO_PYTEST_BASETEMP:-}" ]; then
+    PYTEST_BASETEMP_ARGS=(--basetemp "$WORKFLO_PYTEST_BASETEMP")
+  fi
   for suite in \
     apps/agent-cli \
     apps/control-plane \
@@ -90,7 +96,7 @@ if [ "$SKIP_PYTHON" != "1" ]; then
     workflo-ai-integration
   do
     echo "[verify] pytest $suite"
-    (cd "$suite" && "$ROOT/$VPY" -m pytest tests -q --timeout=180)
+    (cd "$suite" && "$ROOT/$VPY" -m pytest tests -q --timeout=180 "${PYTEST_BASETEMP_ARGS[@]}")
   done
 fi
 

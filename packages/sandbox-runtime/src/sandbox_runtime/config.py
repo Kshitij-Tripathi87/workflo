@@ -284,3 +284,6 @@ class RunResult:
     # isolation, app, tests, teardown, receipt, probes, agent).
     # Used to map to the correct exit code per run_contract.md §6.
     failure_stage: Optional[str] = None
+    # Backend that actually executed this run ("docker" | "namespaces").
+    # Non-negotiable #6: receipts and evidence must name the backend that ran.
+    backend: Optional[str] = None

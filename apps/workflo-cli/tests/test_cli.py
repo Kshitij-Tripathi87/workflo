@@ -126,28 +126,34 @@ def _fake_supervisor_run_result(
 
 
 class _supervisor_run_returns:
-    """Patch the CLI's supervisor client so `run` returns `result`.
+    """Patch the CLI's single run seam (sandbox_runtime.run_service) so
+    `run` returns `result`.
 
-    Yields the mocked client so tests can assert on the RunConfig it
-    received. Also isolates the signing-pubkey persistence so tests
-    never write to the real user home directory.
+    Yields an object exposing `.run` (the mocked entry point) so tests can
+    assert on the RunConfig it received. Also isolates the signing-pubkey
+    persistence so tests never write to the real user home directory.
     """
 
     def __init__(self, result):
-        self.result = result
-        self.client = MagicMock()
-        self.client.run.return_value = result
+        self.seam = MagicMock()
+        self.seam.run = MagicMock(return_value=result)
+        self.seam.resolve_backend = MagicMock(return_value="namespaces")
 
     def __enter__(self):
         self._cm1 = patch(
-            "workflo_cli.main.create_supervisor_client", return_value=self.client
+            "sandbox_runtime.run_service.run", self.seam.run
         )
-        self._cm2 = patch("workflo_cli.main._persist_signing_pubkey")
+        self._cm2 = patch(
+            "sandbox_runtime.run_service.resolve_backend", self.seam.resolve_backend
+        )
+        self._cm3 = patch("workflo_cli.main._persist_signing_pubkey")
         self._cm1.__enter__()
         self._cm2.__enter__()
-        return self.client
+        self._cm3.__enter__()
+        return self.seam
 
     def __exit__(self, *exc):
+        self._cm3.__exit__(*exc)
         self._cm2.__exit__(*exc)
         self._cm1.__exit__(*exc)
         return False

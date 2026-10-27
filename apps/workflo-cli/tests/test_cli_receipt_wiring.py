@@ -1,4 +1,4 @@
-"""End-to-end vertical slice test: run -> sign -> receipt -> verify.
+﻿"""End-to-end vertical slice test: run -> sign -> receipt -> verify.
 
 Exercises the complete product loop with everything real except the
 Linux sandbox itself (mocked supervisor):
@@ -127,10 +127,9 @@ class TestVerticalSlice:
     ):
         sandbox_id = "sbx-e2e-001"
         fake_result = _make_run_result_with_evidence(sandbox_id, tmp_path)
-        client = MagicMock()
-        client.run.return_value = fake_result
 
-        with patch("workflo_cli.main.create_supervisor_client", return_value=client), \
+        with patch("sandbox_runtime.run_service.resolve_backend", return_value="namespaces"), \
+             patch("sandbox_runtime.run_service.run", return_value=fake_result), \
              patch("workflo_cli.main.generate_sandbox_id", return_value=sandbox_id):
             run_result = runner.invoke(cli, [
                 "run", "--repo", "https://github.com/example/repo.git", "--test",
@@ -167,10 +166,9 @@ class TestVerticalSlice:
     ):
         sandbox_id = "sbx-e2e-002"
         fake_result = _make_run_result_with_evidence(sandbox_id, tmp_path)
-        client = MagicMock()
-        client.run.return_value = fake_result
 
-        with patch("workflo_cli.main.create_supervisor_client", return_value=client), \
+        with patch("sandbox_runtime.run_service.resolve_backend", return_value="namespaces"), \
+             patch("sandbox_runtime.run_service.run", return_value=fake_result), \
              patch("workflo_cli.main.generate_sandbox_id", return_value=sandbox_id):
             runner.invoke(cli, [
                 "run", "--repo", "https://github.com/example/repo.git", "--test",
@@ -185,7 +183,7 @@ class TestVerticalSlice:
         receipt_path.write_text(json.dumps(data))
 
         verify_result = runner.invoke(cli, ["verify", "--receipt", str(receipt_path)])
-        # run_contract.md §6: verify exits 4 when the receipt's claims fail
+        # run_contract.md Â§6: verify exits 4 when the receipt's claims fail
         # verification (signature invalid). Exit 1 is not a verify code.
         assert verify_result.exit_code == 4
         assert "signature verification failed" in verify_result.output
@@ -195,10 +193,9 @@ class TestVerticalSlice:
     ):
         sandbox_id = "sbx-e2e-003"
         fake_result = _make_run_result_with_evidence(sandbox_id, tmp_path)
-        client = MagicMock()
-        client.run.return_value = fake_result
 
-        with patch("workflo_cli.main.create_supervisor_client", return_value=client), \
+        with patch("sandbox_runtime.run_service.resolve_backend", return_value="namespaces"), \
+             patch("sandbox_runtime.run_service.run", return_value=fake_result), \
              patch("workflo_cli.main.generate_sandbox_id", return_value=sandbox_id):
             runner.invoke(cli, [
                 "run", "--repo", "https://github.com/example/repo.git", "--test",
@@ -216,7 +213,7 @@ class TestVerticalSlice:
 
         verify_result = runner.invoke(cli, ["verify", "--receipt", str(receipt_path)])
         # Signature still passes, but the binding must fail (exit 4 per
-        # run_contract.md §6: evidence binding mismatch).
+        # run_contract.md Â§6: evidence binding mismatch).
         assert verify_result.exit_code == 4
         assert "evidence binding verification failed" in verify_result.output
 
@@ -228,10 +225,9 @@ class TestVerticalSlice:
         # Break the teardown claim: cgroup survived
         fake_result.receipt_payload["teardown_proof"]["cgroup_removed"] = False
         fake_result.receipt_payload["teardown_proof"]["container_removed"] = False
-        client = MagicMock()
-        client.run.return_value = fake_result
 
-        with patch("workflo_cli.main.create_supervisor_client", return_value=client), \
+        with patch("sandbox_runtime.run_service.resolve_backend", return_value="namespaces"), \
+             patch("sandbox_runtime.run_service.run", return_value=fake_result), \
              patch("workflo_cli.main.generate_sandbox_id", return_value=sandbox_id):
             runner.invoke(cli, [
                 "run", "--repo", "https://github.com/example/repo.git", "--test",
@@ -240,6 +236,6 @@ class TestVerticalSlice:
         receipt_path = tmp_path / "runs" / sandbox_id / "receipt.json"
 
         verify_result = runner.invoke(cli, ["verify", "--receipt", str(receipt_path)])
-        # Teardown claims failed verification → exit 4 per run_contract.md §6.
+        # Teardown claims failed verification â†’ exit 4 per run_contract.md Â§6.
         assert verify_result.exit_code == 4
         assert "cgroup_removed" in verify_result.output

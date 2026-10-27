@@ -15,7 +15,6 @@ on:
       - "packages/sandbox-runtime/**"
       - "packages/probe-engine/**"
       - "packages/workflo-schema/**"
-      - "legacy/supervisor/**"
       - ".github/workflows/workflo-cli.yml"
   pull_request:
     paths:
@@ -26,7 +25,6 @@ on:
       - "packages/sandbox-runtime/**"
       - "packages/probe-engine/**"
       - "packages/workflo-schema/**"
-      - "legacy/supervisor/**"
       - ".github/workflows/workflo-cli.yml"
 
 jobs:
@@ -47,15 +45,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install packages (editable, dependency order)
-        # sandbox-runtime and workflo-supervisor (legacy/supervisor) are
-        # hard imports of workflo_cli/supervisor_client.py — without them
-        # the CLI test suite cannot even be collected.
+        # Every workflo-cli dependency must be installed from the checkout
+        # or pip fails resolving it against PyPI, where none are published.
         run: |
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/workflo-utils
           pip install -e ./packages/sandbox-isolation
           pip install -e ./packages/sandbox-runtime
-          pip install -e ./legacy/supervisor
           pip install -e ./packages/probe-engine
           pip install -e ./packages/cortex-auth
           pip install -e ./apps/sandbox-executor
@@ -63,6 +59,48 @@ jobs:
 
       - name: Run unit tests
         run: cd apps/workflo-cli && python -m pytest tests/ -q --timeout=120
+
+  smoke:
+    runs-on: ubuntu-latest
+    # Required CLI smoke (roadmap §8): --help, plan dry-run (exit 0), and the
+    # fail-closed preflight (exit 6 with a stderr reason when the explicitly
+    # requested namespaces backend is missing — GitHub runners have no bwrap).
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CLI (editable, dependency order)
+        run: |
+          pip install -e ./packages/workflo-schema
+          pip install -e ./packages/workflo-utils
+          pip install -e ./packages/sandbox-isolation
+          pip install -e ./packages/sandbox-runtime
+          pip install -e ./packages/probe-engine
+          pip install -e ./packages/cortex-auth
+          pip install -e ./apps/sandbox-executor
+          pip install -e ./apps/workflo-cli
+
+      - name: CLI smoke
+        run: |
+          workflo --help > /dev/null
+          mkdir -p /tmp/smoke
+          printf 'def test_pass():\n    assert True\n' > /tmp/smoke/test_sample.py
+          workflo run --path /tmp/smoke --test --dry-run > /dev/null
+          echo "smoke: dry-run exit 0 OK"
+          set +e
+          workflo run --path /tmp/smoke --test --backend namespaces 2> /tmp/smoke/err.txt
+          rc=$?
+          set -e
+          if [ "$rc" -ne 6 ]; then
+            echo "smoke: expected exit 6 without bwrap, got $rc"; exit 1
+          fi
+          if ! [ -s /tmp/smoke/err.txt ]; then
+            echo "smoke: expected a stderr reason with exit 6"; exit 1
+          fi
+          echo "smoke: no-backend preflight exit 6 with stderr reason OK"
 
   dry-run-matrix:
     runs-on: ubuntu-latest
@@ -85,7 +123,6 @@ jobs:
           pip install -e ./packages/workflo-schema
           pip install -e ./packages/sandbox-isolation
           pip install -e ./packages/sandbox-runtime
-          pip install -e ./legacy/supervisor
           pip install -e ./packages/probe-engine
           pip install -e ./packages/cortex-auth
           pip install -e ./apps/sandbox-executor

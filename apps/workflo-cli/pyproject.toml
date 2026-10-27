@@ -19,7 +19,6 @@ dependencies = [
     "workflo-schema",
     "sandbox-isolation",
     "sandbox-runtime",
-    "workflo-supervisor",
     "workflo-executor",
     "workflo-probe-engine",
     "workflo-utils",

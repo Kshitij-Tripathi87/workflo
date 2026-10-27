@@ -120,4 +120,11 @@ def _no_real_executor(monkeypatch):
         '{"receipt": true, "sandbox_id": "sb-fake"}'
     )
     monkeypatch.setattr("workflo_executor.SandboxExecutor", fake)
+    # S03 v2: runs go through sandbox_runtime.run_service, whose resolver
+    # probes the host (docker/bwrap). Unit tests must stay hermetic, and
+    # the API requires the docker backend — pin the resolution here; the
+    # execution-outcome tests override the executor itself as before.
+    monkeypatch.setattr(
+        "sandbox_runtime.run_service.resolve_backend", lambda _requested: "docker"
+    )
     yield

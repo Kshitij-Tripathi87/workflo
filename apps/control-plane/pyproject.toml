@@ -23,6 +23,7 @@ dependencies = [
     "workflo-schema",
     "workflo-utils",
     "workflo-executor",
+    "sandbox-runtime",
 ]
 
 [project.optional-dependencies]

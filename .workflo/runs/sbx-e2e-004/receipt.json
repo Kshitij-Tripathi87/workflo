@@ -1,0 +1,154 @@
+{
+  "receipt_version": 4,
+  "sandbox_id": "sbx-e2e-004",
+  "issued_at": "2026-10-27T19:20:58.488416Z",
+  "run_report": {
+    "sandbox_id": "sbx-e2e-004",
+    "run_id": "sbx-e2e-004",
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 0.0,
+    "soc2_controls_covered": [],
+    "collection_error": null,
+    "findings": []
+  },
+  "teardown_proof": {
+    "sandbox_id": "sbx-e2e-004",
+    "container_id": null,
+    "filesystem_wipe_method": "workspace_rmtree",
+    "container_removed": false,
+    "filesystem_removed": true,
+    "no_snapshot_retained": true,
+    "runtime_type": "namespaces",
+    "processes_terminated": true,
+    "cgroup_removed": false,
+    "network_namespace_removed": false,
+    "workspace_removed": true,
+    "model_inference_teardown": null,
+    "model_inference_error": null,
+    "destroyed_at": "2026-10-27T19:20:58.488391Z",
+    "session_duration_seconds": 0.03479990000050748,
+    "peak_memory_mb": 0,
+    "peak_cpu_percent": 0.0,
+    "events_count": 5
+  },
+  "canary_check": {
+    "sandbox_id": "sbx-e2e-004",
+    "attempted_at": "2026-10-27T19:20:58.488405Z",
+    "target_host": "unknown",
+    "request_succeeded": true,
+    "error": "canary never ran"
+  },
+  "lifecycle_events": [
+    {
+      "sandbox_id": "sbx-e2e-004",
+      "event": "created",
+      "timestamp": "2026-10-27T19:20:58.453651Z",
+      "detail": {
+        "config": {
+          "sandbox_id": "sbx-e2e-004",
+          "repo_url": "https://github.com/example/repo.git",
+          "repo_path": null,
+          "commit_sha": null,
+          "probe_groups": [
+            "surface"
+          ],
+          "runtime_image": "\\opt\\workflo\\workflo-worker",
+          "memory_mb": 2048,
+          "cpu_cores": 2.0,
+          "timeout_seconds": 600,
+          "dep_mode": "vendor_cache",
+          "evidence_dir": ".workflo\\runs",
+          "policy_path": null,
+          "start_command": null,
+          "port": null,
+          "cgroup_path": null,
+          "agent_planner": false,
+          "security_mode": "compatible",
+          "landlock_requested": false,
+          "mission": null
+        }
+      }
+    },
+    {
+      "sandbox_id": "sbx-e2e-004",
+      "event": "preflight_fail",
+      "timestamp": "2026-10-27T19:20:58.463320Z",
+      "detail": {
+        "check": "Linux namespaces",
+        "error": "[WinError 2] The system cannot find the file specified"
+      }
+    },
+    {
+      "sandbox_id": "sbx-e2e-004",
+      "event": "error",
+      "timestamp": "2026-10-27T19:20:58.465030Z",
+      "detail": {
+        "error": "Preflight failed: Linux namespaces: [WinError 2] The system cannot find the file specified",
+        "stage": "preflight"
+      }
+    },
+    {
+      "sandbox_id": "sbx-e2e-004",
+      "event": "teardown_started",
+      "timestamp": "2026-10-27T19:20:58.466946Z",
+      "detail": {}
+    },
+    {
+      "sandbox_id": "sbx-e2e-004",
+      "event": "destroyed",
+      "timestamp": "2026-10-27T19:20:58.468708Z",
+      "detail": {
+        "teardown_verified": false,
+        "processes_terminated": true,
+        "cgroup_removed": false,
+        "network_namespace_removed": false,
+        "workspace_removed": true,
+        "cgroup_drain": {
+          "drained": true,
+          "killed": 0,
+          "remaining": []
+        }
+      }
+    }
+  ],
+  "web_probes": null,
+  "security_probes": null,
+  "datahub_writeback": false,
+  "datahub_status": "none",
+  "security_attestation": {
+    "security_mode": "compatible",
+    "landlock": {
+      "requested": false,
+      "applied": false,
+      "abi_version": null,
+      "reason": "not_requested"
+    },
+    "cgroup_attached": true,
+    "cgroup_attach_failures": [],
+    "seccomp_applied": true,
+    "network_isolated": false,
+    "source_code_included": false
+  },
+  "run_status": "failed",
+  "failure_stage": "preflight",
+  "signature_algorithm": "ed25519",
+  "public_key_fingerprint": "75df0b78447210ddc8b2987d9538e98be7d2d18270a34c46ebf5b1847e9626e7",
+  "signature": "3bd4c0d3ee9be654fabc23c551e8f802479c90096c6161c652bf7ae4c5096aa78eb1fef9e67afd50d5f2a7493a26bff9fe85aa25d54199e8edc69767c5e66002",
+  "key_id": null,
+  "provisioned_at": null,
+  "device_id": null,
+  "dependency_install_had_network": false,
+  "evidence_binding": {
+    "evidence_dir": ".workflo\\runs\\sbx-e2e-004\\evidence",
+    "events_count": 6,
+    "events_sha256": "3cb452103fe32559d0d90c24ef888f74e879ac1e85afb8283d884fe2e13ef223",
+    "bundle_sha256": "6743516f744ebab3988e168194d7e97bd33a6ab66e71cda95469d437924aabb3",
+    "manifest_sha256": "8408149e0d9766966e6d2be30b8ea58253a27853c9c64307e33f12e2767d7d43"
+  },
+  "agent_activity": null,
+  "local_model_provenance": null,
+  "repository": null
+}

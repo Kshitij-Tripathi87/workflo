@@ -59,16 +59,13 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 # Every dependency of workflo-cli must be installed here or pip fails
 # resolving it against PyPI, where none of these are published:
 #   workflo-schema, workflo-utils, sandbox-isolation, sandbox-runtime,
-#   workflo-supervisor (source lives in legacy/supervisor until the CLI's
-#   supervisor import is removed), cortex-auth, workflo-executor,
-#   workflo-probe-engine.
+#   cortex-auth, workflo-executor, workflo-probe-engine.
 echo "  ▸ Installing core packages..."
 pip install --quiet \
     -e packages/workflo-schema \
     -e packages/workflo-utils \
     -e packages/sandbox-isolation \
     -e packages/sandbox-runtime \
-    -e legacy/supervisor \
     -e packages/cortex-auth \
     -e apps/sandbox-executor \
     -e packages/probe-engine

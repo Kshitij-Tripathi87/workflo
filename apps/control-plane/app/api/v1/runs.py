@@ -136,12 +136,12 @@ async def _execute_run(run_id: str, request: RunRequest) -> None:
     """
     try:
         spec = request.to_sandbox_spec()
-        from workflo_executor import SandboxExecutor
+        # S03 v2: the API runs through the same single entry point as the
+        # CLI. resolve_backend fails closed (PreflightError) when the host
+        # cannot satisfy the docker backend; there is no second run path.
+        from sandbox_runtime import run_service
 
-        executor = SandboxExecutor()
-        # SandboxExecutor.run is blocking (docker/git subprocesses); run it
-        # off the event loop so the API stays responsive while sandboxes run.
-        result = await asyncio.to_thread(executor.run, spec)
+        result = await asyncio.to_thread(run_service.run, spec)
 
         async with db_module.async_session_factory() as db:
             service = RunService(db)

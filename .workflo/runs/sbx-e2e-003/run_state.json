@@ -1,0 +1,58 @@
+{
+  "sandbox_id": "sbx-e2e-003",
+  "stage": "preflight",
+  "status": "failed",
+  "started_at": "2026-10-27T19:20:58.353011+00:00",
+  "updated_at": "2026-10-27T19:20:58.372150+00:00",
+  "stages": {
+    "preflight": "fail"
+  },
+  "agent": null,
+  "findings": {
+    "confirmed": 0,
+    "reported": 0
+  },
+  "recent_events": [
+    {
+      "event": "created",
+      "at": "2026-10-27T19:20:58.356105+00:00",
+      "detail": {
+        "config": "(structured)"
+      }
+    },
+    {
+      "event": "preflight_fail",
+      "at": "2026-10-27T19:20:58.365395+00:00",
+      "detail": {
+        "check": "Linux namespaces",
+        "error": "[WinError 2] The system cannot find the file specified"
+      }
+    },
+    {
+      "event": "error",
+      "at": "2026-10-27T19:20:58.367013+00:00",
+      "detail": {
+        "error": "Preflight failed: Linux namespaces: [WinError 2] The system cannot find the file specified",
+        "stage": "preflight"
+      }
+    },
+    {
+      "event": "teardown_started",
+      "at": "2026-10-27T19:20:58.368645+00:00",
+      "detail": {}
+    },
+    {
+      "event": "destroyed",
+      "at": "2026-10-27T19:20:58.370900+00:00",
+      "detail": {
+        "teardown_verified": false,
+        "processes_terminated": true,
+        "cgroup_removed": false,
+        "network_namespace_removed": false,
+        "workspace_removed": true,
+        "cgroup_drain": "(structured)"
+      }
+    }
+  ],
+  "failure_stage": "preflight"
+}

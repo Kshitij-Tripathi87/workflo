@@ -1,0 +1,43 @@
+{
+  "canary_check": {
+    "attempted_at": "2026-10-27T19:22:08.898959Z",
+    "error": "canary never ran",
+    "request_succeeded": true,
+    "sandbox_id": "sbx-e2e-001",
+    "target_host": "unknown"
+  },
+  "security_attestation": {
+    "cgroup_attach_failures": [],
+    "cgroup_attached": true,
+    "landlock": {
+      "abi_version": null,
+      "applied": false,
+      "reason": "not_requested",
+      "requested": false
+    },
+    "network_isolated": false,
+    "seccomp_applied": true,
+    "security_mode": "compatible",
+    "source_code_included": false
+  },
+  "teardown_proof": {
+    "cgroup_removed": false,
+    "container_id": null,
+    "container_removed": false,
+    "destroyed_at": "2026-10-27T19:22:08.898933Z",
+    "events_count": 5,
+    "filesystem_removed": true,
+    "filesystem_wipe_method": "workspace_rmtree",
+    "model_inference_error": null,
+    "model_inference_teardown": null,
+    "network_namespace_removed": false,
+    "no_snapshot_retained": true,
+    "peak_cpu_percent": 0.0,
+    "peak_memory_mb": 0,
+    "processes_terminated": true,
+    "runtime_type": "namespaces",
+    "sandbox_id": "sbx-e2e-001",
+    "session_duration_seconds": 0.03534439999930328,
+    "workspace_removed": true
+  }
+}

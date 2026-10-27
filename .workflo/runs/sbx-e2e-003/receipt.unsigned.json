@@ -1,0 +1,136 @@
+{
+  "sandbox_id": "sbx-e2e-003",
+  "receipt_version": 4,
+  "issued_at": "2026-10-27T19:20:58.392600+00:00",
+  "run_report": {
+    "sandbox_id": "sbx-e2e-003",
+    "run_id": "sbx-e2e-003",
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 0.0,
+    "collection_error": null,
+    "findings": []
+  },
+  "teardown_proof": {
+    "sandbox_id": "sbx-e2e-003",
+    "runtime_type": "namespaces",
+    "destroyed_at": "2026-10-27T19:20:58.392576+00:00",
+    "filesystem_wipe_method": "workspace_rmtree",
+    "container_removed": false,
+    "filesystem_removed": true,
+    "no_snapshot_retained": true,
+    "processes_terminated": true,
+    "cgroup_removed": false,
+    "network_namespace_removed": false,
+    "workspace_removed": true,
+    "session_duration_seconds": 0.0375382999991416,
+    "events_count": 5
+  },
+  "canary_check": {
+    "sandbox_id": "sbx-e2e-003",
+    "attempted_at": "2026-10-27T19:20:58.392588+00:00",
+    "target_host": "unknown",
+    "request_succeeded": true,
+    "error": "canary never ran"
+  },
+  "lifecycle_events": [
+    {
+      "sandbox_id": "sbx-e2e-003",
+      "event": "created",
+      "timestamp": "2026-10-27T19:20:58.355098+00:00",
+      "detail": {
+        "config": {
+          "sandbox_id": "sbx-e2e-003",
+          "repo_url": "https://github.com/example/repo.git",
+          "repo_path": null,
+          "commit_sha": null,
+          "probe_groups": [
+            "surface"
+          ],
+          "runtime_image": "\\opt\\workflo\\workflo-worker",
+          "memory_mb": 2048,
+          "cpu_cores": 2.0,
+          "timeout_seconds": 600,
+          "dep_mode": "vendor_cache",
+          "evidence_dir": ".workflo\\runs",
+          "policy_path": null,
+          "start_command": null,
+          "port": null,
+          "cgroup_path": null,
+          "agent_planner": false,
+          "security_mode": "compatible",
+          "landlock_requested": false,
+          "mission": null
+        }
+      }
+    },
+    {
+      "sandbox_id": "sbx-e2e-003",
+      "event": "preflight_fail",
+      "timestamp": "2026-10-27T19:20:58.364842+00:00",
+      "detail": {
+        "check": "Linux namespaces",
+        "error": "[WinError 2] The system cannot find the file specified"
+      }
+    },
+    {
+      "sandbox_id": "sbx-e2e-003",
+      "event": "error",
+      "timestamp": "2026-10-27T19:20:58.366614+00:00",
+      "detail": {
+        "error": "Preflight failed: Linux namespaces: [WinError 2] The system cannot find the file specified",
+        "stage": "preflight"
+      }
+    },
+    {
+      "sandbox_id": "sbx-e2e-003",
+      "event": "teardown_started",
+      "timestamp": "2026-10-27T19:20:58.368245+00:00",
+      "detail": {}
+    },
+    {
+      "sandbox_id": "sbx-e2e-003",
+      "event": "destroyed",
+      "timestamp": "2026-10-27T19:20:58.370653+00:00",
+      "detail": {
+        "teardown_verified": false,
+        "processes_terminated": true,
+        "cgroup_removed": false,
+        "network_namespace_removed": false,
+        "workspace_removed": true,
+        "cgroup_drain": {
+          "drained": true,
+          "killed": 0,
+          "remaining": []
+        }
+      }
+    }
+  ],
+  "evidence_binding": {
+    "evidence_dir": ".workflo\\runs\\sbx-e2e-003\\evidence",
+    "events_count": 6,
+    "events_sha256": "13e2abc54c0d48e4f475657709254cd59b8cbb856b8c6a2b720c1d7ec380b984",
+    "bundle_sha256": "b57c41c37f6d2f49de3e166e2369239a27019ea949ce1f2c55855ae5a3adc3dc",
+    "manifest_sha256": "0125f869bd38d3f86d5098ae9249fd85a8bd7d5981941b037d32f70887338e65"
+  },
+  "agent_activity": null,
+  "security_attestation": {
+    "security_mode": "compatible",
+    "landlock": {
+      "requested": false,
+      "applied": false,
+      "abi_version": null,
+      "reason": "not_requested"
+    },
+    "cgroup_attached": true,
+    "cgroup_attach_failures": [],
+    "seccomp_applied": true,
+    "network_isolated": false,
+    "source_code_included": false
+  },
+  "signature_algorithm": "ed25519",
+  "run_status": "failed",
+  "failure_stage": "preflight"
+}

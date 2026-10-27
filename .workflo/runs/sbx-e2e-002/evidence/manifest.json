@@ -1,0 +1,12 @@
+{
+  "run_id": "sbx-e2e-002",
+  "sandbox_id": "sbx-e2e-002",
+  "started_at": "2026-10-27T19:20:58.259972+00:00",
+  "completed_at": "2026-10-27T19:20:58.280155+00:00",
+  "events_count": 6,
+  "events_sha256": "eef7c2424980f574170251f406e43946dc2de83edb7a0e5a4bf2f6ae7e693531",
+  "logs_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "http_traces_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "filesystem_changes_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "bundle_sha256": "0951267af8fa6fd93939f3ca705be8e4f598a33161b2698653979ab14b1a6246"
+}

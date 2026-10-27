@@ -1,0 +1,16 @@
+{
+  "agent": null,
+  "events_count": 5,
+  "findings_count": 0,
+  "model": null,
+  "sandbox_id": "sbx-e2e-004",
+  "stages": {
+    "preflight": "fail"
+  },
+  "tests": {
+    "failed": 0,
+    "passed": 0,
+    "total": 0
+  },
+  "wall_clock_seconds": 0.03479990000050748
+}

@@ -111,10 +111,8 @@ workflo run --repo https://github.com/pallets/click.git --test --security
 # 3. Run AI agent deep test with live application execution
 workflo run --repo https://github.com/pallets/click.git --deep-test --security
 
-# 4. Explicit backend selection — NOT YET IMPLEMENTED in this build
-#    (--backend auto|docker|namespaces lands with the run-service step;
-#    the command below currently fails with "No such option: --backend")
-# workflo run --path . --test --backend docker
+# 4. Run with explicit backend selection (auto | docker | namespaces)
+workflo run --path . --test --backend docker
 
 # 5. Generate a cryptographic receipt (always generated)
 workflo run --path . --test
@@ -138,7 +136,7 @@ workflo verify receipt.json
 | `--deep-test` | Enable AI tool-calling agent to exercise routes and live endpoints |
 | `--aggressive-test` | Enable aggressive testing (fuzz, property-based, chaos) |
 | `--web` | Enable Playwright browser probes against a running app |
-| `--backend auto\|docker\|namespaces` | Backend selection (default: auto) — **planned, not yet implemented** in this build |
+| `--backend auto\|docker\|namespaces` | Backend selection (default: auto; a missing backend fails closed with exit 6) |
 | `--start-command <cmd>` | Command to start the app under test (for --web/--security) |
 | `--port <n>` | Port the app under test binds (for --web/--security) |
 | `--dry-run` | Validate run spec and policies without booting containers |

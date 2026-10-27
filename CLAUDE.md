@@ -30,7 +30,7 @@ sandbox backends and probes, ToolGateway, evidence ledger and receipts, Judge. S
 7. Stop and report. Do not continue to the next step in the same context.
 
 ## Commands (confirmed against the repo 2026-10-27, S00; verify.sh added S01)
-- One definition of green: `./scripts/verify.sh` (JS lint+typecheck+test, per-package pytest, CLI smoke incl. exit-6 preflight check; smoke's exit-6 step requires the `--backend` flag that lands with S03)
+- One definition of green: `./scripts/verify.sh` (JS lint+typecheck+test, per-package pytest, CLI smoke incl. exit-6 preflight check via `--backend`). Set `WORKFLO_PYTEST_BASETEMP` on hosts with a locked default pytest temp root.
 - Install check: fresh container, `./install.sh`, `workflo doctor` (Windows dev host: `install.ps1`). install.sh must install every workflo-cli dependency or pip fails resolving against PyPI.
 - Python tests per package: `pytest -q <package>/tests` from the package dir (Windows host: add `--basetemp` under a writable temp dir if the default pytest temp root is locked).
 - JS: `pnpm install --frozen-lockfile && pnpm check`
