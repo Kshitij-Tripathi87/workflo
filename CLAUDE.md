@@ -29,11 +29,11 @@ sandbox backends and probes, ToolGateway, evidence ledger and receipts, Judge. S
 6. Commit as `Sxx: <title>`. Commit security-critical steps separately from refactors.
 7. Stop and report. Do not continue to the next step in the same context.
 
-## Commands (confirm against the repo, then correct this list)
-- Install check: fresh container, `./install.sh`, `workflo doctor`
-- Python tests per package: `pytest -q <package>/tests`
+## Commands (confirmed against the repo 2026-10-27, S00)
+- Install check: fresh container, `./install.sh`, `workflo doctor` (Windows dev host: `install.ps1`). install.sh must install every workflo-cli dependency or pip fails resolving against PyPI.
+- Python tests per package: `pytest -q <package>/tests` from the package dir (Windows host: add `--basetemp` under a writable temp dir if the default pytest temp root is locked).
 - JS: `pnpm install --frozen-lockfile && pnpm check`
-- Fixture run: `workflo run --path fixtures/node-bugs --test`
+- Fixture run: no repo fixture dir exists; the fresh-install gate synthesizes its own minimal pytest fixture. Local plan check: `workflo run --path <dir-with-a-pytest-suite> --test --dry-run`.
 
 ## Reporting style
 Be precise. State what you ran, what passed, what failed, and what you did not verify. If a step cannot meet its Expect section, say so and stop instead of adjusting the test.

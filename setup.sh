@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Workflo — one-command setup.
 #
-# Brings up the dev dependencies (Postgres) in Docker, starts the backend and
-# frontend from this checkout, waits for both to answer, and opens the UI.
+# Brings up the dev dependencies (Postgres) in Docker, starts the legacy
+# backend and frontend apps from this checkout (they now live under
+# legacy/ and are frozen), waits for both to answer, and opens the UI.
 #
 # Usage:
 #   ./setup.sh
@@ -77,13 +78,13 @@ if [ "${SKIP_DEPS:-0}" != "1" ] && [ ! -x .venv/bin/python ]; then
   log "Creating backend virtualenv (.venv) and installing requirements..."
   "$PYTHON" -m venv .venv
   .venv/bin/python -m pip install --upgrade pip >/dev/null
-  .venv/bin/python -m pip install -r backend/requirements.txt
+  .venv/bin/python -m pip install -r legacy/backend/requirements.txt
   ok "Backend deps installed"
 fi
 [ -x .venv/bin/python ] || fail "No backend virtualenv at .venv (run without SKIP_DEPS=1 first)"
 
 log "Starting backend on http://localhost:$BACKEND_PORT ..."
-(cd backend && exec "$REPO_ROOT/.venv/bin/python" -m uvicorn app.main:app \
+(cd legacy/backend && exec "$REPO_ROOT/.venv/bin/python" -m uvicorn app.main:app \
   --host 0.0.0.0 --port "$BACKEND_PORT") >"$LOG_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 
@@ -108,16 +109,16 @@ printf "\n"
 ok "Backend healthy"
 
 # ---------- Frontend dependencies + server ----------
-if [ "${SKIP_DEPS:-0}" != "1" ] && [ ! -d frontend/node_modules ]; then
+if [ "${SKIP_DEPS:-0}" != "1" ] && [ ! -d legacy/frontend/node_modules ]; then
   log "Installing frontend dependencies..."
-  (cd frontend && npm install)
+  (cd legacy/frontend && npm install)
   ok "Frontend deps installed"
 else
   ok "Frontend deps already installed"
 fi
 
 log "Starting frontend on http://localhost:$FRONTEND_PORT ..."
-(cd frontend && NEXT_PUBLIC_API_BASE_URL="http://localhost:$BACKEND_PORT" \
+(cd legacy/frontend && NEXT_PUBLIC_API_BASE_URL="http://localhost:$BACKEND_PORT" \
   exec npm run dev -- --port "$FRONTEND_PORT") >"$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 

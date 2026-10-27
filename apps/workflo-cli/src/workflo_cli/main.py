@@ -63,6 +63,8 @@ from workflo_cli.exit_codes import (
     EXIT_VERIFIED,
     EXIT_VERIFICATION_FAILED,
     EXIT_INFRASTRUCTURE_ERROR,
+    classify_failure_stage,
+    classify_run_outcome,
 )
 
 # LLM config (deep-tier)

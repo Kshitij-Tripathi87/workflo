@@ -56,13 +56,22 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 # One resolver graph for the local packages so pip does not try to
 # fetch workflo-schema / sandbox-isolation / etc. from PyPI.
 # Install them before the CLI: workflo-cli declares those names as deps.
-echo "  → Installing core packages..."
+# Every dependency of workflo-cli must be installed here or pip fails
+# resolving it against PyPI, where none of these are published:
+#   workflo-schema, workflo-utils, sandbox-isolation, sandbox-runtime,
+#   workflo-supervisor (source lives in legacy/supervisor until the CLI's
+#   supervisor import is removed), cortex-auth, workflo-executor,
+#   workflo-probe-engine.
+echo "  ▸ Installing core packages..."
 pip install --quiet \
     -e packages/workflo-schema \
+    -e packages/workflo-utils \
     -e packages/sandbox-isolation \
+    -e packages/sandbox-runtime \
+    -e legacy/supervisor \
+    -e packages/cortex-auth \
     -e apps/sandbox-executor \
-    -e packages/probe-engine \
-    -e packages/workflo-utils
+    -e packages/probe-engine
 
 echo "  → Installing workflo CLI..."
 pip install --quiet -e apps/workflo-cli

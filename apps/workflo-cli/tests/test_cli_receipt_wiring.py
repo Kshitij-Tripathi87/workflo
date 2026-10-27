@@ -185,7 +185,9 @@ class TestVerticalSlice:
         receipt_path.write_text(json.dumps(data))
 
         verify_result = runner.invoke(cli, ["verify", "--receipt", str(receipt_path)])
-        assert verify_result.exit_code == 1
+        # run_contract.md §6: verify exits 4 when the receipt's claims fail
+        # verification (signature invalid). Exit 1 is not a verify code.
+        assert verify_result.exit_code == 4
         assert "signature verification failed" in verify_result.output
 
     def test_verify_detects_evidence_tampering(
@@ -213,8 +215,9 @@ class TestVerticalSlice:
         }) + "\n")
 
         verify_result = runner.invoke(cli, ["verify", "--receipt", str(receipt_path)])
-        # Signature still passes, but the binding must fail
-        assert verify_result.exit_code == 1
+        # Signature still passes, but the binding must fail (exit 4 per
+        # run_contract.md §6: evidence binding mismatch).
+        assert verify_result.exit_code == 4
         assert "evidence binding verification failed" in verify_result.output
 
     def test_verify_rejects_broken_teardown_claims(
@@ -237,5 +240,6 @@ class TestVerticalSlice:
         receipt_path = tmp_path / "runs" / sandbox_id / "receipt.json"
 
         verify_result = runner.invoke(cli, ["verify", "--receipt", str(receipt_path)])
-        assert verify_result.exit_code == 1
+        # Teardown claims failed verification → exit 4 per run_contract.md §6.
+        assert verify_result.exit_code == 4
         assert "cgroup_removed" in verify_result.output

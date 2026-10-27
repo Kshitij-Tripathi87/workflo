@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import type { SandboxRunner, SpawnHandle } from "@workflo/sandbox";
 
 /**
