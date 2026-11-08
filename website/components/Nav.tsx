@@ -1,62 +1,51 @@
 import Link from "next/link";
 
+const repositoryUrl = "https://github.com/Kshitij-Tripathi87/workflo";
+
 export function Nav() {
   return (
-    <nav
-      style={{
-        borderBottom: "1px solid var(--border)",
-        padding: "16px 0",
-        position: "sticky",
-        top: 0,
-        background: "rgba(10, 14, 26, 0.85)",
-        backdropFilter: "blur(12px)",
-        zIndex: 100,
-      }}
-    >
-      <div
-        className="container"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Link
-          href="/"
-          style={{
-            fontWeight: 700,
-            fontSize: 18,
-            color: "var(--text)",
-            textDecoration: "none",
-          }}
-        >
-          <span className="gradient-text">Cortex</span> Autopilot
-      </Link>
-        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-          <Link href="/product" style={{ color: "var(--text-dim)" }}>
-            Product
+    <header className="site-header">
+      <div className="site-shell site-header__inner">
+        <Link className="wordmark" href="/" aria-label="Workflo home">
+          <span className="brand-mark" aria-hidden="true">W</span>
+          <span>workflo</span>
         </Link>
-          <Link href="/pricing" style={{ color: "var(--text-dim)" }}>
-            Pricing
-        </Link>
-          <Link href="/blog" style={{ color: "var(--text-dim)" }}>
-            Blog
-        </Link>
+
+        <nav className="site-nav" aria-label="Main navigation">
+          <Link href="/#platform">Platform</Link>
+          <Link href="/#workflow">How it works</Link>
+          <Link href="/#trust">Trust model</Link>
+        </nav>
+
+        <div className="site-header__actions">
+          <a href={repositoryUrl} target="_blank" rel="noreferrer">
+            GitHub <span aria-hidden="true">↗</span>
+          </a>
           <a
-            href="https://docs.cortex.dev"
-            style={{ color: "var(--text-dim)" }}
+            className="button button--light button--small"
+            href={repositoryUrl}
+            target="_blank"
+            rel="noreferrer"
           >
-            Docs
-        </a>
-          <a
-            href="mailto:hello@cortex.dev"
-            className="btn btn-primary"
-            style={{ padding: "8px 16px", fontSize: 14 }}
-          >
-            Book a demo
-        </a>
+            Explore Workflo
+          </a>
+        </div>
+
+        <details className="mobile-nav">
+          <summary aria-label="Open navigation menu">
+            <span />
+            <span />
+          </summary>
+          <nav aria-label="Mobile navigation">
+            <Link href="/#platform">Platform</Link>
+            <Link href="/#workflow">How it works</Link>
+            <Link href="/#trust">Trust model</Link>
+            <a href={repositoryUrl} target="_blank" rel="noreferrer">
+              GitHub ↗
+            </a>
+          </nav>
+        </details>
       </div>
-    </div>
-  </nav>
+    </header>
   );
 }
