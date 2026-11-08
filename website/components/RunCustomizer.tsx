@@ -4,20 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 
 type RunMode = "native" | "deep" | "aggressive";
 
-const modeLabels: Record<RunMode, string> = {
-  native: "Native test run",
-  deep: "Deep exploration",
-  aggressive: "Aggressive exploration",
-};
-
 export function RunCustomizer() {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<RunMode>("deep");
   const [security, setSecurity] = useState(true);
 
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 1100px)");
-    setIsOpen(desktop.matches);
+    setIsOpen(window.matchMedia("(min-width: 1100px)").matches);
   }, []);
 
   const stages = useMemo(() => {
