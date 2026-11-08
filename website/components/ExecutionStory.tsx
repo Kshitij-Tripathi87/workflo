@@ -45,6 +45,11 @@ export function ExecutionStory() {
     const section = sectionRef.current;
     if (!section) return;
 
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setProgress(0.5);
+      return;
+    }
+
     let frame = 0;
 
     const update = () => {
@@ -100,7 +105,9 @@ export function ExecutionStory() {
           <div className="execution-story__copy">
             <p className="eyebrow">A RUN WITH A TRACEABLE LIFECYCLE</p>
             <p className="execution-story__step">{activeStage.eyebrow}</p>
-            <h2 id="execution-story-title">{activeStage.title}</h2>
+            <h2 id="execution-story-title" aria-live="polite" aria-atomic="true">
+              {activeStage.title}
+            </h2>
             <p className="execution-story__description">
               {activeStage.description}
             </p>
@@ -197,6 +204,18 @@ export function ExecutionStory() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="site-shell execution-story__mobile-list">
+        {stages.map((stage) => (
+          <article className="execution-story__mobile-item" key={stage.eyebrow}>
+            <span>{stage.eyebrow.slice(0, 2)}</span>
+            <div>
+              <h3>{stage.title}</h3>
+              <p>{stage.description}</p>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   );
