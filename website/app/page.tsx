@@ -1,283 +1,304 @@
 import Link from "next/link";
+import { ExecutionStory } from "../components/ExecutionStory";
+import { RunCustomizer } from "../components/RunCustomizer";
+
+const repositoryUrl = "https://github.com/Kshitij-Tripathi87/workflo";
+
+const capabilities = [
+  {
+    number: "01",
+    title: "Start with the repository",
+    description:
+      "Resolve a source revision, prepare a stable snapshot, and keep the run tied to the code that was actually tested.",
+    tag: "SOURCE PROVENANCE",
+  },
+  {
+    number: "02",
+    title: "Run the checks that matter",
+    description:
+      "Use the project's native test suite as the foundation, then add application, API, and browser probes where the run is configured to support them.",
+    tag: "EXECUTION",
+  },
+  {
+    number: "03",
+    title: "Explore beyond the checklist",
+    description:
+      "Governed model-assisted workflows can propose additional test cases and invariants. Generated output is validated before it is allowed into the run.",
+    tag: "AI-ASSISTED QA",
+  },
+  {
+    number: "04",
+    title: "Keep the evidence",
+    description:
+      "Connect outcomes to execution records, evidence references, and receipt provenance. A narrative is useful only when it can be inspected.",
+    tag: "VERIFICATION",
+  },
+];
+
+const trustPillars = [
+  {
+    title: "A revision you can identify",
+    description:
+      "A QA result should name the source revision and snapshot it evaluated. A branch name alone is not a reproducible test target.",
+    mark: "01",
+  },
+  {
+    title: "A boundary that can fail closed",
+    description:
+      "Runtime prerequisites and execution policies must be checked before untrusted code runs. A control that cannot be verified must not be presented as active.",
+    mark: "02",
+  },
+  {
+    title: "A result tied to evidence",
+    description:
+      "Findings should point back to the records that support them. Signed receipts and independent verification are part of the trust model, not decoration.",
+    mark: "03",
+  },
+];
 
 export default function HomePage() {
   return (
-    <div>
-      {/* Hero */}
-      <section
-        style={{
-          paddingTop: 96,
-          paddingBottom: 80,
-          textAlign: "center",
-        }}
-      >
-        <div className="container">
-          <div
-            style={{
-              display: "inline-block",
-              padding: "6px 14px",
-              borderRadius: 999,
-              background: "rgba(59, 130, 246, 0.12)",
-              border: "1px solid rgba(59, 130, 246, 0.3)",
-              fontSize: 13,
-              color: "var(--accent-bright)",
-              marginBottom: 24,
-            }}
-          >
-            Now in public beta
-        </div>
-          <h1
-            style={{
-              fontSize: 64,
-              maxWidth: 880,
-              margin: "0 auto 24px",
-            }}
-          >
-            Know{" "}
-            <span className="gradient-text">what breaks</span>
-            <br />
-            before you deploy.
-        </h1>
-          <p
-            style={{
-              fontSize: 20,
-              maxWidth: 640,
-              margin: "0 auto 40px",
-              color: "var(--text-dim)",
-            }}
-          >
-            Cortex Autopilot is a CI/CD Impact Gate for dbt and Snowflake
-            teams. Read the manifest, compute the blast radius, and block
-            risky data changes — before they reach production.
-        </p>
-          <div
-            style={{
-              display: "flex",
-              gap: 16,
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <a href="mailto:hello@cortex.dev?subject=demo" className="btn btn-primary">
-              Book a 15-minute demo
-          </a>
-            <Link href="/product" className="btn btn-secondary">
-              How it works →
-          </Link>
-        </div>
-      </div>
-    </section>
-
-      {/* Problem */}
-      <section style={{ paddingTop: 80, paddingBottom: 32 }}>
-        <div className="container">
-          <h2 style={{ textAlign: "center", marginBottom: 16 }}>
-            Data changes don't have a CI gate
-         </h2>
-          <p
-            style={{
-              textAlign: "center",
-              fontSize: 18,
-              color: "var(--text-dim)",
-              maxWidth: 720,
-              margin: "0 auto 48px",
-            }}
-          >
-            Every other change in your stack — code, infra, even ML models — has
-            a review gate. Data changes? A column rename silently breaks three
-            downstream dashboards. You find out in the morning standup.
-        </p>
-       </div>
-     </section>
-
-      {/* Three-step flow */}
-      <section style={{ paddingTop: 32, paddingBottom: 80 }}>
-        <div className="container">
-          <div className="grid-3">
-            <div className="card">
-              <div style={{ fontSize: 32, marginBottom: 12 }}>①</div>
-              <h3 style={{ marginTop: 0 }}>Detect</h3>
-              <p style={{ color: "var(--text-dim)" }}>
-                Reads your dbt manifest.json and catalog.json on every PR. No
-                live database connection required for the open-source edition.
+    <>
+      <section className="hero" id="platform">
+        <div className="hero__ambient" aria-hidden="true" />
+        <div className="site-shell hero__layout">
+          <div className="hero__copy">
+            <p className="eyebrow">
+              <span className="eyebrow__line" />
+              AUTONOMOUS QA FOR SOFTWARE REPOSITORIES
             </p>
-          </div>
-            <div className="card">
-              <div style={{ fontSize: 32, marginBottom: 12 }}>②</div>
-              <h3 style={{ marginTop: 0 }}>Simulate</h3>
-              <p style={{ color: "var(--text-dim)" }}>
-                Builds the downstream graph, computes blast radius and
-                severity for the proposed change. Returns ranked
-                recommendations in milliseconds.
+            <h1>
+              Find what your tests <span>don’t.</span>
+            </h1>
+            <p className="hero__lede">
+              Workflo runs your project’s checks, probes application behavior,
+              and turns verified failures into evidence your team can inspect.
             </p>
-          </div>
-            <div className="card">
-              <div style={{ fontSize: 32, marginBottom: 12 }}>③</div>
-              <h3 style={{ marginTop: 0 }}>Enforce</h3>
-              <p style={{ color: "var(--text-dim)" }}>
-                Posts a structured PR comment with{" "}
-                <code>pass / warn / block</code> verdict. Slack alert fires in
-                parallel. Engineers keep velocity.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-      {/* Stats */}
-      <section style={{ paddingTop: 32, paddingBottom: 64 }}>
-        <div className="container">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 32,
-              textAlign: "center",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 36,
-                  fontWeight: 700,
-                  color: "var(--accent-bright)",
-                }}
+            <div className="hero__actions">
+              <a
+                className="button button--light"
+                href={repositoryUrl}
+                target="_blank"
+                rel="noreferrer"
               >
-                {"<1ms"}
+                Explore Workflo <span aria-hidden="true">↗</span>
+              </a>
+              <Link className="button button--quiet" href="#workflow">
+                See how a run works <span aria-hidden="true">↓</span>
+              </Link>
+            </div>
+            <div className="hero__facts">
+              <span>REPOSITORY-NATIVE</span>
+              <span>GOVERNED EXPLORATION</span>
+              <span>EVIDENCE-LED</span>
+            </div>
+          </div>
+
+          <div className="hero__visual">
+            <div className="hero__visual-orbit hero__visual-orbit--outer" />
+            <div className="hero__visual-orbit hero__visual-orbit--inner" />
+            <div className="run-preview">
+              <div className="run-preview__topbar">
+                <div className="window-dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span>WORKFLO / RUN PREVIEW</span>
+                <span className="run-preview__tag">CONCEPT</span>
               </div>
-              <div style={{ color: "var(--text-dim)", fontSize: 14 }}>
-                p95 simulation latency (synthetic benchmark, 10k changes)
-              </div>
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 36,
-                  fontWeight: 700,
-                  color: "var(--accent-bright)",
-                }}
-              >
-                2.7%
-           </div>
-              <div style={{ color: "var(--text-dim)", fontSize: 14 }}>
-                False-positive rate (synthetic benchmark)
-           </div>
-         </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 36,
-                  fontWeight: 700,
-                  color: "var(--accent-bright)",
-                }}
-              >
-                ~70%
-           </div>
-              <div style={{ color: "var(--text-dim)", fontSize: 14 }}>
-                Reduction in schema-related incidents (customer-reported)
-           </div>
-         </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 36,
-                  fontWeight: 700,
-                  color: "var(--accent-bright)",
-                }}
-              >
-                1 command
-            </div>
-              <div style={{ color: "var(--text-dim)", fontSize: 14 }}>
-                Setup to first verdict
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-      {/* Stack */}
-      <section style={{ paddingTop: 32, paddingBottom: 96 }}>
-        <div className="container">
-          <h2 style={{ textAlign: "center" }}>Plugs into your stack</h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 16,
-              marginTop: 32,
-            }}
-          >
-            {[
-              { name: "GitHub Actions", role: "CI gate" },
-              { name: "dbt", role: "Schema source" },
-              { name: "Snowflake", role: "Live warehouse" },
-              { name: "BigQuery", role: "Live warehouse" },
-              { name: "DataHub", role: "Metadata catalog" },
-              { name: "Slack", role: "Alert channel" },
-              { name: "PagerDuty", role: "Pager integration" },
-              { name: "OpenMetadata", role: "Metadata catalog" },
-            ].map((s) => (
-              <div
-                key={s.name}
-                className="card"
-                style={{ textAlign: "center", padding: 16 }}
-              >
-                <div style={{ fontWeight: 600 }}>{s.name}</div>
-                <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                  {s.role}
+              <div className="run-preview__body">
+                <div className="run-preview__identity">
+                  <div>
+                    <span className="micro-label">PROJECT</span>
+                    <strong>sample-repository</strong>
+                  </div>
+                  <div className="run-preview__revision">
+                    <span className="micro-label">SOURCE</span>
+                    <strong>REVISION PINNED</strong>
+                  </div>
+                </div>
+
+                <div className="run-preview__divider" />
+
+                <div className="run-preview__stage">
+                  <span className="run-preview__stage-index">01</span>
+                  <div>
+                    <strong>Prepare</strong>
+                    <small>Configuration · snapshot · runtime</small>
+                  </div>
+                  <span className="stage-symbol stage-symbol--done" aria-label="Illustrative completed stage">✓</span>
+                </div>
+                <div className="run-preview__stage">
+                  <span className="run-preview__stage-index">02</span>
+                  <div>
+                    <strong>Exercise</strong>
+                    <small>Native tests · application probes</small>
+                  </div>
+                  <span className="stage-symbol" aria-hidden="true">↗</span>
+                </div>
+                <div className="run-preview__stage">
+                  <span className="run-preview__stage-index">03</span>
+                  <div>
+                    <strong>Verify</strong>
+                    <small>Findings · evidence · teardown</small>
+                  </div>
+                  <span className="stage-symbol" aria-hidden="true">◇</span>
+                </div>
+
+                <div className="run-preview__terminal">
+                  <div className="run-preview__terminal-heading">
+                    <span>EXECUTION RECORD</span>
+                    <span>ILLUSTRATIVE DATA</span>
+                  </div>
+                  <p><span>$</span> workflo run --test</p>
+                  <p className="run-preview__terminal-muted">source&nbsp;&nbsp; pinned revision</p>
+                  <p className="run-preview__terminal-muted">policy&nbsp;&nbsp; selected runtime profile</p>
+                  <p className="run-preview__terminal-muted">output&nbsp; evidence-linked report</p>
                 </div>
               </div>
-            ))}
-        </div>
-      </div>
-    </section>
-
-      {/* CTA */}
-      <section style={{ paddingTop: 32, paddingBottom: 96 }}>
-        <div className="container">
-          <div
-            className="card"
-            style={{
-              padding: 48,
-              textAlign: "center",
-              background:
-                "linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)",
-              borderColor: "rgba(59, 130, 246, 0.3)",
-            }}
-          >
-            <h2 style={{ marginTop: 0 }}>Ready to gate your next PR</h2>
-            <p
-              style={{
-                fontSize: 18,
-                color: "var(--text-dim)",
-                maxWidth: 540,
-                margin: "0 auto 32px",
-              }}
-            >
-              Run the open-source demo locally in under 10 minutes. Or book a
-              15-minute walkthrough on your own dbt project.
-          </p>
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                justifyContent: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <a
-                href="https://docs.cortex.dev/install"
-                className="btn btn-primary"
-              >
-                Install locally
-            </a>
-              <a href="mailto:hello@cortex.dev" className="btn btn-secondary">
-                Talk to a founder
-            </a>
+            </div>
+            <div className="hero__visual-caption">
+              <span className="caption-dot" />
+              A RUN SHOULD LEAVE AN EVIDENCE TRAIL
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  </div>
+        <div className="hero__bottom-rule" />
+      </section>
+
+      <section className="intro-section section-pad">
+        <div className="site-shell intro-section__layout">
+          <p className="eyebrow">THE GAP IN THE TEST LOOP</p>
+          <div>
+            <h2>
+              Passing tests tell you what you checked. They don’t tell you
+              everything you missed.
+            </h2>
+            <p>
+              Workflo is designed to add a disciplined investigation layer to
+              software QA: execute existing checks, explore configured
+              application behavior, validate candidate tests, and preserve the
+              evidence behind each result.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="capabilities-section section-pad" id="platform-capabilities">
+        <div className="site-shell">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">THE WORKFLOW, NOT THE HYPE</p>
+              <h2>QA that goes beyond a green check.</h2>
+            </div>
+            <p>
+              Four connected responsibilities. Each has a clear input, an
+              observable output, and a boundary around what it is allowed to
+              claim.
+            </p>
+          </div>
+
+          <div className="capability-grid">
+            {capabilities.map((item) => (
+              <article className="capability-card" key={item.number}>
+                <div className="capability-card__top">
+                  <span>{item.number}</span>
+                  <span>{item.tag}</span>
+                </div>
+                <div className="capability-card__glyph" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+                <div className="capability-card__rule" />
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <ExecutionStory />
+
+      <section className="trust-section section-pad" id="trust">
+        <div className="site-shell">
+          <div className="section-heading section-heading--trust">
+            <div>
+              <p className="eyebrow">THE TRUST MODEL</p>
+              <h2>Evidence before confidence.</h2>
+            </div>
+            <p>
+              A useful QA result is more than a summary. It needs provenance,
+              a clearly defined execution boundary, and a way to inspect what
+              actually happened.
+            </p>
+          </div>
+
+          <div className="trust-grid">
+            {trustPillars.map((item) => (
+              <article className="trust-card" key={item.mark}>
+                <span className="trust-card__number">{item.mark}</span>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="local-first-panel">
+            <div className="local-first-panel__visual" aria-hidden="true">
+              <div className="local-first-panel__ring local-first-panel__ring--one" />
+              <div className="local-first-panel__ring local-first-panel__ring--two" />
+              <div className="local-first-panel__core">
+                <span className="brand-mark brand-mark--large">W</span>
+              </div>
+            </div>
+            <div className="local-first-panel__copy">
+              <p className="eyebrow">LOCAL-FIRST BY DESIGN</p>
+              <h3>Your code. Your execution boundary.</h3>
+              <p>
+                Workflo’s architecture is being developed around
+                customer-controlled execution and locally operated model
+                inference. The guarantees for a particular release depend on
+                its verified runtime, model artifacts, network policy, and
+                retention configuration.
+              </p>
+              <Link className="text-link" href="/product">
+                Read the product architecture <span aria-hidden="true">↗</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="closing-section section-pad">
+        <div className="site-shell closing-panel">
+          <p className="eyebrow">MAKE THE NEXT RUN COUNT</p>
+          <h2>Bring the repository. Leave with evidence.</h2>
+          <p>
+            Explore the implementation, current CLI, and development status
+            directly in the Workflo repository.
+          </p>
+          <div className="closing-panel__actions">
+            <a
+              className="button button--light"
+              href={repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View Workflo on GitHub <span aria-hidden="true">↗</span>
+            </a>
+            <Link className="button button--quiet" href="/product">
+              Explore the product
+            </Link>
+          </div>
+          <div className="closing-panel__index">WF / QA / 001</div>
+        </div>
+      </section>
+
+      <RunCustomizer />
+    </>
   );
 }
