@@ -1,5 +1,6 @@
 """Workflo Control Plane — FastAPI application factory."""
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -41,8 +42,26 @@ async def lifespan(app: FastAPI):
         await init_db()
     if settings.redis_url:
         run_queue.connect_redis(settings.redis_url)
+
+    # Durable dispatch worker (brief §8): when enabled, this process runs
+    # the dispatcher loop that claims outbox rows with lease semantics.
+    # Production requires this mode (startup guard); in development the
+    # API spawns an in-process worker per run instead.
+    dispatcher_task: Optional[asyncio.Task] = None
+    if settings.dispatcher_enabled:
+        from app.services.dispatch_service import dispatcher_loop
+
+        stop = asyncio.Event()
+        dispatcher_task = asyncio.create_task(dispatcher_loop(stop=stop))
+
     yield
-    # Shutdown: cleanup (Redis connection close, etc.)
+
+    if dispatcher_task is not None:
+        dispatcher_task.cancel()
+        try:
+            await dispatcher_task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001 — shutdown must complete
+            pass
 
 
 def create_app() -> FastAPI:

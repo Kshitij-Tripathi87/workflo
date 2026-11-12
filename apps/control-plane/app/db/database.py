@@ -69,6 +69,7 @@ _PRODUCTION_RLS_POLICIES = {
     ("api_keys", "tenant_isolation_api_keys"),
     ("api_keys", "api_key_auth_lookup"),
     ("test_runs", "tenant_isolation_test_runs"),
+    ("run_attempts", "tenant_isolation_run_attempts"),
     ("test_results", "tenant_isolation_test_results"),
     ("artifacts", "tenant_isolation_artifacts"),
     ("audit_events", "tenant_isolation_audit_select"),
@@ -135,14 +136,14 @@ async def verify_production_database() -> dict:
             "JOIN pg_namespace AS n ON n.oid = c.relnamespace "
             "WHERE n.nspname = current_schema() AND c.relkind = 'r' "
             "AND c.relname IN "
-            "('projects', 'api_keys', 'test_runs', 'test_results', 'artifacts', 'audit_events')"
+            "('projects', 'api_keys', 'test_runs', 'run_attempts', 'test_results', 'artifacts', 'audit_events')"
         ))
         table_rows = {
             str(row[0]): (bool(row[1]), bool(row[2]), str(row[3]))
             for row in table_result.all()
         }
         required_tables = {
-            "projects", "api_keys", "test_runs", "test_results", "artifacts", "audit_events"
+            "projects", "api_keys", "test_runs", "run_attempts", "test_results", "artifacts", "audit_events"
         }
         missing_tables = sorted(required_tables - set(table_rows))
         invalid_tables = sorted(

@@ -13,6 +13,7 @@ os.environ.setdefault("REDIS_URL", "")
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -31,11 +32,17 @@ def setup_db(tmp_path):
     (and loop) that the polling GET handler never sees, making completion
     checks intermittently fail ("never reached terminal state"). A file
     shares committed data across all connections and loops.
+
+    NullPool: every checkout is a fresh aiosqlite connection bound to the
+    current loop. Pooling would hand a connection created on one test loop
+    to another loop (unit tests run short asyncio.run loops), which
+    aiosqlite does not support.
     """
     db_path = tmp_path / "test.db"
     new_engine = create_async_engine(
         f"sqlite+aiosqlite:///{db_path.as_posix()}",
         echo=False,
+        poolclass=NullPool,
     )
     new_factory = async_sessionmaker(
         new_engine, class_=AsyncSession, expire_on_commit=False

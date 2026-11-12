@@ -40,6 +40,21 @@ class Settings(BaseSettings):
     # Receipt transparency log (append-only Merkle tree). Empty = disabled.
     # Production: ship this file to WORM object storage (S3 Object Lock).
     transparency_log_path: str = ""
+    # Durable dispatch (Product Engineering Brief §8, Phase 2): every run is
+    # admitted with a transactional outbox row (dispatch intent committed in
+    # the SAME transaction as the run), one RunAttempt per sandbox execution,
+    # and lease/heartbeat claim semantics. The claim/execute worker either
+    # runs in-process (development default) or as the dispatcher loop.
+    # Production REQUIRES the loop (fail-closed startup guard): an admitted
+    # run must survive an API restart without losing its dispatch intent.
+    dispatcher_enabled: bool = False
+    dispatch_lease_seconds: int = 300
+    dispatch_heartbeat_interval: int = 60
+    dispatch_max_attempts: int = 3
+    dispatch_retry_backoff_seconds: int = 30
+    # Run creation idempotency: dev permits absent keys (one is generated);
+    # production must require the client-supplied Idempotency-Key.
+    require_idempotency_key: bool = False
 
     model_config = {"env_file": ".env", "env_prefix": ""}
 

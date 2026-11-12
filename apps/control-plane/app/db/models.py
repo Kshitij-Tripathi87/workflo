@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     String, Integer, Float, Text, DateTime, ForeignKey, JSON, Boolean,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -94,10 +95,19 @@ class TestRun(Base):
     logs: Mapped[str] = mapped_column(Text, default="")
     started_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Run-creation idempotency (brief §9): a client-supplied key makes a
+    # retried POST return the original run instead of creating a duplicate.
+    # Absent keys are generated server-side in development; production
+    # requires the client key (startup guard).
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="runs")
     results: Mapped[list["TestResultRecord"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     artifacts: Mapped[list["Artifact"]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "idempotency_key", name="uq_runs_project_idempotency"),
+    )
 
 
 class TestResultRecord(Base):
@@ -293,3 +303,85 @@ class User(Base):
     oauth_tokens: Mapped[list["OAuthToken"]] = relationship(back_populates="user")
     provisioned_keys: Mapped[list["ProvisionedKey"]] = relationship(back_populates="user")
     device_codes: Mapped[list["DeviceCode"]] = relationship(back_populates="user")
+
+
+class RunAttempt(Base):
+    """One actual attempt to execute a run (brief §8 run identity).
+
+    A ``TestRun`` is the user's request; a ``RunAttempt`` is one real
+    execution with its own sandbox identity. A retry is a NEW attempt with
+    a NEW sandbox — never a resume of a possibly-compromised one. State
+    values use the frozen lifecycle names (workflo_schema.contracts,
+    ADR-0017); full state-machine transitions land with the durable
+    orchestrator, this table records the attempt identity and lease now.
+
+    Tenant-scoped like ``test_runs`` (project_id is denormalized so the
+    RLS policy mirrors tenant_isolation_test_runs).
+    """
+
+    __tablename__ = "run_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("test_runs.id", ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Frozen lifecycle state name (e.g. PROVISIONING, EXECUTION_FAILED,
+    # CANCEL_REQUESTED). Not an API status; the API status is derived.
+    state: Mapped[str] = mapped_column(String(40), nullable=False, default="PROVISIONING")
+    sandbox_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Worker lease/heartbeat (brief §8): a claimed attempt whose lease
+    # expires is recoverable by another worker; heartbeats extend it.
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Terminal execution status (frozen ExecutionStatus value) once done.
+    execution_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class DispatchOutbox(Base):
+    """Transactional outbox for run dispatch intent (brief §8, ADR-006).
+
+    The row is inserted in the SAME transaction as the run + attempt, so a
+    crash between "run admitted" and "worker dispatched" is impossible:
+    either both exist or neither does. A dispatcher claims rows with a
+    time-bounded lease; a claimed row whose lease expires becomes claimable
+    again (worker loss recovery). Retries are classified: only transient
+    infrastructure failures re-dispatch (as a NEW attempt); everything else
+    terminates the outbox row.
+
+    Internal infrastructure table — not tenant-facing, no RLS policy: the
+    dispatcher runs without tenant context by design, and no customer API
+    reads or writes this table. ``project_id`` is denormalized for
+    attribution and a future scoped internal view.
+    """
+
+    __tablename__ = "dispatch_outbox"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("test_runs.id", ondelete="CASCADE"), index=True
+    )
+    attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("run_attempts.id", ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False, default="run.dispatch")
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    # pending -> claimed -> done | failed (terminal)
+    #                |-> pending (lease expired or classified retry)
+    # pending -> cancelled (cancellation before execution)
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
+    claimed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    claimed_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attempts_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    available_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

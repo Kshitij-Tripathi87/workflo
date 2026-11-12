@@ -99,6 +99,26 @@ def production_config_errors(settings: Settings) -> list[str]:
             "(or a KMS KEK provider) before starting production."
         )
 
+    # 4. Durable dispatch (brief §8): an admitted run's dispatch intent must
+    #    survive an API restart. The in-process spawn is a development-only
+    #    mode; production runs the dispatcher loop.
+    if not bool(getattr(settings, "dispatcher_enabled", False)):
+        errors.append(
+            "DISPATCHER_ENABLED is false: runs would execute through the "
+            "in-process dev worker, losing dispatch intent on API restart. "
+            "Set DISPATCHER_ENABLED=true (the lifespan starts the "
+            "lease-based dispatcher loop)."
+        )
+
+    # 5. Run-creation idempotency (brief §9): retried submissions must not
+    #    duplicate runs. Clients must supply Idempotency-Key in production.
+    if not bool(getattr(settings, "require_idempotency_key", False)):
+        errors.append(
+            "REQUIRE_IDEMPOTENCY_KEY is false: run creation accepts requests "
+            "without an Idempotency-Key, so client retries can create "
+            "duplicate runs. Set REQUIRE_IDEMPOTENCY_KEY=true."
+        )
+
     return errors
 
 

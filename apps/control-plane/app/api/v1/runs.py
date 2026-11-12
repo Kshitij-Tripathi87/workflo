@@ -14,20 +14,25 @@ the frozen v1 surface and will be removed in v2.
 """
 
 import asyncio
-import json
+import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from workflo_schema import RunStatus as LegacyRunStatusEnum
 from workflo_schema.api import RunRequest, RunStatus
 
-from app.db import database as db_module
 from app.db.database import get_db
 from app.db.models import ApiKey, TestRun
 from app.services.audit_service import record_event
+from app.services.dispatch_service import (
+    DispatchService,
+    cancel_run_dispatch,
+    execute_claimed_dispatch,
+    extract_receipt_dict,
+)
 from app.services.run_service import RunService
 from app.core.config import settings
 from app.core.rate_limit import check_tenant_rate_limit
@@ -63,109 +68,10 @@ class CompleteRunRequest(BaseModel):
     duration_seconds: float = 0.0
 
 
-def _extract_receipt_dict(summary_receipt) -> Optional[dict]:
-    """Best-effort receipt dict out of the stored summary.
-
-    The executor stores SandboxRunResult.to_json() under summary.receipt,
-    whose 'receipt' key holds the SignedReceipt dict; earlier/mock paths
-    may store the receipt dict directly. Returns None when neither shape
-    holds a SignedReceipt — the caller treats that as "nothing to log".
-    """
-    if not isinstance(summary_receipt, dict):
-        return None
-    if "sandbox_id" in summary_receipt and "signature" in summary_receipt:
-        return summary_receipt
-    inner = summary_receipt.get("receipt")
-    if isinstance(inner, dict) and "sandbox_id" in inner:
-        return inner
-    return None
-
-
-def _append_receipt_to_transparency_log(receipt_dict: dict, run_id: str) -> None:
-    """Append the receipt's canonical fingerprint to the transparency log.
-
-    Best-effort and off the request path by design (a logging outage must
-    not fail customer runs), but failures ARE audit-visible.
-    """
-    if not settings.transparency_log_path:
-        return
-    try:
-        from pathlib import Path as _Path
-
-        from sandbox_isolation.transparency import (
-            LocalTransparencyLog,
-            receipt_fingerprint,
-        )
-        from workflo_schema.sandbox import SignedReceipt
-
-        receipt = SignedReceipt(**receipt_dict)
-        leaf = receipt_fingerprint(receipt.canonical_payload())
-        log = LocalTransparencyLog(_Path(settings.transparency_log_path))
-        record = log.append(leaf)
-        asyncio.ensure_future(record_event(
-            action="transparency.append",
-            outcome="success",
-            actor_type="system",
-            project_id=None,
-            resource_type="run",
-            resource_id=run_id,
-            detail={"tree_size": record.tree_size, "seq": record.seq},
-        ))
-    except Exception as e:  # noqa: BLE001 — transparency must not fail runs
-        asyncio.ensure_future(record_event(
-            action="transparency.append",
-            outcome="error",
-            actor_type="system",
-            resource_type="run",
-            resource_id=run_id,
-            detail={"error": f"{type(e).__name__}: {e}"},
-        ))
-
-
-async def _execute_run(run_id: str, request: RunRequest) -> None:
-    """Background task: run the sandbox executor and persist the outcome.
-
-    Uses a FRESH DB session (the request's session is closed by then).
-    On success the signed receipt is stored; on any exception the run is
-    marked failed with the error message — and NO receipt. The contract's
-    status semantics are strict here:
-        completed + receipt   = sandbox ran; outcomes live in the receipt
-        failed + error        = infrastructure crash; no receipt produced
-    A run whose sandbox ran but had failing tests is COMPLETED with the
-    receipt — test failures are NOT infrastructure failures.
-    """
-    try:
-        spec = request.to_sandbox_spec()
-        from workflo_executor import SandboxExecutor
-
-        executor = SandboxExecutor()
-        # SandboxExecutor.run is blocking (docker/git subprocesses); run it
-        # off the event loop so the API stays responsive while sandboxes run.
-        result = await asyncio.to_thread(executor.run, spec)
-
-        async with db_module.async_session_factory() as db:
-            service = RunService(db)
-            run = await service.get_run(run_id)
-            if run:
-                # RLS defense-in-depth: background sessions don't inherit a
-                # request's tenant binding — set it from the run itself.
-                await db_module.set_tenant_context(db, run.project_id)
-            result_json = json.loads(result.to_json())
-            await service.complete_run(run_id, {
-                "status": "completed",
-                # RunStatus.receipt is a dict; to_json() returns a string.
-                "receipt": result_json,
-            })
-            receipt_dict = _extract_receipt_dict(result_json)
-            if receipt_dict:
-                _append_receipt_to_transparency_log(receipt_dict, run_id)
-    except Exception as e:
-        async with db_module.async_session_factory() as db:
-            service = RunService(db)
-            run = await service.get_run(run_id)
-            if run:
-                await db_module.set_tenant_context(db, run.project_id)
-            await service.fail_run(run_id, f"{type(e).__name__}: {e}")
+# Receipt/transparency helpers and the durable execution path moved to
+# app.services.dispatch_service (Phase 2, brief §8): admission persists a
+# transactional outbox row and every worker mode claims rows through the
+# same lease semantics. The legacy in-process background task is gone.
 
 
 @router.post("", response_model=RunStatus, status_code=200)
@@ -173,12 +79,20 @@ async def create_run(
     request: RunRequest,
     api_key: ApiKey = Depends(require_api_key),
     db: AsyncSession = Depends(get_db),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
-    """Queue a new run. Returns the initial RunStatus (status: queued).
+    """Admit a new run (durable path, brief §8).
 
     Validation failures (e.g. `web` probe group without start_command/port)
     surface as 400 via RunRequest.to_sandbox_spec() — the same fail-fast
     pre-container check the CLI performs.
+
+    Durable admission: the run, its first attempt, and the dispatch intent
+    are committed in ONE transaction (transactional outbox), so a crash
+    after admission can never lose the dispatch. With an ``Idempotency-Key``
+    header, a retried POST returns the original run instead of creating a
+    duplicate. Execution is claimed through lease semantics either by the
+    dispatcher loop (production) or the in-process dev worker.
     """
     try:
         spec = request.to_sandbox_spec()
@@ -204,10 +118,52 @@ async def create_run(
                 headers={"Retry-After": str(retry_after)},
             )
 
-    service = RunService(db)
-    # enqueue=False: the frozen contract executes in-process in the
-    # background task below; the legacy queue path is not used.
-    run = await service.create_run(api_key.project_id, spec.model_dump(), enqueue=False)
+    # Idempotent admission (brief §9). Development generates a key when the
+    # header is absent (every run still carries a unique key); production
+    # REQUIRES the client key (fail-closed startup guard).
+    key = (idempotency_key or "").strip()
+    if len(key) > 128:
+        raise HTTPException(status_code=400, detail="Idempotency-Key too long (max 128)")
+    if not key:
+        if settings.require_idempotency_key:
+            raise HTTPException(
+                status_code=400,
+                detail="Idempotency-Key header is required for run creation",
+            )
+        key = str(uuid.uuid4())
+
+    dispatch = DispatchService(db)
+    existing = await dispatch.find_run_by_idempotency(api_key.project_id, key)
+    if existing is not None:
+        # Idempotent replay: the original admission stands. Same response
+        # shape as GET /v1/runs/{id}.
+        if existing.status == "completed":
+            return RunStatus(
+                run_id=existing.id,
+                status="completed",
+                created_at=existing.started_at,
+                receipt=(existing.summary_json or {}).get("receipt"),
+                error=None,
+            )
+        if existing.status == "failed":
+            return RunStatus(
+                run_id=existing.id,
+                status="failed",
+                created_at=existing.started_at,
+                receipt=None,
+                error=(existing.summary_json or {}).get("error") or "run failed",
+            )
+        return RunStatus(
+            run_id=existing.id,
+            status=existing.status if existing.status in ("queued", "running") else "failed",
+            created_at=existing.started_at,
+            receipt=None,
+            error=None,
+        )
+
+    run, attempt, outbox = await dispatch.create_run_durable(
+        api_key.project_id, spec.model_dump(), key
+    )
     await record_event(
         action="run.create",
         outcome="success",
@@ -216,9 +172,23 @@ async def create_run(
         project_id=api_key.project_id,
         resource_type="run",
         resource_id=run.id,
-        detail={"goal": run.goal},
+        detail={"goal": run.goal, "attempt_id": attempt.id, "outbox_id": outbox.id},
     )
-    asyncio.create_task(_execute_run(run.id, request))
+
+    if settings.dispatcher_enabled:
+        # The lifespan-started dispatcher loop claims and executes; the
+        # dispatch intent is already durable, so no in-process spawn.
+        pass
+    else:
+        # Single-process development worker: claim the row we just created
+        # through the SAME lease path the loop uses (brief §8 canonical
+        # path; the in-process spawn is dev-only, never production).
+        spec_dict = spec.model_dump()
+        asyncio.create_task(
+            execute_claimed_dispatch(
+                str(outbox.id), str(run.id), str(attempt.id), spec_dict
+            )
+        )
     return RunStatus(run_id=run.id, status="queued", created_at=run.started_at)
 
 
@@ -363,6 +333,10 @@ async def cancel_run(
     run = await _get_own_run(run_id, api_key, db)
     service = RunService(db)
     await service.cancel_run(run.id)
+    # Cancellation is a request, not proof of termination (brief §5):
+    # pending dispatches are cancelled outright; started attempts carry
+    # CANCEL_REQUESTED until the graceful-stop/teardown path completes.
+    await cancel_run_dispatch(db, run.id)
     await record_event(
         action="run.cancel",
         outcome="success",
@@ -392,7 +366,7 @@ async def get_run_inclusion_proof(
             status_code=404,
             detail="Transparency log is not configured on this control plane",
         )
-    receipt_dict = _extract_receipt_dict((run.summary_json or {}).get("receipt"))
+    receipt_dict = extract_receipt_dict((run.summary_json or {}).get("receipt"))
     if not receipt_dict:
         raise HTTPException(status_code=404, detail="No signed receipt for this run")
 

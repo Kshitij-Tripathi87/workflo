@@ -33,6 +33,8 @@ ALTER TABLE api_keys    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys    FORCE ROW LEVEL SECURITY;
 ALTER TABLE test_runs   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE test_runs   FORCE ROW LEVEL SECURITY;
+ALTER TABLE run_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE run_attempts FORCE ROW LEVEL SECURITY;
 ALTER TABLE test_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE test_results FORCE ROW LEVEL SECURITY;
 ALTER TABLE artifacts   ENABLE ROW LEVEL SECURITY;
@@ -65,6 +67,13 @@ CREATE POLICY api_key_auth_lookup ON api_keys
 -- test_runs: scoped by project_id.
 DROP POLICY IF EXISTS tenant_isolation_test_runs ON test_runs;
 CREATE POLICY tenant_isolation_test_runs ON test_runs
+    USING (project_id = NULLIF(current_setting('app.current_project_id', true), ''))
+    WITH CHECK (project_id = NULLIF(current_setting('app.current_project_id', true), ''));
+
+-- run_attempts: scoped by project_id (denormalized from the parent run).
+-- One attempt = one sandbox execution; a retry is a NEW attempt row.
+DROP POLICY IF EXISTS tenant_isolation_run_attempts ON run_attempts;
+CREATE POLICY tenant_isolation_run_attempts ON run_attempts
     USING (project_id = NULLIF(current_setting('app.current_project_id', true), ''))
     WITH CHECK (project_id = NULLIF(current_setting('app.current_project_id', true), ''));
 

@@ -36,6 +36,10 @@ def _production_settings(**overrides) -> Settings:
         "rls_enabled": True,
         "master_kek_hex": VALID_KEK_HEX,
         "kek_provider": "static",
+        # Durable dispatch posture (brief §8/§9): production runs the
+        # dispatcher loop and requires client idempotency keys.
+        "dispatcher_enabled": True,
+        "require_idempotency_key": True,
     }
     base.update(overrides)
     return Settings(**base)
@@ -171,6 +175,9 @@ def test_app_starts_in_valid_production(monkeypatch):
     monkeypatch.setattr(settings, "jwt_secret", VALID_SECRET)
     monkeypatch.setattr(settings, "rls_enabled", True)
     monkeypatch.setattr(settings, "master_kek_hex", VALID_KEK_HEX)
+    # Durable dispatch posture (brief §8/§9).
+    monkeypatch.setattr(settings, "dispatcher_enabled", True)
+    monkeypatch.setattr(settings, "require_idempotency_key", True)
     envelope.reset_provider()
 
     assert create_app() is not None
