@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "DsseSignatureV1": {
+      "additionalProperties": false,
+      "properties": {
+        "keyid": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Keyid",
+          "type": "string"
+        },
+        "sig": {
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9+/=]+$",
+          "title": "Sig",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keyid",
+        "sig"
+      ],
+      "title": "DsseSignatureV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/DsseEnvelopeV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "DSSE-style envelope over the canonical receipt payload bytes.",
+  "properties": {
+    "payload": {
+      "maxLength": 1000000,
+      "pattern": "^[A-Za-z0-9+/=]+$",
+      "title": "Payload",
+      "type": "string"
+    },
+    "payload_type": {
+      "default": "application/vnd.workflo.receipt.v5+json",
+      "pattern": "^application/vnd\\.workflo\\.receipt\\.v5\\+json$",
+      "title": "Payload Type",
+      "type": "string"
+    },
+    "signatures": {
+      "items": {
+        "$ref": "#/$defs/DsseSignatureV1"
+      },
+      "minItems": 1,
+      "title": "Signatures",
+      "type": "array"
+    }
+  },
+  "required": [
+    "payload",
+    "signatures"
+  ],
+  "title": "DsseEnvelopeV1",
+  "type": "object"
+}

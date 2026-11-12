@@ -1,0 +1,102 @@
+{
+  "$defs": {
+    "ApprovalState": {
+      "enum": [
+        "ACTIVE",
+        "CONSUMED",
+        "REVOKED",
+        "EXPIRED"
+      ],
+      "title": "ApprovalState",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/PatchApprovalV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowed_paths_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Allowed Paths Digest",
+      "type": "string"
+    },
+    "approval_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "approved_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Approved At",
+      "type": "string"
+    },
+    "approved_by": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Approved By",
+      "type": "string"
+    },
+    "authorization_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Authorization Version",
+      "type": "string"
+    },
+    "base_commit": {
+      "pattern": "^[0-9a-f]{7,64}$",
+      "title": "Base Commit",
+      "type": "string"
+    },
+    "base_snapshot_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Base Snapshot Digest",
+      "type": "string"
+    },
+    "nonce": {
+      "maxLength": 128,
+      "minLength": 16,
+      "title": "Nonce",
+      "type": "string"
+    },
+    "patch_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Patch Digest",
+      "type": "string"
+    },
+    "proposal_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Proposal Digest",
+      "type": "string"
+    },
+    "proposal_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/ApprovalState",
+      "default": "ACTIVE"
+    },
+    "target_ref": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Target Ref",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approval_id",
+    "proposal_id",
+    "proposal_digest",
+    "patch_digest",
+    "base_commit",
+    "base_snapshot_digest",
+    "target_ref",
+    "allowed_paths_digest",
+    "approved_by",
+    "authorization_version",
+    "approved_at",
+    "nonce"
+  ],
+  "title": "PatchApprovalV1",
+  "type": "object"
+}

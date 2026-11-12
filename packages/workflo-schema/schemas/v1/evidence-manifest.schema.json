@@ -1,0 +1,350 @@
+{
+  "$defs": {
+    "EvidenceArtifactType": {
+      "enum": [
+        "log",
+        "test_output",
+        "probe_output",
+        "screenshot",
+        "trace",
+        "agent_action_ledger",
+        "event_ledger",
+        "coverage_report",
+        "build_output",
+        "dependency_manifest",
+        "model_output",
+        "teardown_evidence",
+        "manifest",
+        "other"
+      ],
+      "title": "EvidenceArtifactType",
+      "type": "string"
+    },
+    "EvidenceArtifactV1": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "$ref": "#/$defs/EvidenceArtifactType"
+        },
+        "attempt_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "classification": {
+          "$ref": "#/$defs/EvidenceClassification"
+        },
+        "created_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Created At",
+          "type": "string"
+        },
+        "media_type": {
+          "maxLength": 129,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,63}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,63}$",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "object_ref": {
+          "description": "Opaque immutable object-storage reference",
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Object Ref",
+          "type": "string"
+        },
+        "organization_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Organization Id",
+          "type": "string"
+        },
+        "policy_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Policy Digest",
+          "type": "string"
+        },
+        "producer": {
+          "$ref": "#/$defs/ProducerIdentityV1"
+        },
+        "project_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "retention_policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retention Policy Id",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "runtime_image_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Image Digest"
+        },
+        "sandbox_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sandbox Id"
+        },
+        "schema_version": {
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "snapshot_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Digest"
+        },
+        "source_revision": {
+          "maxLength": 64,
+          "minLength": 7,
+          "title": "Source Revision",
+          "type": "string"
+        },
+        "stage": {
+          "description": "Lifecycle stage / action that produced the artifact",
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Stage",
+          "type": "string"
+        },
+        "validation_state": {
+          "$ref": "#/$defs/ValidationState"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "organization_id",
+        "project_id",
+        "run_id",
+        "attempt_id",
+        "artifact_type",
+        "media_type",
+        "size_bytes",
+        "sha256",
+        "producer",
+        "stage",
+        "source_revision",
+        "policy_digest",
+        "classification",
+        "retention_policy_id",
+        "validation_state",
+        "object_ref",
+        "created_at"
+      ],
+      "title": "EvidenceArtifactV1",
+      "type": "object"
+    },
+    "EvidenceClassification": {
+      "enum": [
+        "execution_evidence",
+        "agent_evidence",
+        "infrastructure_evidence",
+        "attestation",
+        "derived_report"
+      ],
+      "title": "EvidenceClassification",
+      "type": "string"
+    },
+    "ProducerComponent": {
+      "enum": [
+        "control_plane",
+        "orchestrator",
+        "host_worker",
+        "guest_supervisor",
+        "qa_runtime",
+        "agent_runtime",
+        "tool_gateway",
+        "evidence_service",
+        "signer",
+        "judge",
+        "user"
+      ],
+      "title": "ProducerComponent",
+      "type": "string"
+    },
+    "ProducerIdentityV1": {
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ProducerComponent"
+        },
+        "instance_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "instance_id",
+        "version"
+      ],
+      "title": "ProducerIdentityV1",
+      "type": "object"
+    },
+    "ValidationState": {
+      "enum": [
+        "received",
+        "validated",
+        "rejected",
+        "superseded"
+      ],
+      "title": "ValidationState",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/EvidenceManifestV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The trusted-side manifest for exactly one attempt.",
+  "properties": {
+    "artifacts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceArtifactV1"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "attempt_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Created At",
+      "type": "string"
+    },
+    "events_count": {
+      "minimum": 0,
+      "title": "Events Count",
+      "type": "integer"
+    },
+    "ledger_chain_version": {
+      "minimum": 1,
+      "title": "Ledger Chain Version",
+      "type": "integer"
+    },
+    "ledger_checkpoint": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ledger Checkpoint"
+    },
+    "ledger_root": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Ledger Root",
+      "type": "string"
+    },
+    "manifest_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "project_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "manifest_id",
+    "organization_id",
+    "project_id",
+    "run_id",
+    "attempt_id",
+    "created_at",
+    "ledger_chain_version",
+    "ledger_root",
+    "events_count"
+  ],
+  "title": "EvidenceManifestV1",
+  "type": "object"
+}

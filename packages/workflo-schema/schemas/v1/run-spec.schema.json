@@ -1,0 +1,386 @@
+{
+  "$defs": {
+    "AllowedDestinationV1": {
+      "additionalProperties": false,
+      "description": "One explicitly allowed egress destination (default-deny otherwise).",
+      "properties": {
+        "host": {
+          "maxLength": 253,
+          "minLength": 1,
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "protocol": {
+          "$ref": "#/$defs/NetworkProtocol",
+          "default": "tcp"
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purpose"
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ],
+      "title": "AllowedDestinationV1",
+      "type": "object"
+    },
+    "CapabilityId": {
+      "enum": [
+        "source.acquire",
+        "tests.execute",
+        "probes.execute",
+        "browser_probes.execute",
+        "agent.explore",
+        "evidence.submit"
+      ],
+      "title": "CapabilityId",
+      "type": "string"
+    },
+    "ModelArtifactRefV1": {
+      "additionalProperties": false,
+      "description": "Identity of one approved model artifact; digests are verified pre-load.",
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/ModelArtifactRole"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "role",
+        "digest"
+      ],
+      "title": "ModelArtifactRefV1",
+      "type": "object"
+    },
+    "ModelArtifactRole": {
+      "enum": [
+        "base",
+        "test-gen",
+        "reasoning",
+        "reporting",
+        "other"
+      ],
+      "title": "ModelArtifactRole",
+      "type": "string"
+    },
+    "NetworkPolicySpecV1": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_destinations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AllowedDestinationV1"
+          },
+          "title": "Allowed Destinations",
+          "type": "array"
+        },
+        "default": {
+          "default": "deny",
+          "pattern": "^deny$",
+          "title": "Default",
+          "type": "string"
+        },
+        "max_bandwidth_kbps": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Bandwidth Kbps"
+        }
+      },
+      "title": "NetworkPolicySpecV1",
+      "type": "object"
+    },
+    "NetworkProtocol": {
+      "enum": [
+        "tcp",
+        "udp"
+      ],
+      "title": "NetworkProtocol",
+      "type": "string"
+    },
+    "RetentionClass": {
+      "enum": [
+        "ephemeral",
+        "run_lifetime",
+        "days_30",
+        "days_90",
+        "days_365",
+        "contractual"
+      ],
+      "title": "RetentionClass",
+      "type": "string"
+    },
+    "RetentionSpecV1": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "$ref": "#/$defs/RetentionClass",
+          "default": "days_90"
+        },
+        "logs": {
+          "$ref": "#/$defs/RetentionClass",
+          "default": "days_30"
+        },
+        "receipts": {
+          "$ref": "#/$defs/RetentionClass",
+          "default": "days_365"
+        },
+        "retention_policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retention Policy Id",
+          "type": "string"
+        },
+        "source_snapshot": {
+          "$ref": "#/$defs/RetentionClass",
+          "default": "ephemeral"
+        }
+      },
+      "required": [
+        "retention_policy_id"
+      ],
+      "title": "RetentionSpecV1",
+      "type": "object"
+    },
+    "RunCreatorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "organization_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Organization Id",
+          "type": "string"
+        },
+        "user_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "User Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "organization_id"
+      ],
+      "title": "RunCreatorV1",
+      "type": "object"
+    },
+    "SourceProvider": {
+      "enum": [
+        "github",
+        "gitlab",
+        "bitbucket",
+        "generic_git",
+        "upload_archive"
+      ],
+      "title": "SourceProvider",
+      "type": "string"
+    },
+    "SourceSpecV1": {
+      "additionalProperties": false,
+      "description": "Exact source identity. The snapshot digest is bound after acquisition.",
+      "properties": {
+        "commit": {
+          "description": "Exact revision (lowercase hex); never a moving ref",
+          "pattern": "^[0-9a-f]{7,64}$",
+          "title": "Commit",
+          "type": "string"
+        },
+        "provider": {
+          "$ref": "#/$defs/SourceProvider"
+        },
+        "ref": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Ref",
+          "type": "string"
+        },
+        "snapshot_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Populated once the guest has materialized the snapshot",
+          "title": "Snapshot Digest"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "provider",
+        "ref",
+        "commit"
+      ],
+      "title": "SourceSpecV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/RunSpecV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The canonical admitted-run contract. Immutable after admission.",
+  "properties": {
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/CapabilityId"
+      },
+      "minItems": 1,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "$ref": "#/$defs/RunCreatorV1"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 8,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "model_artifacts": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ModelArtifactRefV1"
+      },
+      "title": "Model Artifacts",
+      "type": "array"
+    },
+    "network_policy": {
+      "$ref": "#/$defs/NetworkPolicySpecV1",
+      "default": {
+        "allowed_destinations": [],
+        "default": "deny",
+        "max_bandwidth_kbps": null
+      }
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "policy_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Policy Digest",
+      "type": "string"
+    },
+    "profile_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "project_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "resource_profile": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Resource Profile",
+      "type": "string"
+    },
+    "retention": {
+      "$ref": "#/$defs/RetentionSpecV1"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runtime_image_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Runtime Image Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceSpecV1"
+    }
+  },
+  "required": [
+    "organization_id",
+    "project_id",
+    "run_id",
+    "idempotency_key",
+    "source",
+    "profile_id",
+    "policy_digest",
+    "runtime_image_digest",
+    "resource_profile",
+    "capabilities",
+    "retention",
+    "created_by",
+    "created_at"
+  ],
+  "title": "RunSpecV1",
+  "type": "object"
+}

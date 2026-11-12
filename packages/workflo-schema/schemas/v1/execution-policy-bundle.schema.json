@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "PolicyComponentId": {
+      "enum": [
+        "source",
+        "runtime",
+        "resource",
+        "command",
+        "filesystem",
+        "network",
+        "agent_capability",
+        "model",
+        "artifact",
+        "evidence",
+        "retention",
+        "teardown"
+      ],
+      "title": "PolicyComponentId",
+      "type": "string"
+    },
+    "PolicyComponentV1": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "description": "Who owns changes to this component (role/permission name)",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Authority",
+          "type": "string"
+        },
+        "component": {
+          "$ref": "#/$defs/PolicyComponentId"
+        },
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "schema_version": {
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "version",
+        "authority",
+        "payload",
+        "digest"
+      ],
+      "title": "PolicyComponentV1",
+      "type": "object"
+    },
+    "RunCreatorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "organization_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Organization Id",
+          "type": "string"
+        },
+        "user_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "User Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "organization_id"
+      ],
+      "title": "RunCreatorV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/ExecutionPolicyBundleV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bundle_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Bundle Id",
+      "type": "string"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/PolicyComponentV1"
+      },
+      "maxItems": 12,
+      "minItems": 12,
+      "title": "Components",
+      "type": "array"
+    },
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "$ref": "#/$defs/RunCreatorV1"
+    },
+    "effective_from": {
+      "anyOf": [
+        {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective From"
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "bundle_id",
+    "organization_id",
+    "version",
+    "created_by",
+    "created_at",
+    "components"
+  ],
+  "title": "ExecutionPolicyBundleV1",
+  "type": "object"
+}

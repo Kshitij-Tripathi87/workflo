@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "ComponentVerificationStatus": {
+      "enum": [
+        "verified",
+        "failed",
+        "incomplete",
+        "not_applicable"
+      ],
+      "title": "ComponentVerificationStatus",
+      "type": "string"
+    },
+    "ExecutionStatus": {
+      "description": "What happened to the run workflow itself.",
+      "enum": [
+        "completed",
+        "rejected",
+        "infrastructure_failed",
+        "execution_failed",
+        "teardown_failed",
+        "attestation_failed"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "QaVerdict": {
+      "description": "What the QA checks found (independent of execution and trust).",
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "inconclusive",
+        "not_applicable"
+      ],
+      "title": "QaVerdict",
+      "type": "string"
+    },
+    "TrustVerificationStatus": {
+      "description": "Teardown verification outcomes; only VERIFIED_CLEAN is clean.",
+      "enum": [
+        "verified_clean",
+        "verification_failed",
+        "cleanup_incomplete",
+        "unknown"
+      ],
+      "title": "TrustVerificationStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/RunOutcomeV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The frozen outcome record; all three dimensions are explicit.",
+  "properties": {
+    "cancelled": {
+      "default": false,
+      "title": "Cancelled",
+      "type": "boolean"
+    },
+    "evidence_validation": {
+      "$ref": "#/$defs/ComponentVerificationStatus"
+    },
+    "execution_status": {
+      "$ref": "#/$defs/ExecutionStatus"
+    },
+    "qa_verdict": {
+      "$ref": "#/$defs/QaVerdict"
+    },
+    "receipt_status": {
+      "$ref": "#/$defs/ComponentVerificationStatus"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "teardown_verification": {
+      "$ref": "#/$defs/ComponentVerificationStatus"
+    },
+    "trust_status": {
+      "$ref": "#/$defs/TrustVerificationStatus"
+    }
+  },
+  "required": [
+    "execution_status",
+    "qa_verdict",
+    "trust_status",
+    "evidence_validation",
+    "teardown_verification",
+    "receipt_status"
+  ],
+  "title": "RunOutcomeV1",
+  "type": "object"
+}

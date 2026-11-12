@@ -1,0 +1,200 @@
+{
+  "$defs": {
+    "EventType": {
+      "enum": [
+        "run.created",
+        "run.admitted",
+        "run.rejected",
+        "policy.validated",
+        "worker.allocated",
+        "sandbox.provisioning_started",
+        "sandbox.ready",
+        "sandbox.provisioning_failed",
+        "source.acquisition_started",
+        "source.acquisition_completed",
+        "source.acquisition_failed",
+        "environment.preparation_started",
+        "test.started",
+        "test.completed",
+        "probe.started",
+        "probe.completed",
+        "app.started",
+        "app.ready",
+        "agent.action_proposed",
+        "agent.action_validated",
+        "agent.action_denied",
+        "agent.action_executed",
+        "agent.observation",
+        "finding.candidate",
+        "finding.verified",
+        "evaluation.started",
+        "evaluation.completed",
+        "evidence.bundle_received",
+        "evidence.bundle_validated",
+        "evidence.bundle_rejected",
+        "sandbox.teardown_started",
+        "sandbox.teardown_verified",
+        "sandbox.teardown_failed",
+        "receipt.validated",
+        "receipt.signed",
+        "receipt.signing_failed",
+        "run.cancellation_requested",
+        "run.completed",
+        "run.failed"
+      ],
+      "title": "EventType",
+      "type": "string"
+    },
+    "ProducerComponent": {
+      "enum": [
+        "control_plane",
+        "orchestrator",
+        "host_worker",
+        "guest_supervisor",
+        "qa_runtime",
+        "agent_runtime",
+        "tool_gateway",
+        "evidence_service",
+        "signer",
+        "judge",
+        "user"
+      ],
+      "title": "ProducerComponent",
+      "type": "string"
+    },
+    "ProducerIdentityV1": {
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ProducerComponent"
+        },
+        "instance_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "instance_id",
+        "version"
+      ],
+      "title": "ProducerIdentityV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/RunEventV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One canonical event in an attempt's ordered stream.",
+  "properties": {
+    "attempt_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "correlation_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "event_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "$ref": "#/$defs/EventType"
+    },
+    "occurred_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "payload_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Payload Digest",
+      "type": "string"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentityV1"
+    },
+    "project_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sandbox_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sandbox Id"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence_number": {
+      "minimum": 1,
+      "title": "Sequence Number",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "event_id",
+    "organization_id",
+    "project_id",
+    "run_id",
+    "attempt_id",
+    "sequence_number",
+    "event_type",
+    "occurred_at",
+    "producer",
+    "correlation_id",
+    "payload_digest"
+  ],
+  "title": "RunEventV1",
+  "type": "object"
+}

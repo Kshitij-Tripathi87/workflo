@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ProducerComponent": {
+      "enum": [
+        "control_plane",
+        "orchestrator",
+        "host_worker",
+        "guest_supervisor",
+        "qa_runtime",
+        "agent_runtime",
+        "tool_gateway",
+        "evidence_service",
+        "signer",
+        "judge",
+        "user"
+      ],
+      "title": "ProducerComponent",
+      "type": "string"
+    },
+    "ProducerIdentityV1": {
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ProducerComponent"
+        },
+        "instance_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "instance_id",
+        "version"
+      ],
+      "title": "ProducerIdentityV1",
+      "type": "object"
+    },
+    "TeardownCheckId": {
+      "enum": [
+        "vmm_exited",
+        "vm_stopped",
+        "cgroups_removed",
+        "netns_removed",
+        "disk_destroyed",
+        "sockets_closed",
+        "capabilities_expired",
+        "process_scope_empty"
+      ],
+      "title": "TeardownCheckId",
+      "type": "string"
+    },
+    "TeardownCheckV1": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "$ref": "#/$defs/TeardownCheckId"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "check_id",
+        "passed"
+      ],
+      "title": "TeardownCheckV1",
+      "type": "object"
+    },
+    "TrustVerificationStatus": {
+      "description": "Teardown verification outcomes; only VERIFIED_CLEAN is clean.",
+      "enum": [
+        "verified_clean",
+        "verification_failed",
+        "cleanup_incomplete",
+        "unknown"
+      ],
+      "title": "TrustVerificationStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/TeardownVerificationV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The trusted host's independent teardown record.",
+  "properties": {
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/TeardownCheckV1"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "title": "Checks",
+      "type": "array"
+    },
+    "observed_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/TrustVerificationStatus"
+    },
+    "verification_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Verification Id",
+      "type": "string"
+    },
+    "verifier": {
+      "$ref": "#/$defs/ProducerIdentityV1"
+    }
+  },
+  "required": [
+    "verification_id",
+    "outcome",
+    "verifier",
+    "checks",
+    "observed_at"
+  ],
+  "title": "TeardownVerificationV1",
+  "type": "object"
+}
