@@ -85,6 +85,9 @@ class BwrapConfig:
     # would leave the child OUTSIDE the cgroup and no limit would apply.
     # Joining via a shell wrapper before exec puts the whole tree inside.
     cgroup_procs: Optional[Path] = None
+    # The sealed development test path never inherits host environment or
+    # terminal input and mounts the pinned workspace read-only.
+    sealed_test: bool = False
 
 
 @dataclass

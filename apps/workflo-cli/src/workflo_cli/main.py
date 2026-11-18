@@ -375,6 +375,7 @@ def cli():
       init          Auto-detect the project and generate .workflo/ config
       doctor        Check that this machine can run Workflo sandboxed executions
       run           Execute sandboxed tests against a repo
+      run-dev       Verify a pinned local pytest check (development only)
       status        Show the live console for the latest (or given) run
       verify        Verify a receipt's Ed25519 signature (Claim #4)
       inspect       Inspect a signed receipt: what happened (read-only)
@@ -390,6 +391,10 @@ def cli():
       update        Check for a newer version and optionally install it
     """
 
+
+from workflo_cli.dev_commands import run_dev  # noqa: E402
+
+cli.add_command(run_dev)
 
 # Register auth-related command groups and aliases
 cli.add_command(auth_group)
@@ -1483,7 +1488,7 @@ def _run_via_api(
 @click.option("--receipt", "receipt_path", default=None, help="Path to receipt JSON file")
 @click.argument("receipt_arg", required=False, metavar="RECEIPT")
 @click.option("--pubkey", default=None,
-              help="Path to Ed25519 public key PEM file (not needed if receipt has key_id)")
+              help="Trusted Ed25519 public key PEM (required for development v5)")
 @click.option("--fingerprint", default=None, help="Expected public key fingerprint (SHA-256 hex)")
 @click.option("--control-plane", default=None,
               help="Control plane base URL for auto-fetching provisioned keys (default: env WORKFLO_AUTH_BASE_URL)")
@@ -1505,6 +1510,10 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
     the hash-chained evidence ledger is independently recomputed from
     the evidence directory and every digest is compared against the
     signed binding — proving the evidence was not altered after signing.
+
+    A local development v5 receipt requires --pubkey and its complete
+    evidence bundle (the sibling evidence directory or --evidence). Its QA
+    verdict is reported separately from receipt verification.
 
     `workflo verify receipt.wfrec` (positional) is equivalent to
     `workflo verify --receipt receipt.wfrec`.
@@ -1538,6 +1547,10 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
     if not isinstance(receipt_data, dict):
         click.echo(f"FAILED: receipt root must be a JSON object, got {type(receipt_data).__name__}", err=True)
         sys.exit(1)
+
+    if "envelope" in receipt_data:
+        _verify_local_dev(receipt_data, receipt_file, pubkey, fingerprint, control_plane, evidence_dir)
+        return
 
     receipt_dict = receipt_data.get("receipt", receipt_data)
 
@@ -1757,6 +1770,29 @@ def verify(receipt_path, receipt_arg, pubkey, fingerprint, control_plane, eviden
         click.echo(f"Provisioned at: {receipt.provisioned_at}", err=True)
     if receipt.device_id:
         click.echo(f"Device: {receipt.device_id}", err=True)
+
+
+def _verify_local_dev(receipt_data, receipt_file, pubkey, fingerprint, control_plane, evidence_dir):
+    from sandbox_isolation.dev_receipt import verify_dev_receipt
+    from sandbox_isolation.receipt_signer import fingerprint_public_key
+    from workflo_schema.contracts import SignedReceiptV5
+    from workflo_cli.exit_codes import EXIT_VERIFICATION_FAILED
+
+    try:
+        if not pubkey or control_plane:
+            raise ValueError("development v5 requires a trusted local --pubkey; no control-plane lookup")
+        key = _load_ed25519_pubkey(Path(pubkey))
+        if fingerprint and fingerprint.strip().lower().removeprefix("sha256:") != fingerprint_public_key(key):
+            raise ValueError("trusted public key fingerprint mismatch")
+        directory = Path(evidence_dir) if evidence_dir else receipt_file.parent / "evidence"
+        payload = verify_dev_receipt(SignedReceiptV5.model_validate(receipt_data), directory, key)
+    except (OSError, ValueError, click.BadParameter) as exc:
+        click.echo(f"FAILED: development receipt verification: {exc}", err=True)
+        raise click.exceptions.Exit(EXIT_VERIFICATION_FAILED) from exc
+
+    click.echo("OK: development v5 signature, evidence, and host teardown verified", err=True)
+    click.echo(f"Pinned commit: {payload.source.commit}", err=True)
+    click.echo(f"QA verdict: {payload.outcome.qa_verdict.value.upper()} (development profile)", err=True)
 
 
 @cli.command()

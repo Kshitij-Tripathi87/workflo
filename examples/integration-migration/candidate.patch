@@ -1,0 +1,8 @@
+diff --git a/integration.py b/integration.py
+--- a/integration.py
++++ b/integration.py
+@@ -4,2 +4,4 @@
+ def response_text(payload: dict) -> str:
++    if "output_text" in payload:
++        return payload["output_text"]
+     return payload["text"]

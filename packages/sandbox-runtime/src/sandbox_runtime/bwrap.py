@@ -32,7 +32,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from sandbox_runtime.config import BwrapConfig, NetworkMode
+from sandbox_runtime.config import BwrapConfig, NetworkMode, WorkloadType
 
 
 def build_bwrap_args(config: BwrapConfig, seccomp_fd: int = 3) -> list[str]:
@@ -56,8 +56,21 @@ def build_bwrap_args(config: BwrapConfig, seccomp_fd: int = 3) -> list[str]:
     # Rootfs (read-only base)
     args += ["--ro-bind", str(config.readonly_root), "/"]
 
-    # Writable binds
-    args += ["--bind", str(config.workspace_dir), "/workspace"]
+    if config.sealed_test:
+        if (
+            config.workload_type is not WorkloadType.TEST
+            or config.network_mode is not NetworkMode.NONE
+            or config.cgroup_procs is None
+            or config.seccomp_profile is None
+            or not config.landlock_rules
+            or config.landlock_mode != "hardened"
+        ):
+            raise ValueError("sealed tests require the isolated network, cgroup, seccomp and Landlock")
+        args += ["--clearenv", "--die-with-parent", "--disable-userns", "--cap-drop", "ALL"]
+
+    # The development test snapshot is never writable by the guest.
+    workspace_bind = "--ro-bind" if config.sealed_test else "--bind"
+    args += [workspace_bind, str(config.workspace_dir), "/workspace"]
     args += ["--bind", str(config.evidence_dir), "/workflo/artifacts"]
     args += ["--bind", str(config.tmp_dir), "/tmp"]
     args += ["--bind", str(config.home_dir), "/home/workflo"]
@@ -83,9 +96,10 @@ def build_bwrap_args(config: BwrapConfig, seccomp_fd: int = 3) -> list[str]:
     if config.seccomp_profile is not None:
         args += ["--seccomp", str(seccomp_fd)]
 
-    # Capabilities - drop dangerous ones
-    for cap in config.drop_caps:
-        args += ["--cap-drop", cap]
+    # The sealed test profile already dropped ALL above.
+    if not config.sealed_test:
+        for cap in config.drop_caps:
+            args += ["--cap-drop", cap]
 
     # Working directory
     args += ["--chdir", config.workdir]
@@ -99,8 +113,9 @@ def build_bwrap_args(config: BwrapConfig, seccomp_fd: int = 3) -> list[str]:
     # (irreversible, inherited by all descendants) before exec.
     command = list(config.command)
     if config.landlock_rules:
-        command = [
-            "python3", "/workflo/landlock_exec.py",
+        bootstrap = ["/usr/bin/python3", "-I", "-S"] if config.sealed_test else ["python3"]
+        command = bootstrap + [
+            "/workflo/landlock_exec.py",
             "--rules", "/workflo/landlock-rules.json",
             "--status", f"/workflo/artifacts/landlock-status-{_workload_tag(config)}.json",
             "--",
@@ -161,7 +176,7 @@ def run_bwrap(config: BwrapConfig, capture: bool = True,
     if config.landlock_rules:
         write_landlock_rules(config)
 
-    kwargs = {}
+    kwargs = {"stdin": subprocess.DEVNULL} if config.sealed_test else {}
     if capture:
         kwargs["stdout"] = subprocess.PIPE
         kwargs["stderr"] = subprocess.PIPE

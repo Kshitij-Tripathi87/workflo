@@ -73,6 +73,74 @@
       "title": "ModelArtifactRole",
       "type": "string"
     },
+    "NamespaceTeardownCheckId": {
+      "description": "Resources created by the sealed development test profile (no MicroVM).",
+      "enum": [
+        "process_scope_empty",
+        "cgroups_removed",
+        "workspace_removed"
+      ],
+      "title": "NamespaceTeardownCheckId",
+      "type": "string"
+    },
+    "NamespaceTeardownCheckV1": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "$ref": "#/$defs/NamespaceTeardownCheckId"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "check_id",
+        "passed"
+      ],
+      "title": "NamespaceTeardownCheckV1",
+      "type": "object"
+    },
+    "NamespaceTeardownVerificationV1": {
+      "additionalProperties": false,
+      "description": "Host observations for a workload with an anonymous network namespace.\n\nThe process/cgroup checks cover the lifetime of that scope. There is no\nseparately provisioned netns, VM disk, VMM, or service socket to attest.",
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/NamespaceTeardownCheckV1"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Checks",
+          "type": "array"
+        },
+        "observed_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/TrustVerificationStatus"
+        },
+        "verification_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Verification Id",
+          "type": "string"
+        },
+        "verifier": {
+          "$ref": "#/$defs/ProducerIdentityV1"
+        }
+      },
+      "required": [
+        "verification_id",
+        "outcome",
+        "verifier",
+        "checks",
+        "observed_at"
+      ],
+      "title": "NamespaceTeardownVerificationV1",
+      "type": "object"
+    },
     "ProducerComponent": {
       "enum": [
         "control_plane",
@@ -560,7 +628,15 @@
       "$ref": "#/$defs/SourceProvenanceV1"
     },
     "teardown_verification": {
-      "$ref": "#/$defs/TeardownVerificationV1"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TeardownVerificationV1"
+        },
+        {
+          "$ref": "#/$defs/NamespaceTeardownVerificationV1"
+        }
+      ],
+      "title": "Teardown Verification"
     }
   },
   "required": [

@@ -94,13 +94,16 @@ namespace profile, not Firecracker, production receipt v5, or hosted inference.
 It does not replace the next slice's requirement to bind the exact source and
 policy digests into a receipt.
 
-## Exit conditions still open
+## Follow-up and open gates
+
+[Phase 1 implements the local development slice](PHASE_1_LOCAL_PROOF.md):
+pin a commit and policy, run deterministic checks, verify teardown, and issue
+an offline-verifiable development receipt without changing legacy paths.
+
+Still open:
 
 1. Owner ratifies the Workflo product boundary and Python contract authority;
    confirm the target runner and metadata-only hosted inference scope.
-2. The next vertical slice binds a pinned commit and policy to deterministic
-   findings, independently verified teardown, and an offline-verifiable
-   development receipt. Preserve existing API and receipt verification.
-3. Run Gate B and the protected model/tenant release gates on their required
+2. Run Gate B and the protected model/tenant release gates on their required
    platforms. Missing hardware, credentials, or release artifacts are blockers,
    not passing evidence or permission to widen the execution profile.

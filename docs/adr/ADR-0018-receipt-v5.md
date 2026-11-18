@@ -29,6 +29,18 @@ Today the executor or CLI builds and signs a bespoke Ed25519 receipt (`SignedRec
 - `workflo_schema.contracts.receipt` defines the structures now; the evidence service + signer service that enforce and produce them are Phase 6 work (Gate G10).
 - Acceptance tests must include: tampered payload rejected; tampered ledger rejected; missing teardown record rejected; dev-mode signer refused in production; cross-run evidence reference rejected.
 
+## Phase 1 development scope
+
+The local `run-dev` profile emits the v5 envelope with a `file-dev` key and a
+namespace-specific teardown record: process scope empty, cgroup removed, and
+workspace/guest scratch removed. It uses an anonymous network namespace tied
+to the workload; it provisions no separate named network, MicroVM, disk,
+service socket, or agent capability token. It does not mark those VM teardown
+checks as passed. The eight-check record remains mandatory for MicroVM
+receipts. Namespace v5 records cannot carry a KMS/HSM signer. The
+[Phase 1 walkthrough](../reconciliation/PHASE_1_LOCAL_PROOF.md) documents the
+scope and offline verifier; it is not production signer acceptance.
+
 ## Alternatives considered
 
 - Reusing ReceiptV4Schema (TS): lacks attempt identity, policy/runtime/model digests, teardown record, and the validation gate.

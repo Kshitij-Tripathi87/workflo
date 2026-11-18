@@ -29,6 +29,16 @@ TypeScript `packages/events/hash-chain.ts`: `sha256(canonicalJson(boundRecord))`
 - Existing Python evidence files remain verifiable; the v2 chain applies forward.
 - Reviewers can require "no float in hashed structure" mechanically: the canonical serializer raises on `float`.
 
+## Phase 1 development ledger
+
+The local v5 bundle writes canonical JSON lines. Each linked body is
+`{"v":2,"event":<RunEventV1>,"prev_hash":<prefixed digest>}` and the stored
+line adds `event_hash`, the SHA-256 digest of that body. The signed receipt
+anchors the last `event_hash` and the number of records. The local verifier
+also checks the attempt scope and the event-to-artifact digest references.
+Neither this implementation nor the legacy verifiers claim interoperability
+with the existing TypeScript storage ledger, which still uses its v1 format.
+
 ## Alternatives considered
 
 - Continue two formats: rejected — the brief requires one event/evidence contract and cross-verification.

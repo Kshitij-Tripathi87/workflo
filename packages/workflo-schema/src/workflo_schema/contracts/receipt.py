@@ -35,6 +35,9 @@ __all__ = [
     "TeardownCheckId",
     "TeardownCheckV1",
     "TeardownVerificationV1",
+    "NamespaceTeardownCheckId",
+    "NamespaceTeardownCheckV1",
+    "NamespaceTeardownVerificationV1",
     "RuntimeType",
     "RuntimeIdentityV1",
     "SignerIdentityV1",
@@ -111,6 +114,48 @@ class TeardownVerificationV1(BaseModel):
         return all(check.passed for check in self.checks)
 
 
+class NamespaceTeardownCheckId(str, Enum):
+    """Resources created by the sealed development test profile (no MicroVM)."""
+
+    PROCESS_SCOPE_EMPTY = "process_scope_empty"
+    CGROUPS_REMOVED = "cgroups_removed"
+    WORKSPACE_REMOVED = "workspace_removed"
+
+
+class NamespaceTeardownCheckV1(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    check_id: NamespaceTeardownCheckId
+    passed: bool = Field(strict=True)
+
+
+class NamespaceTeardownVerificationV1(BaseModel):
+    """Host observations for a workload with an anonymous network namespace.
+
+    The process/cgroup checks cover the lifetime of that scope. There is no
+    separately provisioned netns, VM disk, VMM, or service socket to attest.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    verification_id: IdString
+    outcome: TrustVerificationStatus
+    verifier: ProducerIdentityV1
+    checks: tuple[NamespaceTeardownCheckV1, ...] = Field(min_length=3, max_length=3)
+    observed_at: CanonicalTimestamp
+
+    def all_passed(self) -> bool:
+        return all(check.passed for check in self.checks)
+
+    @model_validator(mode="after")
+    def _valid_observations(self) -> "NamespaceTeardownVerificationV1":
+        if {check.check_id for check in self.checks} != set(NamespaceTeardownCheckId):
+            raise ValueError("namespace teardown requires each scoped check exactly once")
+        if self.all_passed() != (self.outcome is TrustVerificationStatus.VERIFIED_CLEAN):
+            raise ValueError("namespace teardown outcome contradicts its checks")
+        return self
+
+
 class RuntimeType(str, Enum):
     MICROVM = "microvm"
     DOCKER = "docker"
@@ -181,7 +226,7 @@ class ReceiptV5Payload(BaseModel):
     evidence_ledger_checkpoint: int | None = Field(default=None, ge=0)
     evidence_chain_version: int = Field(ge=1)
 
-    teardown_verification: TeardownVerificationV1
+    teardown_verification: TeardownVerificationV1 | NamespaceTeardownVerificationV1
     limitations: tuple[str, ...] = Field(min_length=1)
     signer_identity: SignerIdentityV1
     issued_at: CanonicalTimestamp
@@ -192,6 +237,11 @@ class ReceiptV5Payload(BaseModel):
             raise ValueError(
                 f"receipt_version must be {RECEIPT_VERSION_V5} for this contract"
             )
+        namespace_checks = isinstance(self.teardown_verification, NamespaceTeardownVerificationV1)
+        if namespace_checks != (self.runtime.runtime_type is RuntimeType.NAMESPACES):
+            raise ValueError("teardown record does not match receipt runtime type")
+        if namespace_checks and self.signer_identity.provider != "file-dev":
+            raise ValueError("namespace receipt v5 is development-only")
         return self
 
     def payload_digest(self) -> str:
