@@ -1,0 +1,26 @@
+{
+  "$id": "https://workflo.dev/schemas/v1/LifecycleState.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "enum": [
+    "CREATED",
+    "ADMITTED",
+    "PROVISIONING",
+    "SOURCE_ACQUISITION",
+    "PREPARING",
+    "EXECUTING",
+    "EVALUATING",
+    "COLLECTING_EVIDENCE",
+    "TEARDOWN",
+    "VERIFYING_TEARDOWN",
+    "SIGNING",
+    "COMPLETED",
+    "INFRASTRUCTURE_FAILED",
+    "EXECUTION_FAILED",
+    "TEARDOWN_FAILED",
+    "ATTESTATION_FAILED",
+    "REJECTED",
+    "CANCEL_REQUESTED"
+  ],
+  "title": "LifecycleState",
+  "type": "string"
+}

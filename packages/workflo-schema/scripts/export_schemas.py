@@ -4,7 +4,7 @@ ADR-0015: `packages/workflo-schema` is the single authored contract home.
 This script derives JSON Schema artifacts from the Pydantic models so the
 web layer (and any other language) can validate against the same shapes
 without a second authority. Generated files are committed; regenerating
-must produce zero diffs (CI check follows in a later phase).
+must produce zero diffs in CI.
 
 Usage:
     python packages/workflo-schema/scripts/export_schemas.py [--check]
@@ -19,12 +19,15 @@ import json
 import sys
 from pathlib import Path
 
+from pydantic import BaseModel, TypeAdapter
+
 from workflo_schema.contracts import (
     DsseEnvelopeV1,
     ExecutionPolicyBundleV1,
     EvidenceArtifactV1,
     EvidenceManifestV1,
     FindingV1,
+    LifecycleState,
     PatchApprovalV1,
     PatchProposalV1,
     ReceiptV5Payload,
@@ -36,8 +39,9 @@ from workflo_schema.contracts import (
 
 REPO_SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas" / "v1"
 
-#: name -> model; names are stable file names, do not rename casually.
-EXPORTED: dict[str, type] = {
+#: name -> contract; names are stable file names, do not rename casually.
+EXPORTED: dict[str, type[BaseModel] | type[LifecycleState]] = {
+    "lifecycle-state": LifecycleState,
     "run-spec": RunSpecV1,
     "run-outcome": RunOutcomeV1,
     "run-event": RunEventV1,
@@ -53,14 +57,14 @@ EXPORTED: dict[str, type] = {
 }
 
 
-def schema_document(model: type) -> dict:
-    document = model.model_json_schema()
+def schema_document(model: type[BaseModel] | type[LifecycleState]) -> dict:
+    document = TypeAdapter(model).json_schema()
     document["$schema"] = "https://json-schema.org/draft/2020-12/schema"
     document["$id"] = f"https://workflo.dev/schemas/v1/{model.__name__}.json"
     return document
 
 
-def render(model: type) -> str:
+def render(model: type[BaseModel] | type[LifecycleState]) -> str:
     return json.dumps(schema_document(model), indent=2, sort_keys=True) + "\n"
 
 
@@ -73,7 +77,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    REPO_SCHEMA_DIR.mkdir(parents=True, exist_ok=True)
+    if not args.check:
+        REPO_SCHEMA_DIR.mkdir(parents=True, exist_ok=True)
     changed: list[str] = []
 
     for name, model in EXPORTED.items():

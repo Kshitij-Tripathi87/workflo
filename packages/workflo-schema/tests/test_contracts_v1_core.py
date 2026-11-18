@@ -88,6 +88,52 @@ class TestTimestamps:
 
 
 class TestLifecycleMachine:
+    def test_full_transition_matrix(self) -> None:
+        # The frozen ADR-0017 graph is a golden reference, not derived from
+        # LEGAL_TRANSITIONS (which would never catch an accidental new edge).
+        allowed = {
+            "CREATED": {"ADMITTED": "admission"},
+            "ADMITTED": {"PROVISIONING": "orchestrator", "REJECTED": "admission"},
+            "PROVISIONING": {
+                "SOURCE_ACQUISITION": "orchestrator",
+                "INFRASTRUCTURE_FAILED": "orchestrator",
+                "CANCEL_REQUESTED": "user",
+            },
+            "SOURCE_ACQUISITION": {
+                "PREPARING": "orchestrator",
+                "EXECUTION_FAILED": "orchestrator",
+                "CANCEL_REQUESTED": "user",
+            },
+            "PREPARING": {
+                "EXECUTING": "orchestrator",
+                "EXECUTION_FAILED": "orchestrator",
+                "CANCEL_REQUESTED": "user",
+            },
+            "EXECUTING": {
+                "EVALUATING": "orchestrator",
+                "EXECUTION_FAILED": "orchestrator",
+                "CANCEL_REQUESTED": "user",
+            },
+            "EVALUATING": {"COLLECTING_EVIDENCE": "orchestrator"},
+            "COLLECTING_EVIDENCE": {"TEARDOWN": "orchestrator"},
+            "TEARDOWN": {"VERIFYING_TEARDOWN": "orchestrator"},
+            "VERIFYING_TEARDOWN": {"SIGNING": "orchestrator", "TEARDOWN_FAILED": "orchestrator"},
+            "SIGNING": {"COMPLETED": "orchestrator", "ATTESTATION_FAILED": "orchestrator"},
+            "CANCEL_REQUESTED": {"TEARDOWN": "orchestrator"},
+        }
+        expected_states = set(allowed) | {target for edges in allowed.values() for target in edges}
+        assert {state.value for state in LifecycleState} == expected_states
+        for source in LifecycleState:
+            assert is_terminal(source) == (source.value not in allowed)
+            for target in LifecycleState:
+                authority = allowed.get(source.value, {}).get(target.value)
+                assert can_transition(source, target) == (authority is not None), (source, target)
+                if authority is None:
+                    with pytest.raises(IllegalTransitionError):
+                        required_authority(source, target)
+                else:
+                    assert required_authority(source, target).value == authority
+
     def test_authority_assignment(self) -> None:
         assert (
             required_authority(LifecycleState.CREATED, LifecycleState.ADMITTED)

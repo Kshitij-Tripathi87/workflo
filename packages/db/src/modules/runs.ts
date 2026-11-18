@@ -1,4 +1,4 @@
-import { RunStateSchema, type RunState } from "@workflo/contracts";
+import { LegacyRunStateSchema, type LegacyRunState } from "@workflo/contracts";
 import type { TenantSession } from "../client";
 
 /**
@@ -16,7 +16,7 @@ export interface RunRow {
   project_id: string;
   mission_id: string;
   created_by: string | null;
-  state: RunState;
+  state: LegacyRunState;
   sandbox_id: string | null;
   error: string | null;
   started_at: Date | null;
@@ -59,10 +59,10 @@ export async function listRuns(s: TenantSession, missionId?: string): Promise<Ru
 export async function transitionRun(
   s: TenantSession,
   runId: string,
-  newState: RunState,
+  newState: LegacyRunState,
   meta?: { sandboxId?: string; error?: string },
 ): Promise<RunRow> {
-  const state = RunStateSchema.parse(newState);
+  const state = LegacyRunStateSchema.parse(newState);
   const { rows } = await s.query<RunRow>(
     `SELECT * FROM transition_run_state($1, $2::run_state, $3::jsonb)`,
     [runId, state, JSON.stringify(meta ?? {})],

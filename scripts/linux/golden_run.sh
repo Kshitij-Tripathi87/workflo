@@ -33,11 +33,18 @@ command -v workflo >/dev/null || {
   exit 1
 }
 
+FIXTURE_REVISION=$(git -C "$FIXTURE" rev-parse --verify HEAD)
+FIXTURE_CHANGES=$(git -C "$FIXTURE" status --porcelain --untracked-files=all --ignored)
+if [ -n "$FIXTURE_CHANGES" ]; then
+  echo "ERROR: golden fixture must be a clean checkout ($FIXTURE)" >&2
+  exit 1
+fi
+
 rm -rf "$WORKDIR"
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 
-echo "==> workflo run (sandboxed, real namespaces)"
+echo "==> workflo run (development namespaces; fixture $FIXTURE_REVISION)"
 set +e
 workflo run --path "$FIXTURE" --test --timeout 300 >run.stdout 2>run.stderr
 RUN_EXIT=$?

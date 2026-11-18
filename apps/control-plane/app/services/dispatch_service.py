@@ -36,6 +36,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from workflo_schema.contracts import LifecycleState
 from workflo_utils.logging import get_logger
 
 from app.core.config import settings
@@ -107,7 +108,7 @@ class DispatchService:
             run_id=run_id,
             project_id=project_id,
             attempt_number=1,
-            state="PROVISIONING",
+            state=LifecycleState.PROVISIONING.value,
         )
         outbox = DispatchOutbox(
             id=outbox_id,
@@ -287,8 +288,7 @@ async def _finalize_success(
         await finish_attempt(
             db,
             attempt_id,
-            state="COMPLETED",
-            execution_status="completed",
+            state=LifecycleState.COMPLETED,
             sandbox_id=sandbox_id,
             cancelled=was_cancelled,
         )
@@ -320,8 +320,7 @@ async def _finalize_failure(
             await finish_attempt(
                 db,
                 attempt_id,
-                state="INFRASTRUCTURE_FAILED",
-                execution_status="infrastructure_failed",
+                state=LifecycleState.INFRASTRUCTURE_FAILED,
             )
             next_number = await _create_retry_attempt(db, outbox_id)
             logger.warning(
@@ -333,12 +332,11 @@ async def _finalize_failure(
             await finish_attempt(
                 db,
                 attempt_id,
-                state="INFRASTRUCTURE_FAILED"
-                if transient
-                else "EXECUTION_FAILED",
-                execution_status="infrastructure_failed"
-                if transient
-                else "execution_failed",
+                state=(
+                    LifecycleState.INFRASTRUCTURE_FAILED
+                    if transient
+                    else LifecycleState.EXECUTION_FAILED
+                ),
             )
             service = RunService(db)
             await service.fail_run(run_id, error)
@@ -372,7 +370,7 @@ async def _create_retry_attempt(db: AsyncSession, outbox_id: str) -> int:
         run_id=row.run_id,
         project_id=row.project_id,
         attempt_number=int(highest) + 1,
-        state="PROVISIONING",
+        state=LifecycleState.PROVISIONING.value,
     )
     retry_row = DispatchOutbox(
         id=str(uuid.uuid4()),
@@ -456,7 +454,7 @@ async def execute_payload(
         if run is not None and run.status == "cancelled":
             await db_module.set_tenant_context(pre_db, run.project_id)
             await finish_attempt(
-                pre_db, attempt_id, state="CANCEL_REQUESTED", cancelled=True
+                pre_db, attempt_id, state=LifecycleState.CANCEL_REQUESTED, cancelled=True
             )
             row2 = await pre_db.get(DispatchOutbox, outbox_id)
             if row2 is not None and row2.state == durable.CLAIMED:

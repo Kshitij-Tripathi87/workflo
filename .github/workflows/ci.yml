@@ -56,6 +56,24 @@ jobs:
             exit 1
           fi
 
+  # The workspace job below also checks the TypeScript mirrors against the
+  # committed Python exports. This job proves those exports are current.
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install schema test dependencies
+        run: |
+          python -m pip install -r packages/workflo-schema/requirements-schema-export.txt \
+            -e "./packages/workflo-schema[dev]" -e ./packages/sandbox-isolation
+      - name: Reject stale JSON Schema exports
+        run: python packages/workflo-schema/scripts/export_schemas.py --check
+      - name: Test canonical contracts and legacy receipt verification
+        run: python -m pytest -q packages/workflo-schema/tests
+
   # The repository root is a pnpm project (package.json + pnpm-lock.yaml).
   # `pnpm install --frozen-lockfile`, `pnpm check` and `pnpm test` must work
   # from a clean checkout; CI verifies exactly those commands.

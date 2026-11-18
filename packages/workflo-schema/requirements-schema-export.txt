@@ -1,0 +1,2 @@
+# Pin the JSON Schema renderer for byte-for-byte drift checks, not for runtime.
+pydantic==2.14.3

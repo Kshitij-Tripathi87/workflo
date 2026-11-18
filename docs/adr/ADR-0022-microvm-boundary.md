@@ -4,7 +4,9 @@
 
 ## Context
 
-The tree contains no microVM code. Current boundaries: Docker (`apps/sandbox-executor`, documented "Phase 1 default") and bwrap + namespaces (`packages/sandbox-runtime`, Linux-gated with strong fail-closed teardown and proof bundles). Both are useful, working isolation implementations, and both are **not** the boundary the brief mandates. The brief explicitly forbids relabeling Docker as equivalent and forbids silent fallback when the secure backend is unavailable.
+At the time of this decision the tree contained no microVM code. Existing boundaries were Docker (`apps/sandbox-executor`) and bwrap + namespaces (`packages/sandbox-runtime`). Neither meets the production boundary the brief mandates. The brief forbids relabeling either as equivalent or silently falling back when the secure backend is unavailable.
+
+The host and guest-supervisor foundation now lives in [`worker/`](../../worker/). The existing control-plane dispatcher is not wired to it. The KVM integration file probes capabilities; it does not yet establish the real boot and teardown evidence required by Gate B.
 
 ## Decision
 
