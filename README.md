@@ -1,153 +1,57 @@
-# Workflo — Autonomous QA & Verification Agent
+# Workflo — Software Change Verification
 
-> **Privacy-first autonomous QA agent.** Run tests in isolated network-blocked Docker sandboxes and get verifiable cryptographic receipts proving teardown.
+Workflo is a verification gate for software changes, including changes made by
+AI agents. The [Trust MVP](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md) targets
+one workflow: run declared checks for an exact revision on a customer-controlled
+runner, collect evidence, verify teardown, and issue an independently verifiable
+receipt. A passing check, a successful execution, and verified evidence are
+separate results.
 
----
+**Current status: development preview.** The Docker and Linux namespace paths
+are for local development and CI. Firecracker/KVM is the only approved target
+for production execution of untrusted code; [Gate B](docs/adr/ADR-0022-microvm-boundary.md)
+has not passed. Hosted source privacy and [real-model acceptance](P4_ACCEPTANCE.md)
+are not established for the release candidate.
 
-## CLI Installation Methods
+## Try the CLI from source
 
-You can install and run the `workflo` CLI using any of the following methods:
-
-### 1. Automated Unix / macOS Installer (`install.sh`)
-Recommended for Linux, macOS, and Git Bash users working in the repository.
-
-```bash
-# Run the automated installer
-./install.sh
-
-# Activate the isolated virtual environment
-source .workflo-venv/bin/activate
-
-# Verify installation
-workflo --version
-```
-
----
-
-### 2. Automated Windows PowerShell Installer (`install.ps1`)
-Recommended for Windows developers.
-
-```powershell
-# Run the installer in PowerShell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-
-# Activate the virtual environment
-.\.workflo-venv\Scripts\Activate.ps1
-
-# Verify installation
-workflo --version
-```
-
----
-
-### 3. NPM Package (`@workflo/qa` / `npx`)
-For JavaScript and TypeScript environments:
+With Python 3.11+ and Git, run these commands from the repository root:
 
 ```bash
-# Global installation
-npm install -g @workflo/qa
-
-# Or add as project dev dependency
-pnpm add -D @workflo/qa
-# yarn add -D @workflo/qa
-
-# Or run directly via npx without installing
-npx @workflo/qa run --tests
-```
-
----
-
-### 4. Manual Python / `pip` Installation (Python 3.11+)
-For custom virtual environments:
-
-```bash
-# 1. Create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate    # Linux / macOS
-# .venv\Scripts\Activate.ps1 # Windows
+source .venv/bin/activate
+python -m pip install -e packages/workflo-schema -e packages/workflo-utils \
+  -e packages/sandbox-isolation -e packages/sandbox-runtime -e supervisor \
+  -e packages/probe-engine -e packages/cortex-auth \
+  -e apps/sandbox-executor -e apps/workflo-cli
 
-# 2. Install monorepo packages in dependency order
-pip install -e packages/workflo-schema \
-            -e packages/sandbox-isolation \
-            -e apps/sandbox-executor \
-            -e packages/probe-engine \
-            -e packages/cortex-auth
-
-# 3. Install the Workflo CLI
-pip install -e apps/workflo-cli
-
-# 4. Verify
-workflo --help
+workflo --version
+workflo run --path apps/worker-engine/tests/fixtures/sample_repo --test --dry-run
 ```
 
----
+On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1`. The dry run
+validates the plan without launching a sandbox or running tests. Use
+`workflo run --help` for execution options and platform prerequisites.
 
-### 5. Standalone Binary & Docker Container
-
-#### Standalone Binary (Linux / macOS)
-```bash
-curl -L https://releases.your-workflo-domain.com/cli/latest -o workflo
-chmod +x workflo
-sudo mv workflo /usr/local/bin/
-```
-
-#### Container Image
-```bash
-docker pull registry.your-workflo-domain.com/workflo/agent:latest
-docker run --rm -v $(pwd):/workspace workflo/agent run --tests --security
-```
-
----
-
-## 🚀 Quickstart & Usage
+For the development run → evidence → receipt → verification workflow, see the
+[Linux golden run](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md#development-golden-workflow).
+Given a receipt, its trusted public key, and the exported evidence bundle, the
+local verification entry point is:
 
 ```bash
-# 1. Run tests in the current workspace
-workflo run --tests
-
-# 2. Run tests on a remote repository with security scanning
-workflo run --repo https://github.com/pallets/click.git --tests --security
-
-# 3. Run AI agent deep test with live application execution
-workflo run --repo https://github.com/pallets/click.git --deep-test --security
-
-# 4. Target a specific environment
-workflo run --tests --environment staging
-
-# 5. Generate a cryptographic receipt
-workflo run --tests --receipt
-
-# 6. Independently verify a signed execution receipt
-workflo verify wf://receipts/0ec7-9b20
+workflo verify --receipt <receipt.json> --pubkey <receipt-key.pub.pem> --evidence <evidence-dir>
 ```
 
----
+Verification checks the signed claims and available evidence. It is not proof
+that the source has no defects, that no data was retained, or that a development
+runtime meets the production isolation boundary.
 
-##  CLI Flags Reference
+## Where to contribute
 
-| Command / Flag | Description |
-|---|---|
-| `run --tests` | Execute test suite in an isolated sandbox |
-| `--repo <url>` | Clone and execute tests against a remote git repository |
-| `--security` | Enable security scanning (SAST, dependencies, secret detection) |
-| `--deep-test` | Enable AI tool-calling agent to exercise routes and live endpoints |
-| `--receipt` | Generate a signed cryptographic execution receipt (`wf://receipts/...`) |
-| `--environment <name>` | Target environment (`dev`, `staging`, `production`) |
-| `--dry-run` | Validate run spec and policies without booting Docker containers |
-| `auth login` | Authenticate using OAuth 2.0 Device Flow (RFC 8628) |
-| `verify <receipt-uri>` | Validate cryptographic signatures and inspect teardown proof |
+- [Product boundaries](PRODUCT_BOUNDARIES.md) — Workflo ownership, compatibility paths, and the adjacent Cortex Autopilot product.
+- [Architecture decisions](docs/adr/README.md) — accepted requirements and proposals pending ratification.
+- [Phase 0 reconciliation](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md) — contract checks, inference-path inventory, and remaining release gates.
 
----
-## 🔒 Privacy & Verifiable Teardown
+## License
 
-Workflo operates on a zero-retention guarantee:
-1. **Network-Blocked Execution:** Runs inside isolated containers with `--network none`.
-2. **Ephemeral Storage:** Mounts filesystems on `tmpfs` RAM-disks that are unmounted and wiped upon test completion.
-3. **Outbound Canary Check:** Proactively tests for isolation leaks — any successful outbound connection immediately fails the run.
-4. **Cryptographic Proofs:** Generates signed receipts containing SHA-256 parameter hashes, execution durations, and container destruction proofs.
-
----
-
-## 📄 License
-
-MIT / Apache 2.0 — see [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE).

@@ -22,7 +22,7 @@ The brief's target stack (ADR-014: Next.js + FastAPI + PostgreSQL) and target la
 
 ## Consequences
 
-- One authored contract; web consumes exported JSON Schema / mirrored Zod; Python services consume the Pydantic modules directly.
+- One authored contract; web consumes exported JSON Schema / mirrored Zod; Python services consume the Pydantic modules directly. CI checks regeneration and lifecycle/outcome mirror parity. The older TS rebuild contracts remain compatibility types until their consumers are migrated; see the [Phase 0 review](../reconciliation/PHASE_0_WORKFLO_TRUST.md).
 - Existing legacy models (`RunSpec`, `SandboxSpec`, `SignedReceipt` v1–v4, `api.py` v1 wire contract) are **not deleted**: receipt v1–v4 verification must keep working for previously issued receipts. New runs use the frozen contracts.
 - The Python lineage carries the critical path (microVM worker, orchestrator, evidence service).
 

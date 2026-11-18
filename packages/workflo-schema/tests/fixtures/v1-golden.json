@@ -1,0 +1,152 @@
+{
+  "outcomes": {
+    "full_pass": {
+      "record": {
+        "schema_version": "1",
+        "execution_status": "completed",
+        "cancelled": false,
+        "qa_verdict": "pass",
+        "trust_status": "verified_clean",
+        "evidence_validation": "verified",
+        "teardown_verification": "verified",
+        "receipt_status": "verified"
+      },
+      "clean_success": true,
+      "full_pass": true
+    },
+    "checks_failed": {
+      "record": {
+        "schema_version": "1",
+        "execution_status": "completed",
+        "cancelled": false,
+        "qa_verdict": "fail",
+        "trust_status": "verified_clean",
+        "evidence_validation": "verified",
+        "teardown_verification": "verified",
+        "receipt_status": "verified"
+      },
+      "clean_success": true,
+      "full_pass": false
+    },
+    "teardown_incomplete": {
+      "record": {
+        "schema_version": "1",
+        "execution_status": "teardown_failed",
+        "cancelled": false,
+        "qa_verdict": "pass",
+        "trust_status": "cleanup_incomplete",
+        "evidence_validation": "verified",
+        "teardown_verification": "incomplete",
+        "receipt_status": "not_applicable"
+      },
+      "clean_success": false,
+      "full_pass": false
+    },
+    "cancelled_after_verification": {
+      "record": {
+        "schema_version": "1",
+        "execution_status": "completed",
+        "cancelled": true,
+        "qa_verdict": "inconclusive",
+        "trust_status": "verified_clean",
+        "evidence_validation": "verified",
+        "teardown_verification": "verified",
+        "receipt_status": "verified"
+      },
+      "clean_success": false,
+      "full_pass": false
+    },
+    "runner_unavailable": {
+      "record": {
+        "schema_version": "1",
+        "execution_status": "infrastructure_failed",
+        "cancelled": false,
+        "qa_verdict": "inconclusive",
+        "trust_status": "unknown",
+        "evidence_validation": "not_applicable",
+        "teardown_verification": "not_applicable",
+        "receipt_status": "not_applicable"
+      },
+      "clean_success": false,
+      "full_pass": false
+    }
+  },
+  "invalid_outcomes": [
+    {
+      "name": "completion_requires_verified_teardown",
+      "base": "full_pass",
+      "overrides": {
+        "teardown_verification": "failed"
+      }
+    },
+    {
+      "name": "completion_requires_verified_receipt",
+      "base": "full_pass",
+      "overrides": {
+        "receipt_status": "incomplete"
+      }
+    },
+    {
+      "name": "completion_requires_known_trust",
+      "base": "full_pass",
+      "overrides": {
+        "trust_status": "unknown"
+      }
+    },
+    {
+      "name": "teardown_failure_cannot_be_verified",
+      "base": "teardown_incomplete",
+      "overrides": {
+        "teardown_verification": "verified"
+      }
+    },
+    {
+      "name": "unknown_fields_are_rejected",
+      "base": "full_pass",
+      "overrides": {
+        "passed": true
+      }
+    }
+  ],
+  "canonical_json": [
+    {
+      "name": "nested_order_and_null",
+      "payload": {
+        "z": [
+          true,
+          null,
+          {
+            "second": 2,
+            "first": "é"
+          }
+        ],
+        "a": "2026-11-18T00:00:00.000Z"
+      },
+      "canonical": "{\"a\":\"2026-11-18T00:00:00.000Z\",\"z\":[true,null,{\"first\":\"é\",\"second\":2}]}",
+      "digest": "sha256:380e38443402dda85408fa2048cd6cc618a37bb1dfa350c438062f91a8a4ed35"
+    },
+    {
+      "name": "escapes_and_integer_limits",
+      "payload": {
+        "q": "\"path\\name\n\u0001",
+        "extremes": [
+          -9007199254740991,
+          0,
+          9007199254740991
+        ]
+      },
+      "canonical": "{\"extremes\":[-9007199254740991,0,9007199254740991],\"q\":\"\\\"path\\\\name\\n\\u0001\"}",
+      "digest": "sha256:52193951670c703ea0c18bf0c95a1e798e6b68a34addc2878b99628d36631900"
+    },
+    {
+      "name": "lexicographically_sorted_numeric_keys",
+      "payload": {
+        "2": 2,
+        "10": 10,
+        "emoji": "🔒"
+      },
+      "canonical": "{\"10\":10,\"2\":2,\"emoji\":\"🔒\"}",
+      "digest": "sha256:8faaebd724583b5f6472d5cd6e4b4f56ef3f7a832bd232e61f2f8f33ada14662"
+    }
+  ]
+}

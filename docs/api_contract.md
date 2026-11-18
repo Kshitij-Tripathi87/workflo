@@ -1,8 +1,11 @@
 # API Contract — `v1`
 
-This is the **frozen** contract for the Workflo REST API. Anything in
-`packages/workflo-schema/src/workflo_schema/api.py` is the source of
-truth; this document is the human-readable companion.
+This is the **frozen wire contract** for the existing Workflo REST API, authored
+in `packages/workflo-schema/src/workflo_schema/api.py`. Its coarse `RunStatus`
+values are not the product lifecycle or QA verdict. New product lifecycle and
+outcome records are defined in `workflo_schema.contracts` (see
+[ADR-0017](adr/ADR-0017-run-lifecycle-and-outcomes.md)); adopting them on the API
+must preserve existing `/v1` clients or use a separately versioned interface.
 
 ## Versioning
 

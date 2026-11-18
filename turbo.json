@@ -1,5 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "packages/workflo-schema/schemas/v1/*.schema.json",
+    "packages/workflo-schema/tests/fixtures/v1-golden.json"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

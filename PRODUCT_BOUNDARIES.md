@@ -6,14 +6,15 @@ was which. That ambiguity is expensive — contributors have to guess what is
 load-bearing, and "the repo is broken" reports mix an active service with a
 2024 prototype.
 
-This document is the decision record. It was written as part of the
-2026-10 stabilization pass (see `CODE_REVIEW.md`) and states the status of every
-top-level directory, with the evidence used to decide.
+This document records what is maintained and what belongs to the Workflo Trust
+MVP. It builds on the [2026-10 stabilization pass](CODE_REVIEW.md) and the
+[Phase 0 reconciliation](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md).
+Maintenance status below is not production readiness or architecture approval.
 
 Status values:
 
-- **Active** — shipping product surface. Changes here are user-visible and must
-  keep CI green.
+- **Active** — maintained product surface or development path. Keep CI green;
+  passing CI alone does not qualify a path for production.
 - **Supporting** — library/package consumed by an active surface. Not deployed
   on its own.
 - **Legacy** — kept for reference or migration only; not built, tested or
@@ -23,23 +24,47 @@ Status values:
 
 ---
 
-## Active
+## Workflo Trust MVP ownership (under review)
+
+Workflo verifies a declared policy against an exact revision and returns
+separate execution, QA, and trust results with verifiable evidence. For this
+MVP, keep Workflo features on the Python execution lineage and the
+`apps/dashboard` Next.js app. Do not extend the adjacent Cortex Autopilot
+`backend/` or `frontend/`, or build another Workflo dashboard there.
+
+| Responsibility | Target owner | Current boundary |
+| --- | --- | --- |
+| Contracts | `packages/workflo-schema` | Versioned Pydantic models and generated JSON Schema. `packages/contracts` mirrors lifecycle and outcomes; its original TS rebuild contracts remain compatibility types. |
+| Admission and dispatch | `apps/control-plane` | FastAPI and PostgreSQL outbox. Existing `/v1` statuses are a wire projection, not the new lifecycle. SQLite and in-memory queues are development/test only. |
+| CLI and web UI | `apps/workflo-cli`, `apps/dashboard` | The dashboard is a shell; no new screens until the evidence workflow is stable. |
+| Customer runner | `worker/` | Initial Firecracker/KVM host and guest-supervisor implementation; not wired end to end and Gate B has not passed. Do not start a second Firecracker host in `apps/sandbox-executor`. |
+| Guest execution | `apps/worker-engine` | Deterministic checks; bounded agent and local model features are later increments. |
+| Development execution | `apps/sandbox-executor`, `supervisor/`, `packages/sandbox-runtime` | Docker and namespace runs are useful for development and CI only. Neither is a fallback for strict production runs. |
+| Inference | Worker-owned local llama.cpp; authorized metadata-only gateway for future hosted BYOK | Direct inference routes have not been reconciled. Do not claim hosted source privacy or add new routes until enforcement is proven. |
+
+The scope is CLI-first with GitHub as the first integration. No autonomous
+merge/deploy, dashboard expansion, new orchestration services, or hosted GPU
+fleet in Phase 0. The approved production isolation requirement is
+[ADR-0022](docs/adr/ADR-0022-microvm-boundary.md); ownership choices in
+[ADR-0015](docs/adr/ADR-0015-canonical-contracts-home.md) still require ratification.
+
+## Maintained surfaces
 
 | Path | What it is | Evidence it is live |
 | --- | --- | --- |
-| `apps/control-plane/` | Tenant Shield control plane (FastAPI): auth/OAuth device flow, run orchestration, envelope encryption, RLS, transparency log | `control-plane.yml` runs its 123 tests; it is the only surface with credential-encryption + RLS code; production startup guards were added here |
+| `apps/control-plane/` | Workflo control plane (FastAPI): auth, dispatch, envelope encryption, RLS, transparency log | `control-plane.yml` runs API, dispatch, and tenant-isolation tests |
 | `apps/workflo-cli/` | The `workflo` CLI (`workflo --version` → 1.1.1) | `workflo-cli.yml` runs 119 tests + a dry-run matrix; `install.sh`/`setup.sh` install it |
-| `apps/sandbox-executor/` | Executes a run inside the isolated sandbox | installed by `scripts/linux/setup_env.sh`, exercised by the linux-gate golden runs |
-| `apps/worker-engine/` | Worker-side run engine | installed by `setup_env.sh`; `tenant-shield.yml` isolation smoke tests |
+| `apps/sandbox-executor/` | Docker development executor | installed by `scripts/linux/setup_env.sh`; covered by control-plane and CLI compatibility tests |
+| `apps/worker-engine/` | Guest-side run engine | `worker.yml` unit and integration-style tests |
 | `backend/` | **Cortex Autopilot** API: DataHub impact analysis, scenario/what-if engine, receipts, write-back | `ci.yml` (ruff, mypy, 170 tests); `frontend/` consumes it; its own Dockerfile |
 | `frontend/` | Next.js UI for Cortex Autopilot | `ci.yml` nextjs matrix (tsc + `next build`) |
-| `supervisor/` | Run supervisor (lifecycle, evidence ledger, receipts) used by the CLI | `supervisor/` has 12 IPC tests wired into CI; imported by `apps/workflo-cli` |
+| `supervisor/` | Development namespace supervisor used by the CLI | `supervisor/` has 12 IPC tests wired into CI; imported by `apps/workflo-cli` |
 
 ## Supporting libraries (consumed by the surfaces above)
 
 | Path | Notes |
 | --- | --- |
-| `packages/sandbox-runtime/` | Sandbox execution: bwrap/cgroups/netns/Landlock. Unit suites run in `linux-gate.yml`; the real-namespace integration suite is the authoritative security gate |
+| `packages/sandbox-runtime/` | Development namespace runtime: bwrap/cgroups/netns/Landlock. The real integration suite in `linux-gate.yml` gates this profile only, not Gate B |
 | `packages/sandbox-isolation/`, `packages/probe-engine/`, `packages/cortex-auth/` | Installed by `setup_env.sh`; used by the sandbox stack |
 | `packages/workflo-schema/`, `packages/workflo-utils/` | Schemas/utils shared by control plane + CLI |
 | `packages/npm-workflo/` | npm distribution of the CLI (`file:` dependency of the root project) |
@@ -105,12 +130,12 @@ harness fails the suite.
 
 ## Product identity
 
-The tree carries three names — *Workflo* (CLI/sandbox/receipts), *Cortex
-Autopilot* (`backend/`, `frontend/`), and *Tenant Shield* (`apps/`, k8s). They
-are three presentations of one lineage, but they are **separate products with
-separate install paths**. User-facing copy should use one name per surface
-rather than mixing them; a single coherent rebrand is a product decision, not a
-cleanup task.
+Use **Workflo** for the Trust MVP, including the CLI, control plane and
+`apps/dashboard`. *Tenant Shield* names retained in files and environment
+variables are historical compatibility names, not a second MVP. **Cortex
+Autopilot** (`backend/`, `frontend/`) is the adjacent data-platform product and
+is not a target for Workflo Trust features. Existing protocol and package names
+are not renamed by this decision record.
 
 ## Rules that follow from these boundaries
 

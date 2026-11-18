@@ -153,11 +153,14 @@ if __name__ == "__main__":
         httpd.serve_forever()
 EOF
 
-git init -q
-git config user.email "golden@workflo.dev"
-git config user.name "Workflo Golden Run"
-git add -A
-git commit -qm "fixture: sanity + adversarial isolation tests + app under test"
+# The fixture revision must be reproducible from the same source files.
+git init -q --initial-branch=main --object-format=sha1 --template=
+git -c core.autocrlf=false add -A
+GIT_AUTHOR_NAME="Workflo Golden Run" GIT_AUTHOR_EMAIL="golden@workflo.dev" \
+  GIT_COMMITTER_NAME="Workflo Golden Run" GIT_COMMITTER_EMAIL="golden@workflo.dev" \
+  GIT_AUTHOR_DATE="2000-01-01T00:00:00Z" GIT_COMMITTER_DATE="2000-01-01T00:00:00Z" \
+  git -c commit.gpgsign=false -c core.hooksPath=/dev/null \
+    commit -qm "fixture: sanity + adversarial isolation tests + app under test"
 
-echo "==> Fixture repo ready at $FIXTURE"
+echo "==> Fixture repo ready at $FIXTURE ($(git rev-parse --verify HEAD))"
 echo "==> Setup complete."

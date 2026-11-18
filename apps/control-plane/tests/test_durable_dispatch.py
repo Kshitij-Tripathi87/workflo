@@ -42,6 +42,7 @@ from app.services.dispatch_service import (
     dispatch_one,
     execute_claimed_dispatch,
 )
+from workflo_schema.contracts import LifecycleState
 from workflo_schema.sandbox import SandboxSpec
 
 # A REAL sandbox spec (the API path builds one via RunRequest.to_sandbox_spec);
@@ -704,13 +705,13 @@ class TestAttemptFinishing:
                 await finish_attempt(
                     db,
                     attempt_id,
-                    state="EXECUTION_FAILED",
-                    execution_status="execution_failed",
+                    state=LifecycleState.EXECUTION_FAILED,
                 )
 
         _run(_finish())
         attempt = _get_attempt(attempt_id)
         assert attempt.state == "EXECUTION_FAILED"
+        assert attempt.execution_status == "execution_failed"
         assert attempt.finished_at is not None
 
     def test_finish_attempt_does_not_reset_cancelled_flag(self):
@@ -722,7 +723,7 @@ class TestAttemptFinishing:
                 await mark_attempts_cancel_requested(db, (await db.get(RunAttempt, attempt_id)).run_id)
             async with database.async_session_factory() as db:
                 await finish_attempt(
-                    db, attempt_id, state="COMPLETED", execution_status="completed"
+                    db, attempt_id, state=LifecycleState.COMPLETED
                 )
 
         _run(_flow())

@@ -23,6 +23,13 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from workflo_schema.contracts import (
+    TERMINAL_STATES,
+    LifecycleState,
+    execution_status_for_terminal_state,
+    is_terminal,
+)
+
 from app.db.models import DispatchOutbox, RunAttempt
 
 # Outbox states
@@ -32,17 +39,8 @@ DONE = "done"
 FAILED = "failed"
 CANCELLED = "cancelled"
 
-# Attempt states that no worker may still be executing.
-ATTEMPT_TERMINAL_STATES = frozenset(
-    {
-        "COMPLETED",
-        "INFRASTRUCTURE_FAILED",
-        "EXECUTION_FAILED",
-        "TEARDOWN_FAILED",
-        "ATTESTATION_FAILED",
-        "REJECTED",
-    }
-)
+# Persisted string values, derived from the canonical lifecycle.
+ATTEMPT_TERMINAL_STATES = frozenset(state.value for state in TERMINAL_STATES)
 
 
 def _utcnow_naive() -> datetime:
@@ -267,12 +265,13 @@ async def mark_attempts_cancel_requested(db: AsyncSession, run_id: str) -> int:
     teardown path completes. Terminal attempts are never rewritten.
     """
     now = _utcnow_naive()
+    requested = LifecycleState.CANCEL_REQUESTED.value
     result = await db.execute(
         update(RunAttempt)
         .where(RunAttempt.run_id == run_id)
         .where(RunAttempt.state.notin_(ATTEMPT_TERMINAL_STATES))
-        .where(RunAttempt.state != "CANCEL_REQUESTED")
-        .values(state="CANCEL_REQUESTED", cancelled=True, updated_at=now)
+        .where(RunAttempt.state != requested)
+        .values(state=requested, cancelled=True, updated_at=now)
     )
     await db.commit()
     return result.rowcount
@@ -296,20 +295,24 @@ async def finish_attempt(
     db: AsyncSession,
     attempt_id: str,
     *,
-    state: str,
-    execution_status: str | None = None,
+    state: LifecycleState,
     cancelled: bool = False,
     sandbox_id: str | None = None,
 ) -> bool:
-    """Move an attempt to a terminal (or explicitly recorded) state."""
+    """Persist the attempt state and derive execution status for terminals.
+
+    The compatibility dispatcher records checkpoints here; this is not the
+    product orchestrator's transition-authority enforcement point.
+    """
     now = _utcnow_naive()
+    terminal = is_terminal(state)
     values: dict = {
-        "state": state,
+        "state": state.value,
         "updated_at": now,
-        "finished_at": now if state in ATTEMPT_TERMINAL_STATES else None,
+        "finished_at": now if terminal else None,
     }
-    if execution_status is not None:
-        values["execution_status"] = execution_status
+    if terminal:
+        values["execution_status"] = execution_status_for_terminal_state(state).value
     if cancelled:
         values["cancelled"] = True
     if sandbox_id is not None:

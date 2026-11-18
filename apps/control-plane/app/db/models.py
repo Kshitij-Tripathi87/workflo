@@ -9,6 +9,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
+from workflo_schema.contracts import LifecycleState
+
 from app.db.base import Base
 
 
@@ -327,9 +329,10 @@ class RunAttempt(Base):
     )
     project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    # Frozen lifecycle state name (e.g. PROVISIONING, EXECUTION_FAILED,
-    # CANCEL_REQUESTED). Not an API status; the API status is derived.
-    state: Mapped[str] = mapped_column(String(40), nullable=False, default="PROVISIONING")
+    # Canonical lifecycle name, not the legacy TestRun.status wire shape.
+    state: Mapped[str] = mapped_column(
+        String(40), nullable=False, default=LifecycleState.PROVISIONING.value
+    )
     sandbox_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Worker lease/heartbeat (brief §8): a claimed attempt whose lease
