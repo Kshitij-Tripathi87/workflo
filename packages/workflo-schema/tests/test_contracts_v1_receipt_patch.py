@@ -5,6 +5,11 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from workflo_schema.contracts.receipt import (
+    NamespaceTeardownCheckId,
+    NamespaceTeardownCheckV1,
+    NamespaceTeardownVerificationV1,
+)
 from workflo_schema.contracts import (
     ApprovalState,
     ComponentVerificationStatus,
@@ -178,6 +183,32 @@ class TestTeardownVerification:
 
 
 class TestReceiptV5:
+    def test_namespace_proof_is_dev_only_and_cannot_replace_microvm_proof(self) -> None:
+        legacy = make_teardown()
+        teardown = NamespaceTeardownVerificationV1(
+            verification_id=legacy.verification_id,
+            outcome=legacy.outcome,
+            verifier=legacy.verifier,
+            observed_at=legacy.observed_at,
+            checks=tuple(NamespaceTeardownCheckV1(check_id=c, passed=True) for c in NamespaceTeardownCheckId),
+        )
+        runtime = RuntimeIdentityV1(runtime_type=RuntimeType.NAMESPACES, runtime_image_digest=DIGEST_2)
+        receipt = make_receipt_payload(runtime=runtime, teardown_verification=teardown)
+        assert receipt.teardown_verification.all_passed()
+        with pytest.raises(ValidationError, match="does not match receipt runtime"):
+            make_receipt_payload(teardown_verification=teardown)
+        with pytest.raises(ValidationError, match="does not match receipt runtime"):
+            make_receipt_payload(runtime=runtime)
+        with pytest.raises(ValidationError, match="development-only"):
+            make_receipt_payload(
+                runtime=runtime, teardown_verification=teardown,
+                signer_identity=receipt.signer_identity.model_copy(update={"provider": "kms"}),
+            )
+        with pytest.raises(ValidationError):
+            NamespaceTeardownVerificationV1.model_validate({
+                **teardown.model_dump(), "checks": teardown.checks[:-1],
+            })
+
     def test_payload_round_trips_through_envelope(self) -> None:
         payload = make_receipt_payload()
         envelope = DsseEnvelopeV1(

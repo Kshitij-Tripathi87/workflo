@@ -36,6 +36,7 @@ jobs:
             scripts/linux/golden_run.sh \
             scripts/linux/agent_golden_run.sh \
             scripts/linux/planner_golden_run.sh \
+            scripts/linux/integration_change_demo.sh \
             packages/sandbox-runtime/tests/integration \
           ; do
             if [ ! -e "$path" ]; then
@@ -61,6 +62,7 @@ jobs:
           /opt/workflo/venv/bin/python -m pytest \
             packages/sandbox-runtime/tests \
             packages/workflo-schema/tests \
+            apps/workflo-cli/tests/test_local_dev_cli.py \
             --ignore packages/sandbox-runtime/tests/integration \
             -q -x --junitxml=/tmp/linux-gate-unit.xml
 
@@ -213,6 +215,37 @@ jobs:
       - name: Planner golden run (scripted LLM planner)
         if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/planner_golden_run.sh
+
+      # Separate development v5 gate; the three legacy golden bundles and
+      # their independent verifier below are intentionally unchanged.
+      - name: Pinned provider migration (development v5)
+        id: integration_change
+        if: ${{ always() && steps.provision.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/workflo-integration-change"
+          sudo bash scripts/linux/integration_change_demo.sh "$ROOT"
+          mkdir -- "$ROOT-offline"
+          sudo cp -a "$ROOT"/{baseline,candidate} "$ROOT-offline/"
+          sudo chown -R "$(id -u):$(id -g)" "$ROOT-offline"
+
+          # The copy contains no repository, signing key, or runtime. Verify
+          # it again as a different user and with a different base directory.
+          cd "$ROOT-offline"
+          for revision in baseline candidate; do
+            /opt/workflo/venv/bin/workflo verify "$revision/receipt.json" \
+              --pubkey "$revision/receipt-key.pub.pem"
+          done
+
+      - name: Upload synthetic integration migration proof
+        if: ${{ always() && steps.integration_change.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-migration-development-proof
+          path: ${{ runner.temp }}/workflo-integration-change-offline/
+          if-no-files-found: error
+          retention-days: 7
 
       # Copy root-owned receipts into the workspace first. Artifact actions
       # run as the hosted runner user and cannot traverse /root (mode 0700).

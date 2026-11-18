@@ -33,10 +33,14 @@ On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1`. The dry run
 validates the plan without launching a sandbox or running tests. Use
 `workflo run --help` for execution options and platform prerequisites.
 
-For the development run → evidence → receipt → verification workflow, see the
-[Linux golden run](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md#development-golden-workflow).
-Given a receipt, its trusted public key, and the exported evidence bundle, the
-local verification entry point is:
+Try the [pinned integration-change demo](docs/reconciliation/PHASE_1_LOCAL_PROOF.md):
+a mock provider changes its response contract, and the same checks verify a
+failing baseline and a passing migration candidate. `workflo run-dev` uses the
+Linux development profile and issues an offline-verifiable receipt v5. The
+[legacy Linux golden run](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md#development-golden-workflow)
+remains available.
+
+Given a receipt, its trusted public key, and its evidence bundle, verify offline:
 
 ```bash
 workflo verify --receipt <receipt.json> --pubkey <receipt-key.pub.pem> --evidence <evidence-dir>
