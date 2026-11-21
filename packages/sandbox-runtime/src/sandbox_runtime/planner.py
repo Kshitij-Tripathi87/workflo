@@ -354,16 +354,22 @@ def build_user_prompt(app_url: str, observations: list,
     )
 
 
-def _mission_from_env() -> Optional[str]:
-    """The run's testing mission, set by the CLI from --instruction.
+def _sanitize_mission(mission: Optional[str]) -> Optional[str]:
+    """Bound and redact mission text before it enters any planner prompt.
 
-    Bounded and secret-redacted here as defense in depth (the schema
-    applies the same bound server-side)."""
-    mission = os.environ.get("WORKFLO_MISSION", "").strip()
-    if not mission:
+    Apply this to both CLI-provided values and environment fallbacks. The
+    gateway separately validates the same limit; the direct endpoint must
+    receive the same redaction behavior.
+    """
+    if not isinstance(mission, str) or not mission.strip():
         return None
     from workflo_schema.inference import MAX_MISSION_CHARS, redact_secrets
-    return redact_secrets(mission[:MAX_MISSION_CHARS]) or None
+    return redact_secrets(mission.strip()[:MAX_MISSION_CHARS]) or None
+
+
+def _mission_from_env() -> Optional[str]:
+    """The run's testing mission fallback, read from WORKFLO_MISSION."""
+    return _sanitize_mission(os.environ.get("WORKFLO_MISSION", ""))
 
 
 def run_planner_loop(plan_dir: Path, app_url: str,
@@ -392,7 +398,8 @@ def run_planner_loop(plan_dir: Path, app_url: str,
         raise PlannerUnavailable("no LLM configured (WORKFLO_LLM_BASE_URL missing)")
 
     if mission is None:
-        mission = _mission_from_env()
+        mission = os.environ.get("WORKFLO_MISSION", "")
+    mission = _sanitize_mission(mission)
 
     plan_dir = Path(plan_dir)
     plan_path = plan_dir / PLAN_PATH
