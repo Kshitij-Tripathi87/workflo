@@ -122,7 +122,6 @@ def test_channel_accepts_guest_and_exchanges_frames(tmp_path):
     channel.listen()
     assert channel.listen_path == listen_path
 
-    connected = threading.Event()
     errors: list = []
 
     def guest():
@@ -138,7 +137,6 @@ def test_channel_accepts_guest_and_exchanges_frames(tmp_path):
                     if time.monotonic() >= deadline:
                         raise
                     time.sleep(0.02)
-            connected.set()
             # Host speaks first (capability): read one frame, reply ready.
             frame = recv_frame(sock, timeout=5.0)
             assert parse_frame(frame).message_type is (
@@ -177,7 +175,9 @@ def test_channel_accepts_guest_and_exchanges_frames(tmp_path):
         )
     )
     channel.send(capability)  # blocks until the guest connects
-    assert connected.is_set()
+    # send() returning proves accept() happened; asserting on the guest
+    # thread's own event here would race the GIL (flaky under load).
+    assert channel.connected
 
     reply = channel.receive(timeout=5.0)
     assert reply is not None
