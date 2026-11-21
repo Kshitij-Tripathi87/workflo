@@ -443,6 +443,18 @@ jobs:
 
       # Validate the artifact as users actually receive it. The nested tar must
       # restore empty directories before the evidence hashes are recomputed.
+      #
+      # Known Actions platform race: download-artifact has been observed to
+      # report "Artifact not found" when it runs fractions of a second after
+      # a successful same-job upload, while the REST API already lists the
+      # artifact (upload is fail-closed here: if-no-files-found: error, so a
+      # success outcome means files were uploaded). Bounded wait before the
+      # round-trip check; the download and verification below still fail
+      # closed if the artifact is genuinely missing.
+      - name: Wait for artifact discovery after upload
+        if: ${{ always() && steps.upload_proof.outcome == 'success' }}
+        run: sleep 10
+
       - name: Download uploaded proof bundle for portability check
         if: ${{ always() && steps.upload_proof.outcome == 'success' }}
         uses: actions/download-artifact@v4
