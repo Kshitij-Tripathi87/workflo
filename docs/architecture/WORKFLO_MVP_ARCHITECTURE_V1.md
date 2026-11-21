@@ -221,7 +221,7 @@ MVP should be a **modular monolith plus an isolated runner/guest**, not a large 
 - **Canonical evidence digest:** ADR-0016 profile, with legacy receipt/evidence verification retained.
 - **Canonical signing:** receipt v5 flow from ADR-0018; signing key remains outside guest and ordinary worker.
 - **Canonical patching:** ADR-0021 exact-byte proposal/approval protocol, but patch apply is not an MVP release dependency.
-- **Cortex Autopilot:** backend/ and frontend/ remain the adjacent data-platform lineage per ADR-0015. Do not put Workflo trust-domain features there.
+- **Autopilot capability:** integrate the existing data-platform capabilities into Workflo as a first-class product domain. Preserve the existing backend/ and frontend/ implementation initially behind Workflo service/API façades; map projects, users, assets, lineage, contracts, and evidence to canonical Workflo identities. Do not create a second identity, policy, audit, or evidence authority. Consolidate incrementally after parity and migration tests.
 - **apps/dashboard:** replace the current Tenant Shield placeholder with Workflo's canonical experience; avoid building a second dashboard under frontend/.
 - **workflo-ai-integration:** migrate the validated model router, artifact registry, schemas, and safety gate into the worker model module before removing the scaffolding.
 
@@ -452,7 +452,7 @@ Do not build a separate chat product. Do not allow a conversation message to bec
 
 ### 11.1 Canonical app
 
-Build on apps/dashboard. It is currently a small Next.js shell and is the cleanest Workflo application boundary. The existing frontend/ application is the Cortex Autopilot data-platform product per ADR-0015; keep it separate. Reuse visual or component ideas only after reviewing their data model and identity.
+Build on apps/dashboard as the canonical Workflo application shell. Bring the existing data-platform experience and workflows into this dashboard incrementally. Initially retain backend/ and frontend/ behind authenticated Workflo service/API façades; share canonical Workflo identity, tenant scope, policy, audit, and evidence. Migrate routes and components only after API and data-model parity tests. Do not maintain two competing user experiences or duplicate security authorities.
 
 ### 11.2 MVP route map
 
@@ -995,7 +995,7 @@ Do not publish targets as achieved until measured. Establish baselines for:
 | packages/db | PostgreSQL migration/RLS reference; align with Python runtime migration owner |
 | packages/contracts | Validated Zod mirror of canonical Pydantic/JSON Schema |
 | packages/events | In-memory development bus; production truth remains DB ledger/outbox |
-| backend/ and frontend/ | Adjacent Cortex Autopilot product; freeze for Workflo trust MVP |
+| backend/ and frontend/ | Existing data-platform implementation to integrate incrementally behind Workflo service/API façades; migrate UI into apps/dashboard after parity tests |
 | apps/agent-cli | Evaluate for overlap with canonical workflo CLI; do not introduce a second default command |
 | action/ | Legacy/archive; use existing CLI in GitHub Actions first |
 
