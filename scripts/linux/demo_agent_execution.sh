@@ -94,6 +94,10 @@ done
   echo "Fixture app missing at $FIXTURE. Run setup_env.sh or pass --fixture <git-repo-with-app.py>." >&2
   exit 2
 }
+git -C "$FIXTURE" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "Fixture must be a Git repository so Workflo can snapshot an exact revision: $FIXTURE" >&2
+  exit 2
+}
 FIXTURE="$(cd "$FIXTURE" && pwd)"
 
 if [[ -z "$OUTPUT_DIR" ]]; then
@@ -159,7 +163,9 @@ run_real_model_planner() {
 
   # Preserve an explicitly selected config directory, otherwise use the
   # current root user's standard Workflo config location.
-  export WORKFLO_CONFIG_DIR="${WORKFLO_CONFIG_DIR:-$HOME/.config/workflo}"
+  local config_dir="${WORKFLO_CONFIG_DIR:-$HOME/.config/workflo}"
+  mkdir -p "$config_dir"
+  export WORKFLO_CONFIG_DIR="$(cd "$config_dir" && pwd)"
   echo "==> model-planner: configured model receives bounded observations and mission"
   "$WORKFLO_BIN" config test-llm >"$case_dir/model-check.log" 2>&1 || {
     cat "$case_dir/model-check.log" >&2
