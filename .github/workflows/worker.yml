@@ -43,13 +43,15 @@ jobs:
           pip install -e ./apps/worker-engine
           # The microVM execution slice (worker/) — depends only on schema.
           pip install -e ./worker
-      - name: Run tests
-        run: |
-          python -m pytest -v apps/worker-engine/tests
-          python -m pytest -q packages/sandbox-runtime/tests/test_gateway_smoke.py
-          # Worker host: protocol, manager, slice, transport, KVM-gated
-          # integration (skips honestly without /dev/kvm + artifacts).
-          python -m pytest -q worker/tests
+      # Separate steps so a failure names the exact suite in the job UI.
+      - name: Test worker-engine
+        run: python -m pytest -v apps/worker-engine/tests
+      - name: Test gateway smoke
+        run: python -m pytest -q packages/sandbox-runtime/tests/test_gateway_smoke.py
+      # Worker host: protocol, manager, slice, transport, KVM-gated
+      # integration (skips honestly without /dev/kvm + artifacts).
+      - name: Test worker host (microVM slice)
+        run: python -m pytest -q worker/tests
 
   docker:
     needs: test
