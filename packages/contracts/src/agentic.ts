@@ -8,7 +8,7 @@ const creatorSchema = z.object({
   organization_id: idSchema
 }).strict();
 
-export const AgentRoleSchema = z.enum([
+export const AgenticRoleSchema = z.enum([
   "mission_supervisor", "ingestor", "executor", "explorer", "test_designer",
   "browser_probe", "security_probe", "judge", "notary"
 ]);
@@ -64,7 +64,7 @@ export const AgentProfileV1Schema = z.object({
   schema_version: z.string().default("1"),
   profile_id: idSchema,
   version: z.string().min(1).max(64),
-  role: AgentRoleSchema,
+  role: AgenticRoleSchema,
   runtime_bundle_digest: digestSchema,
   entrypoint: z.string().min(1).max(512).refine((value) =>
     !value.startsWith("/") &&
@@ -77,7 +77,7 @@ export const AgentProfileV1Schema = z.object({
   input_schema_digest: digestSchema,
   output_schema_digest: digestSchema,
   tool_ids: z.array(idSchema).max(64).default([]),
-  delegatable_roles: z.array(AgentRoleSchema).max(8).default([]),
+  delegatable_roles: z.array(AgenticRoleSchema).max(8).default([]),
   model_profile_id: idSchema.nullable().default(null),
   model_artifact_digests: z.array(digestSchema).max(16).default([]),
   budget: AgentBudgetV1Schema,
@@ -121,7 +121,7 @@ export const AgentToolDefinitionV1Schema = z.object({
   request_schema_digest: digestSchema,
   response_schema_digest: digestSchema,
   effect: AgentToolEffectSchema,
-  allowed_roles: z.array(AgentRoleSchema).min(1).max(8),
+  allowed_roles: z.array(AgenticRoleSchema).min(1).max(8),
   idempotent: z.boolean(),
   requires_approval: z.boolean().default(false)
 }).strict().superRefine((tool, ctx) => {
@@ -198,7 +198,7 @@ export const AgenticMissionV1Schema = z.object({
 export const AgentTaskV1Schema = z.object({
   task_id: idSchema,
   task_type: idSchema,
-  role: AgentRoleSchema,
+  role: AgenticRoleSchema,
   profile: AgentProfileRefV1Schema,
   depends_on: z.array(idSchema).max(64).default([]),
   input_artifact_ids: z.array(idSchema).max(128).default([]),
@@ -404,13 +404,14 @@ export const AgentArtifactRefV1Schema = z.object({
 export function validateAgentPlanAgainstMission(
   mission: z.infer<typeof AgenticMissionV1Schema>,
   plan: z.infer<typeof AgentPlanV1Schema>,
-  registry: z.infer<typeof AgentProfileRegistryV1Schema>
+  registry: z.infer<typeof AgentProfileRegistryV1Schema>,
+  verifiedRegistryDigest: string
 ): void {
   if (registry.organization_id !== mission.organization_id) {
     throw new Error("Profile registry belongs to another organization");
   }
-  if (registry.digest !== undefined) {
-    throw new Error("Registry wire schema does not carry a precomputed digest field");
+  if (verifiedRegistryDigest !== mission.registry_digest || plan.registry_digest !== verifiedRegistryDigest) {
+    throw new Error("Mission, plan, and verified registry digests do not match");
   }
   if (
     plan.mission_id !== mission.mission_id ||
@@ -454,7 +455,7 @@ export function validateAgentPlanAgainstMission(
   }
 }
 
-export type AgentRole = z.infer<typeof AgentRoleSchema>;
+export type AgenticRole = z.infer<typeof AgenticRoleSchema>;
 export type AgentBudgetV1 = z.infer<typeof AgentBudgetV1Schema>;
 export type AgentProfileRefV1 = z.infer<typeof AgentProfileRefV1Schema>;
 export type AgentProfileV1 = z.infer<typeof AgentProfileV1Schema>;
