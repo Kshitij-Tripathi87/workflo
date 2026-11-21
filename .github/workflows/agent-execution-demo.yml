@@ -1,0 +1,128 @@
+name: Agent execution demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Which development demo execution to run
+        type: choice
+        required: true
+        default: quick
+        options:
+          - quick
+          - task-spec
+          - scripted
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-execution-demo-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  demo:
+    name: Run Workflo agent demo (development sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DEMO_MODE: ${{ inputs.mode }}
+      DEMO_OUTPUT_DIR: ${{ runner.temp }}/workflo-agent-execution-demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Validate requested demo mode
+        shell: bash
+        run: |
+          case "$DEMO_MODE" in
+            quick|task-spec|scripted) ;;
+            *)
+              echo "::error::Unsupported demo mode: $DEMO_MODE"
+              exit 2
+              ;;
+          esac
+          bash -n scripts/linux/setup_env.sh
+          bash -n scripts/linux/demo_agent_execution.sh
+          bash scripts/linux/demo_agent_execution.sh --help >/dev/null
+
+      - name: Provision Linux development sandbox
+        id: provision
+        run: sudo bash scripts/linux/setup_env.sh
+
+      - name: Execute demo
+        id: execute
+        if: ${{ steps.provision.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -E env \
+            WORKFLO_REPO_ROOT="$GITHUB_WORKSPACE" \
+            WORKFLO_DEMO_FIXTURE=/root/wf-fixture \
+            bash scripts/linux/demo_agent_execution.sh \
+              --mode "$DEMO_MODE" \
+              --output-dir "$DEMO_OUTPUT_DIR"
+
+      # The demo uses a private, root-owned output directory by design.
+      # Hand ownership to the Actions runner only after execution has stopped.
+      - name: Make demo artifacts readable to the runner
+        if: always()
+        shell: bash
+        run: |
+          if sudo test -d "$DEMO_OUTPUT_DIR"; then
+            sudo chown -R "$(id -u):$(id -g)" "$DEMO_OUTPUT_DIR"
+            sudo chmod -R u+rwX "$DEMO_OUTPUT_DIR"
+          fi
+
+      - name: Assert complete receipts and evidence were produced
+        if: ${{ steps.execute.outcome == 'success' }}
+        shell: bash
+        run: |
+          python3 - "$DEMO_OUTPUT_DIR" "$DEMO_MODE" <<'PY'
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          mode = sys.argv[2]
+          expected = 2 if mode == "quick" else 1
+          receipts = sorted(root.rglob("receipt.json"))
+          if len(receipts) != expected:
+              raise SystemExit(
+                  f"expected {expected} signed receipts for mode={mode}; found {len(receipts)}"
+              )
+
+          for receipt in receipts:
+              run_dir = receipt.parent
+              required = [
+                  run_dir / "receipt-key.pub.pem",
+                  run_dir / "evidence" / "manifest.json",
+                  run_dir / "evidence" / "events.jsonl",
+              ]
+              missing = [str(path.relative_to(root)) for path in required if not path.is_file()]
+              if missing:
+                  raise SystemExit(f"{receipt}: missing evidence files: {missing}")
+
+          summary = pathlib.Path(__import__("os").environ["GITHUB_STEP_SUMMARY"])
+          lines = [
+              "## Workflo agent execution demo",
+              "",
+              f"- Mode: **{mode}**",
+              f"- Signed receipts: **{len(receipts)}**",
+              "- Evidence manifests and event ledgers: present",
+              "- Execution profile: **Linux namespaces + bubblewrap (development/CI only)**",
+              "- Firecracker/KVM Gate B: **not tested by this demo**",
+              "",
+              "The demo driver independently verified each receipt/evidence bundle before reporting success.",
+          ]
+          summary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print(f"Validated {len(receipts)} receipt/evidence bundle(s).")
+          PY
+
+      - name: Upload execution logs, receipts, keys and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflo-agent-execution-demo-${{ github.run_number }}
+          path: ${{ runner.temp }}/workflo-agent-execution-demo/
+          if-no-files-found: warn
+          retention-days: 14
