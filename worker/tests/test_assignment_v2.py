@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from workflo_schema.contracts.agentic import AgentProfileRefV1
-from workflo_worker_host.assignment import SandboxAssignmentV2
+from workflo_worker_host.assignment import AssignmentError, SandboxAssignmentV2
 
 
 def test_v2_assignment_binds_profiles_plan_tools_and_capabilities(make_assignment):
@@ -45,9 +45,9 @@ def test_v2_rejects_duplicate_profiles_and_unbound_model_artifacts(make_assignme
         "tool_registry_digest": "sha256:" + "34" * 32,
         "capability_grant_digest": "sha256:" + "35" * 32,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises(AssignmentError, match="agent profile references must be unique"):
         SandboxAssignmentV2(**base, **common, agent_profiles=(ref, ref))
-    with pytest.raises(ValidationError):
+    with pytest.raises(AssignmentError, match="model artifacts require a pinned model manifest digest"):
         SandboxAssignmentV2(
             **base, **common, agent_profiles=(ref,),
             model_artifact_digests=("sha256:" + "37" * 32,),
