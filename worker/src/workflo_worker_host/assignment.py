@@ -9,11 +9,12 @@ plane and the worker can verify it was not altered in transit.
 from __future__ import annotations
 
 import hmac
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from workflo_schema.contracts.canonical import digest_of
+from workflo_schema.contracts.agentic import AgentProfileRefV1
 from workflo_schema.contracts.common import (
     CanonicalTimestamp,
     DigestString,
@@ -131,3 +132,28 @@ def _plain(value: Any) -> Any:
 def constant_time_equals(left: str, right: str) -> bool:
     """Digest comparison that does not leak timing."""
     return hmac.compare_digest(left.encode("utf-8"), right.encode("utf-8"))
+
+
+
+class SandboxAssignmentV2(SandboxAssignmentV1):
+    """Agentic assignment successor; V1 remains valid for legacy/dev callers."""
+
+    schema_version: Literal["2"] = "2"
+    agent_registry_digest: DigestString
+    agent_profiles: tuple[AgentProfileRefV1, ...] = Field(min_length=1, max_length=16)
+    agent_plan_digest: DigestString
+    tool_registry_digest: DigestString
+    capability_grant_digest: DigestString
+    model_manifest_digest: DigestString | None = None
+    model_artifact_digests: tuple[DigestString, ...] = Field(default=(), max_length=16)
+
+    @model_validator(mode="after")
+    def _agent_bindings_unique_and_consistent(self) -> "SandboxAssignmentV2":
+        profile_keys = [(p.profile_id, p.version) for p in self.agent_profiles]
+        if len(set(profile_keys)) != len(profile_keys):
+            raise AssignmentError("agent profile references must be unique")
+        if len(set(self.model_artifact_digests)) != len(self.model_artifact_digests):
+            raise AssignmentError("model artifact digests must be unique")
+        if self.model_artifact_digests and self.model_manifest_digest is None:
+            raise AssignmentError("model artifacts require a pinned model manifest digest")
+        return self
