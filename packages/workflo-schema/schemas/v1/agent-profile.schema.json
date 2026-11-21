@@ -34,6 +34,7 @@
         "max_log_bytes": {
           "default": 262144,
           "maximum": 104857600,
+          "minimum": 0,
           "title": "Max Log Bytes",
           "type": "integer"
         },
@@ -223,10 +224,10 @@
     },
     "version": {
       "maxLength": 64,
-        "minLength": 1,
-        "title": "Version",
-        "type": "string"
-     }
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
   },
   "required": [
     "profile_id",
