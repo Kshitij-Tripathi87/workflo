@@ -1,0 +1,30 @@
+{
+  "$id": "https://workflo.dev/schemas/v1/AgentProfileRefV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "profile_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Profile Digest",
+      "type": "string"
+    },
+    "profile_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile_id",
+    "version",
+    "profile_digest"
+  ],
+  "title": "AgentProfileRefV1",
+  "type": "object"
+}

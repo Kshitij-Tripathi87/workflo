@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "AgentActionKind": {
+      "enum": [
+        "proposed",
+        "validated",
+        "denied",
+        "executed",
+        "observed"
+      ],
+      "title": "AgentActionKind",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/AgentActionEventV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/AgentActionKind"
+    },
+    "agent_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Agent Id",
+      "type": "string"
+    },
+    "attempt_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "denial_code": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Denial Code"
+    },
+    "event_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "output_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Digest"
+    },
+    "profile_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Profile Digest",
+      "type": "string"
+    },
+    "project_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "request_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Digest"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sandbox_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Sandbox Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence_number": {
+      "minimum": 1,
+      "title": "Sequence Number",
+      "type": "integer"
+    },
+    "summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "task_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tool_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool Id"
+    }
+  },
+  "required": [
+    "event_id",
+    "organization_id",
+    "project_id",
+    "run_id",
+    "attempt_id",
+    "sandbox_id",
+    "task_id",
+    "agent_id",
+    "profile_digest",
+    "sequence_number",
+    "action",
+    "summary",
+    "occurred_at"
+  ],
+  "title": "AgentActionEventV1",
+  "type": "object"
+}

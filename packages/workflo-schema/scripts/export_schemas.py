@@ -22,6 +22,17 @@ from pathlib import Path
 from pydantic import BaseModel, TypeAdapter
 
 from workflo_schema.contracts import (
+    AgentActionEventV1,
+    AgentArtifactRefV1,
+    AgentCapabilityGrantV1,
+    AgentExecutionRecordV1,
+    AgentPlanV1,
+    AgentProfileRefV1,
+    AgentProfileRegistryV1,
+    AgentProfileV1,
+    AgenticMissionV1,
+    AgentTaskV1,
+    AgentToolDefinitionV1,
     DsseEnvelopeV1,
     ExecutionPolicyBundleV1,
     EvidenceArtifactV1,
@@ -41,6 +52,17 @@ REPO_SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas" / "v1"
 
 #: name -> contract; names are stable file names, do not rename casually.
 EXPORTED: dict[str, type[BaseModel] | type[LifecycleState]] = {
+    "agent-profile": AgentProfileV1,
+    "agent-profile-ref": AgentProfileRefV1,
+    "agent-tool-definition": AgentToolDefinitionV1,
+    "agent-profile-registry": AgentProfileRegistryV1,
+    "agentic-mission": AgenticMissionV1,
+    "agent-task": AgentTaskV1,
+    "agent-plan": AgentPlanV1,
+    "agent-capability-grant": AgentCapabilityGrantV1,
+    "agent-action-event": AgentActionEventV1,
+    "agent-execution-record": AgentExecutionRecordV1,
+    "agent-artifact-ref": AgentArtifactRefV1,
     "lifecycle-state": LifecycleState,
     "run-spec": RunSpecV1,
     "run-outcome": RunOutcomeV1,
