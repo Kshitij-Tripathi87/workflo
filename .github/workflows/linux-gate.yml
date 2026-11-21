@@ -66,6 +66,7 @@ jobs:
       # sandbox_isolation, probe_engine, ...) that scripts/linux/setup_env.sh
       # installs into /opt/workflo/venv - it is not self-contained.
       - name: Agent-layer unit suites (mock gate)
+        id: agent_unit
         run: |
           /opt/workflo/venv/bin/python -m pytest \
             packages/sandbox-runtime/tests \
@@ -77,6 +78,7 @@ jobs:
       # Exit status alone cannot tell "476 tests verified isolation logic" from
       # "the suite collected nothing and skipped the rest".
       - name: Assert the unit suite actually executed
+        id: unit_assert
         if: always()
         run: |
           python3 - <<'PY'
@@ -103,6 +105,20 @@ jobs:
               sys.exit(f"::error::only {executed} unit tests executed (expected >= {MIN_EXECUTED})")
           print(f"[ok] {executed} unit tests executed")
           PY
+
+      # Exercise the same one-command demo entrypoint the team uses locally.
+      # Run it before the longer integration matrix so execution regressions
+      # surface early. Preserve canonical receipt roots for artifact collection.
+      - name: Agent execution demos through the operator entrypoint
+        if: ${{ always() && steps.provision.outcome == 'success' && steps.agent_unit.outcome == 'success' && steps.unit_assert.outcome == 'success' }}
+        shell: bash
+        run: |
+          sudo -E env \
+            WORKFLO_AGENT_GOLDEN_DIR=/root/wf-agent-golden \
+            WORKFLO_PLANNER_GOLDEN_DIR=/root/wf-planner-golden \
+            bash scripts/linux/demo_agent_execution.sh \
+              --mode quick \
+              --output-dir "$GITHUB_WORKSPACE/artifacts/golden-runs/demo-entrypoint"
 
       # JUSTIFIED: Root required for real namespace/cgroup/landlock testing.
       - name: Linux integration gate (root, real namespaces)
@@ -213,20 +229,6 @@ jobs:
       - name: Namespaces golden run (tests tier)
         if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/golden_run.sh
-
-      # JUSTIFIED: Root required for deep-tier app + governed agent isolation.
-      # Exercise the same one-command demo entrypoint the team uses locally.
-      # Preserve the three canonical receipt roots for the artifact collector.
-      - name: Agent execution demos through the operator entrypoint
-        if: ${{ always() && steps.provision.outcome == 'success' }}
-        shell: bash
-        run: |
-          sudo -E env \
-            WORKFLO_AGENT_GOLDEN_DIR=/root/wf-agent-golden \
-            WORKFLO_PLANNER_GOLDEN_DIR=/root/wf-planner-golden \
-            bash scripts/linux/demo_agent_execution.sh \
-              --mode quick \
-              --output-dir "$GITHUB_WORKSPACE/artifacts/golden-runs/demo-entrypoint"
 
       # Separate development v5 gate; the three legacy golden bundles and
       # their independent verifier below are intentionally unchanged.
