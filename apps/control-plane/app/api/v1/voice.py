@@ -513,6 +513,10 @@ async def resolve_voice_command(
             detail="Commit must be a full 40- or 64-character hexadecimal SHA.",
         )
 
+    # Explicit UI selections are a baseline, not a reason to discard profiles
+    # requested in the spoken/typed instruction. Merge both sources and keep
+    # deterministic ordering so the preview exactly reflects the user's intent.
+    groups: list[str] = []
     if body.probe_groups is not None:
         unknown = sorted(set(body.probe_groups) - _ALLOWED_PROFILES)
         if not body.probe_groups or unknown:
@@ -520,20 +524,18 @@ async def resolve_voice_command(
                 status_code=422,
                 detail=f"Invalid QA profile selection: {unknown or 'empty profile list'}.",
             )
-        groups = list(dict.fromkeys(body.probe_groups))
-    else:
-        groups: list[str] = []
-        if "security" in lowered:
-            groups.append("security")
-        if "aggressive" in lowered:
-            groups.append("aggressive-test")
-        elif "deep" in lowered:
-            groups.append("deep-test")
-        if re.search(r"\b(browser|web|playwright)\b", lowered):
-            groups.append("web")
-        if not set(groups) & _FUNCTIONAL_PROFILES:
-            groups.insert(0, "test")
+        groups.extend(body.probe_groups)
 
+    if "security" in lowered:
+        groups.append("security")
+    if "aggressive" in lowered:
+        groups.append("aggressive-test")
+    elif "deep" in lowered:
+        groups.append("deep-test")
+    if re.search(r"\b(browser|web|playwright)\b", lowered):
+        groups.append("web")
+
+    groups = list(dict.fromkeys(groups))
     if not set(groups) & _FUNCTIONAL_PROFILES:
         groups.insert(0, "test")
 
