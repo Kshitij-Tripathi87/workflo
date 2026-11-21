@@ -4,14 +4,24 @@ import { Nav } from "../components/Nav";
 import { Footer } from "../components/Footer";
 
 export const metadata: Metadata = {
-  title: "Cortex Autopilot — CI/CD Impact Gate for Data Platforms",
+  title: {
+    default: "Workflo — Autonomous QA with evidence",
+    template: "%s — Workflo",
+  },
   description:
-    "Know what breaks before you deploy. Cortex Autopilot is a CI/CD Impact Gate for dbt and Snowflake teams — block risky data changes before they reach production.",
+    "Run repository-native tests, probe application behavior, and produce evidence-backed QA reports with controlled, local-first execution.",
+  applicationName: "Workflo",
   openGraph: {
-    title: "Cortex Autopilot",
+    title: "Workflo — Autonomous QA with evidence",
     description:
-      "Know what breaks before you deploy. A CI/CD Impact Gate for data platforms.",
+      "Repository-native QA, governed exploration, and evidence you can inspect.",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Workflo — Autonomous QA with evidence",
+    description:
+      "Repository-native QA, governed exploration, and evidence you can inspect.",
   },
 };
 

@@ -1,175 +1,75 @@
 import Link from "next/link";
 
-export default function PricingPage() {
-  const tiers = [
-    {
-      name: "Free",
-      price: "$0",
-      cadence: "forever",
-      description: "Open-source, self-hosted. Everything you need to gate your first PR.",
-      features: [
-        "Unlimited repos (self-hosted)",
-        "dbt + Snowflake + DataHub connectors",
-        "GitHub Action + PR comments",
-        "Slack notifications",
-        "Community support",
-      ],
-      cta: "Install locally",
-      href: "https://docs.cortex.dev/install",
-      highlighted: false,
-    },
-    {
-      name: "Team",
-      price: "$999",
-      cadence: "per repo / month",
-      description: "Hosted Cortex with policy library, audit log, and team analytics.",
-      features: [
-        "Hosted Cortex (no infra to run)",
-        "Policy library (saved + shareable)",
-        "Audit log with 90-day retention",
-        "Per-team analytics dashboard",
-        "Slack + PagerDuty + Teams alerts",
-        "Priority email support",
-      ],
-      cta: "Start 30-day trial",
-      href: "mailto:hello@cortex.dev?subject=team%20trial",
-      highlighted: true,
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      cadence: "starts at $25k / year",
-      description: "SSO, custom connectors, on-prem, and a named CSM.",
-      features: [
-        "SAML SSO + SCIM provisioning",
-        "Custom connector development",
-        "On-prem or VPC deployment",
-        "Custom retention + data residency",
-        "Named Customer Success Manager",
-        "99.9% SLA + 24/7 incident support",
-      ],
-      cta: "Talk to sales",
-      href: "mailto:hello@cortex.dev?subject=enterprise",
-      highlighted: false,
-    },
-  ];
-
+export default function AvailabilityPage() {
   return (
-    <div className="container" style={{ paddingTop: 64, paddingBottom: 64 }}>
-      <h1 style={{ textAlign: "center", marginBottom: 16 }}>Pricing</h1>
-      <p
-        style={{
-          textAlign: "center",
-          fontSize: 18,
-          color: "var(--text-dim)",
-          maxWidth: 600,
-          margin: "0 auto 48px",
-        }}
-      >
-        Start free, self-host everything. Upgrade when you want hosted Cortex
-        with team analytics. Enterprise for SSO and on-prem.
-  </p>
+    <div className="product-page">
+      <section className="subpage-hero subpage-hero--compact">
+        <div className="site-shell">
+          <p className="eyebrow">AVAILABILITY / DEPLOYMENT</p>
+          <h1>Built around customer-controlled execution.</h1>
+          <p>
+            Workflo’s initial deployment direction is local-first. The
+            supported platform matrix, packaging requirements, commercial
+            model, and release guarantees must be established against the
+            verified runtime—not guessed through a generic SaaS pricing table.
+          </p>
+        </div>
+      </section>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 24,
-        }}
-      >
-        {tiers.map((tier) => (
-          <div
-            key={tier.name}
-            className="card"
-            style={{
-              borderColor: tier.highlighted
-                ? "var(--accent)"
-                : "var(--border)",
-              boxShadow: tier.highlighted
-                ? "0 0 32px rgba(59, 130, 246, 0.18)"
-                : "none",
-              position: "relative",
-            }}
+      <section className="product-section section-pad">
+        <div className="site-shell availability-grid">
+          <article className="availability-card">
+            <span className="eyebrow">INITIAL DIRECTION</span>
+            <h2>Customer-run</h2>
+            <p>
+              The intended first deployment keeps the application runtime,
+              execution environment, and model inference under the customer’s
+              control.
+            </p>
+            <ul>
+              <li>Local project and repository workflows</li>
+              <li>Locally operated inference path</li>
+              <li>Explicit runtime and network policy</li>
+              <li>Inspectable reports and receipt provenance</li>
+            </ul>
+          </article>
+          <article className="availability-card availability-card--quiet">
+            <span className="eyebrow">NOT PUBLISHED YET</span>
+            <h2>Commercial plans</h2>
+            <p>
+              Pricing, quotas, service levels, and hosted deployment options
+              will be published only after the supported release profiles and
+              operating costs have been validated.
+            </p>
+            <p>
+              No subscription tier or service guarantee is implied by this
+              page.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="closing-section section-pad">
+        <div className="site-shell closing-panel">
+          <p className="eyebrow">CURRENT SOURCE OF TRUTH</p>
+          <h2>Follow the product as it is built.</h2>
+          <p>
+            Check the repository for the current implementation, installation
+            instructions, and verified capabilities.
+          </p>
+          <a
+            className="button button--light"
+            href="https://github.com/Kshitij-Tripathi87/workflo"
+            target="_blank"
+            rel="noreferrer"
           >
-            {tier.highlighted && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: -12,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  background: "var(--gradient)",
-                  padding: "4px 12px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                Most popular
-              </div>
-            )}
-            <h2 style={{ marginTop: 0 }}>{tier.name}</h2>
-            <div
-              style={{
-                fontSize: 36,
-                fontWeight: 700,
-                margin: "8px 0",
-              }}
-            >
-              {tier.price}
-            </div>
-            <div style={{ color: "var(--text-muted)", marginBottom: 16 }}>
-              {tier.cadence}
-            </div>
-            <p style={{ color: "var(--text-dim)" }}>{tier.description}</p>
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: "16px 0",
-                color: "var(--text-dim)",
-                fontSize: 14,
-              }}
-            >
-              {tier.features.map((f) => (
-                <li
-                  key={f}
-                  style={{
-                    padding: "6px 0",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  ✓ {f}
-              </li>
-              ))}
-         </ul>
-            <a
-              href={tier.href}
-              className={tier.highlighted ? "btn btn-primary" : "btn btn-secondary"}
-              style={{
-                display: "block",
-                textAlign: "center",
-                marginTop: 16,
-              }}
-            >
-              {tier.cta}
+            Open the Workflo repository <span aria-hidden="true">↗</span>
           </a>
-       </div>
-        ))}
-   </div>
-
-      <div
-        style={{
-          textAlign: "center",
-          marginTop: 64,
-          color: "var(--text-muted)",
-          fontSize: 14,
-        }}
-      >
-        All plans include the core engine, all current connectors, and the
-        GitHub Action. No per-seat fees.{" "}
-        <Link href="/product">See what's included →</Link>
-  </div>
- </div>
+          <Link className="text-link closing-panel__secondary-link" href="/">
+            Back to Workflo <span aria-hidden="true">↗</span>
+          </Link>
+        </div>
+      </section>
+    </div>
   );
 }
