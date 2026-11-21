@@ -102,7 +102,7 @@ workflo config test-llm
 
 echo "==> workflo run --deep-test (LLM planner mode)"
 set +e
-workflo run --path /root/wf-fixture --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
+workflo run --path "${WORKFLO_PLANNER_FIXTURE:-/root/wf-fixture}" --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
   >run.stdout 2>run.stderr
 RUN_EXIT=$?
 set -e
