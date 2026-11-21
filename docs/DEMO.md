@@ -110,7 +110,9 @@ The task-spec demo's default agent task performs these checks:
 - Reads the app log and lists repository files through governed tools.
 - Attempts an out-of-policy HTTP request; the ToolGateway must deny and record it.
 
-The scripted-planner mode exercises the plan/observe/plan loop using a local scripted OpenAI-compatible endpoint. This proves the planner protocol and governed execution wiring, **not** the reasoning quality of a real language model.
+The scripted planner also probes the fixture's known-bad `/checkout` route twice. The expected signed QA finding is `GET /checkout fails (HTTP 500)`, with distinct evidence references and healthy sibling routes as controls.
+
+The default fixture includes an intentional, stable defect: `GET /checkout` returns HTTP 500 while the root and health routes remain healthy. The scripted-planner mode exercises the plan/observe/plan loop using a local scripted OpenAI-compatible endpoint: it checks the healthy controls, probes checkout twice, and attempts an out-of-policy egress request. The deterministic Judge must confirm the repeated checkout failure against the healthy controls; the demo then verifies the signed receipt. This proves the planner protocol, governed execution, and deterministic finding path, **not** the reasoning quality of a real language model.
 
 The model mode uses the configured direct endpoint or Workflo inference gateway. The mission is bounded and secret-redacted. The planner receives bounded runtime observations; the source snapshot stays within the sandbox. The sandboxed ToolGateway remains the only path that can execute tools.
 
