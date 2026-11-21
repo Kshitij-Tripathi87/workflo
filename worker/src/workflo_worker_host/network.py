@@ -26,6 +26,8 @@ __all__ = [
     "EgressPolicyError",
     "validate_policy",
     "build_nftables_ruleset",
+    "apply_nftables",
+    "remove_nftables",
 ]
 
 # Destinations that may never be reached from a guest, regardless of the
@@ -164,3 +166,64 @@ def apply_ruleset_or_block(
             reason=f"ruleset application failed: {type(exc).__name__}: {exc}",
         )
     return EgressVerdict(enforced=True, reason="applied")
+
+
+# -- Real nftables appliers (Linux host only; injected by the slice runner) ---
+
+
+def _table_name(sandbox_id: str) -> str:
+    return f"workflo_{sandbox_id}"
+
+
+def apply_nftables(ruleset: str, *, runner=None) -> None:
+    """Apply a ruleset with the real `nft` binary.
+
+    Raises on any failure so ``apply_ruleset_or_block`` fail-closes the run.
+    ``runner`` is injectable for tests (and skips the PATH probe); production
+    uses subprocess.run and requires ``nft`` to be present.
+    """
+    import shutil
+    import subprocess
+
+    run = runner or subprocess.run
+    if runner is None and shutil.which("nft") is None:
+        raise EgressPolicyError("nft binary not found on PATH")
+    proc = run(
+        ["nft", "-f", "-"],
+        input=ruleset,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise EgressPolicyError(
+            f"nft -f failed (rc={proc.returncode}): {(proc.stderr or '').strip()[:300]}"
+        )
+
+
+def remove_nftables(sandbox_id: str, *, runner=None) -> None:
+    """Delete the per-run table if present. Absence is success (idempotent).
+
+    Used by destroy_sandbox: teardown must remove the egress table, and a
+    failure here fails the NETNS teardown probe (fail closed). ``runner``
+    injectable for tests (skips the PATH probe); production needs ``nft``.
+    """
+    import shutil
+    import subprocess
+
+    run = runner or subprocess.run
+    if runner is None and shutil.which("nft") is None:
+        raise EgressPolicyError("nft binary not found on PATH")
+    table = _table_name(sandbox_id)
+    proc = run(
+        ["nft", "delete", "table", "inet", table],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        # Deleting a table that no longer exists is already-clean.
+        if "No such file" in stderr or "does not exist" in stderr:
+            return
+        raise EgressPolicyError(
+            f"nft delete table {table} failed (rc={proc.returncode}): {stderr[:300]}"
+        )

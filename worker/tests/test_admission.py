@@ -65,3 +65,45 @@ def test_unhealthy_host_blocks(make_assignment, make_pinned, make_capabilities):
     caps = make_capabilities(healthy=False)
     blockers = check_eligibility(caps, make_assignment(), make_pinned())
     assert any("health check failed" in b for b in blockers)
+
+
+def test_kvm_probe_device_branch_never_raises(monkeypatch):
+    """Regression: _kvm_available() called PosixPath.is_device() — no such
+    pathlib API — and crashed with AttributeError on ANY host where
+    /dev/kvm exists (e.g. CI runners). The device branch must return an
+    honest verdict instead of raising."""
+    from pathlib import Path
+
+    from workflo_worker_host.admission import _kvm_available
+
+    # Force the device-exists branch; stat still fails (device absent in
+    # this environment) -> is_char_device() must degrade to False.
+    monkeypatch.setattr(Path, "exists", lambda self: True)
+    ok, reason = _kvm_available()
+    assert ok is False
+    assert isinstance(reason, str) and reason
+
+
+def test_kvm_probe_absent_device_is_honest():
+    from pathlib import Path
+
+    from workflo_worker_host.admission import _kvm_available
+
+    if Path("/dev/kvm").exists():
+        import os
+
+        ok, reason = _kvm_available()
+        assert ok in (True, False)
+        assert (reason is None) is ok
+    else:
+        ok, reason = _kvm_available()
+        assert ok is False
+        assert "does not exist" in reason
+
+
+def test_full_probe_never_raises():
+    from workflo_worker_host.admission import probe_capabilities
+
+    caps = probe_capabilities()
+    assert caps.kvm_available in (True, False)
+    assert (caps.kvm_unavailable_reason is None) is caps.kvm_available

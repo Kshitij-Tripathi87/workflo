@@ -87,7 +87,10 @@ def _kvm_available() -> tuple:
     kvm = Path("/dev/kvm")
     if not kvm.exists():
         return False, "/dev/kvm does not exist"
-    if not kvm.is_device():
+    # NOTE (defect fix): pathlib has no PosixPath.is_device() — the API is
+    # is_char_device(); the old name raised AttributeError on any host
+    # where /dev/kvm exists (caught only once CI ran worker tests).
+    if not kvm.is_char_device():
         return False, "/dev/kvm is not a character device"
     import os
 

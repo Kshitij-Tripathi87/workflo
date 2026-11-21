@@ -115,3 +115,81 @@ def test_metadata_is_in_the_always_blocked_set():
     assert any(
         addr.version == net.version and addr in net for net in ALWAYS_BLOCKED
     )
+
+
+# -- nftables applier/remover with an injected runner (no nft needed) ------
+
+
+def _fake_proc(returncode=0, stderr=""):
+    class Proc:
+        pass
+
+    proc = Proc()
+    proc.returncode = returncode
+    proc.stderr = stderr
+    proc.stdout = ""
+    return proc
+
+
+def test_apply_nftables_feeds_ruleset_to_nft():
+    from workflo_worker_host.network import apply_nftables
+
+    captured = {}
+
+    def runner(argv, *, input=None, capture_output=False, text=False):
+        captured["argv"] = argv
+        captured["input"] = input
+        return _fake_proc()
+
+    ruleset = build_nftables_ruleset("sbx-1", _deny())
+    apply_nftables(ruleset, runner=runner)
+    assert captured["argv"] == ["nft", "-f", "-"]
+    assert captured["input"] == ruleset
+
+
+def test_apply_nftables_failure_raises():
+    from workflo_worker_host.network import EgressPolicyError, apply_nftables
+
+    def runner(argv, **kwargs):
+        return _fake_proc(returncode=1, stderr="Error: invalid ruleset")
+
+    with pytest.raises(EgressPolicyError, match="invalid ruleset"):
+        apply_nftables("table inet x {}", runner=runner)
+
+
+def test_remove_nftables_targets_per_sandbox_table():
+    from workflo_worker_host.network import remove_nftables
+
+    captured = {}
+
+    def runner(argv, **kwargs):
+        captured["argv"] = argv
+        return _fake_proc()
+
+    remove_nftables("sbx-1", runner=runner)
+    assert captured["argv"] == ["nft", "delete", "table", "inet", "workflo_sbx-1"]
+
+
+def test_remove_nftables_tolerates_absent_table():
+    from workflo_worker_host.network import remove_nftables
+
+    def runner(argv, **kwargs):
+        return _fake_proc(returncode=1, stderr="Error: No such file or directory")
+
+    remove_nftables("sbx-1", runner=runner)  # already-clean is success
+
+
+def test_remove_nftables_real_failure_raises():
+    from workflo_worker_host.network import EgressPolicyError, remove_nftables
+
+    def runner(argv, **kwargs):
+        return _fake_proc(returncode=1, stderr="Error: operation not permitted")
+
+    with pytest.raises(EgressPolicyError, match="operation not permitted"):
+        remove_nftables("sbx-1", runner=runner)
+
+
+def test_table_name_is_sandbox_scoped():
+    from workflo_worker_host.network import _table_name
+
+    assert _table_name("sbx-abc123") == "workflo_sbx-abc123"

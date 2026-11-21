@@ -89,7 +89,14 @@ class BindingError(ProtocolError):
 
 
 class GuestMessageType(str, Enum):
-    """The frozen message registry (brief §3.4). Anything else is rejected."""
+    """The frozen message registry (brief §3.4). Anything else is rejected.
+
+    One addition since the original freeze (ADR-0022's typed host API):
+    ``RUN_CAPABILITY_DELIVERED`` is the host→guest vehicle for
+    ``DeliverRunCapability`` — the capability must reach the guest before it
+    can announce readiness, and the wire registry is where "typed and
+    narrow" is enforced.
+    """
 
     GUEST_READY = "guest_ready"
     LIFECYCLE_HEARTBEAT = "lifecycle_heartbeat"
@@ -98,6 +105,7 @@ class GuestMessageType(str, Enum):
     RUN_CANCELLATION_RECEIVED = "run_cancellation_received"
     SHUTDOWN_REQUESTED = "shutdown_requested"
     GUEST_FAILURE_REPORTED = "guest_failure_reported"
+    RUN_CAPABILITY_DELIVERED = "run_capability_delivered"
 
 
 class GuestMessageV1(BaseModel):
