@@ -12,7 +12,7 @@ rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
 
 echo "==> workflo run --path fixture --deep-test (app + governed agent)"
 set +e
-workflo run --path /root/wf-fixture --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
+workflo run --path "${WORKFLO_AGENT_FIXTURE:-/root/wf-fixture}" --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
   >run.stdout 2>run.stderr
 RUN_EXIT=$?
 set -e
