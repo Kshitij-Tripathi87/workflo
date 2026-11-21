@@ -53,6 +53,9 @@ __all__ = [
     "FirecrackerClient",
     "build_vm_config",
     "build_jailer_argv",
+    "build_run_capability",
+    "vsock_uds_path",
+    "default_teardown_probes",
     "SandboxManager",
     "ProvisionError",
     "TeardownProbeSet",
@@ -82,6 +85,16 @@ class SandboxHandle:
     shutdown_requested_at: str | None = None
     shutdown_deadline: str | None = None
     host_evidence: list = field(default_factory=list)
+    # -- slice additions (capability delivery + verified teardown) ----------
+    vsock_path: str | None = None
+    capability_id: str | None = None
+    capability_digest: str | None = None
+    capability_expires_at: str | None = None
+    host_out_sequence: int = 0
+    network_applied: bool = False
+    network_removal: str | None = None
+    session: GuestProtocolSession | None = field(default=None, repr=False)
+    last_teardown: TeardownVerificationV1 | None = field(default=None, repr=False)
 
 
 class FirecrackerClient(Protocol):
@@ -105,10 +118,17 @@ def build_vm_config(
 ) -> dict:
     """The Firecracker VM config — every value from the assignment."""
     limits = assignment.resource_limits
+    # The guest can only verify a capability if it knows its own identity:
+    # boot args carry the attempt/sandbox binding so the in-guest entrypoint
+    # can cross-check the host-delivered capability (identity first, §3.1).
+    identity_args = (
+        f" workflo.attempt_id={assignment.attempt_id}"
+        f" workflo.sandbox_id={assignment.sandbox_id}"
+    )
     return {
         "boot-source": {
             "kernel_image_path": assignment.guest_image.kernel_path,
-            "boot_args": kernel_boot_args,
+            "boot_args": f"{kernel_boot_args}{identity_args}",
         },
         "drives": [
             {
@@ -144,7 +164,12 @@ def build_jailer_argv(
     gid: int,
     chroot_base: str = "/srv/jailer",
 ) -> list:
-    """The pinned jailer argv (brief §3: VMM under jailer, never bare)."""
+    """The pinned jailer argv (brief §3: VMM under jailer, never bare).
+
+    NOTE (defect fix): the jailer's flag is ``--chroot-base-dir`` per
+    docs/jailer.md — the previous ``--chroot-base`` would make a real jailer
+    reject the invocation at argument parsing.
+    """
     exec_file = pinned.firecracker_path
     return [
         pinned.jailer_path,
@@ -152,9 +177,55 @@ def build_jailer_argv(
         "--exec-file", exec_file,
         "--uid", str(uid),
         "--gid", str(gid),
-        "--chroot-base", chroot_base,
+        "--chroot-base-dir", chroot_base,
         "--", "--config-file", config_path,
     ]
+
+
+def vsock_uds_path(vsock_dir: str, sandbox_id: str) -> str:
+    """The vsock UDS path inside the guest's (chroot) namespace.
+
+    Shared by the manager (vm_config) and the slice runner (host listener
+    path) so the two can never drift apart.
+    """
+    return f"{vsock_dir}/{sandbox_id}.sock"
+
+
+def build_run_capability(
+    assignment: SandboxAssignmentV1,
+    *,
+    now_ms: str | None = None,
+    ttl_seconds: int | None = None,
+):
+    """Build the one-time, attempt-bound run capability for a slice.
+
+    The capability is delivered over the guest transport before readiness;
+    its lifetime is the assignment's wall clock (fail-closed: the guest
+    cannot keep authority past the run's own deadline).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from workflo_schema.contracts.common import format_utc_ms
+
+    from workflo_worker_host.guest_supervisor import GuestCapabilityV1
+
+    issued_at = now_ms or utc_now_ms()
+    ttl = ttl_seconds if ttl_seconds is not None else (
+        assignment.resource_limits.wall_clock_seconds
+    )
+    issued_dt = datetime.strptime(issued_at, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+        tzinfo=timezone.utc
+    )
+    expires_at = format_utc_ms(issued_dt + timedelta(seconds=ttl))
+    return GuestCapabilityV1(
+        capability_id=f"cap-{assignment.sandbox_id}",
+        attempt_id=assignment.attempt_id,
+        sandbox_id=assignment.sandbox_id,
+        policy_digest=assignment.policy_digest,
+        allowed_operations=tuple(op.value for op in assignment.capabilities),
+        issued_at=issued_at,
+        expires_at=expires_at,
+    )
 
 
 def _derive_guest_cid(sandbox_id: str) -> int:
@@ -212,7 +283,20 @@ class TeardownProbeSet:
 
 
 def default_teardown_probes() -> dict:
-    """Probes implementable from the manager's own state + client seam."""
+    """All eight canonical probes, from the manager's own state + client seam.
+
+    The four host-side checks (cgroups / netns / sockets / capabilities)
+    are REAL filesystem + handle-state checks: this runtime never creates a
+    sandbox cgroup or netns (jailer runs without ``--cgroup``/``--netns``),
+    so verifying their absence at the managed paths IS the honest check —
+    and a per-sandbox nftables table that was applied but never removed
+    fails the netns check (the network teardown half of that check id).
+    """
+    from workflo_worker_host.vsock_channel import (
+        VSOCK_SUPERVISOR_PORT,
+        guest_initiated_listen_path,
+    )
+
     def vmm_exited(handle: SandboxHandle, client: FirecrackerClient):
         return (not client.is_running(handle.sandbox_id)), None
 
@@ -228,11 +312,94 @@ def default_teardown_probes() -> dict:
         # an empty scope is implied by vmm_exited plus the client seam.
         return (not client.is_running(handle.sandbox_id)), "tracked scope is the VMM only"
 
+    def cgroups_removed(handle: SandboxHandle, client: FirecrackerClient):
+        from pathlib import Path
+
+        if not Path("/sys/fs/cgroup").exists():
+            return False, "cgroup filesystem not mounted; cannot verify cgroup absence"
+        managed = (
+            f"/sys/fs/cgroup/workflo/{handle.sandbox_id}",
+            f"/sys/fs/cgroup/firecracker/{handle.sandbox_id}",
+        )
+        present = [p for p in managed if Path(p).exists()]
+        if present:
+            return False, f"sandbox cgroup still present: {', '.join(present)}"
+        return True, "no sandbox cgroup at managed paths (runtime creates none)"
+
+    def netns_removed(handle: SandboxHandle, client: FirecrackerClient):
+        from pathlib import Path
+
+        netns_paths = (
+            f"/var/run/netns/{handle.sandbox_id}",
+            f"/run/netns/{handle.sandbox_id}",
+        )
+        present = [p for p in netns_paths if Path(p).exists()]
+        if present:
+            return False, f"network namespace still present: {', '.join(present)}"
+        if handle.network_applied:
+            if handle.network_removal == "removed":
+                return True, "no netns; per-sandbox nftables table removed"
+            return False, (
+                f"no netns, but egress table teardown is unproven: "
+                f"{handle.network_removal or 'never attempted'}"
+            )
+        return True, "no netns and no per-sandbox egress table was applied"
+
+    def sockets_closed(handle: SandboxHandle, client: FirecrackerClient):
+        from pathlib import Path
+
+        if handle.vsock_path is None:
+            return False, "no vsock path was recorded for this sandbox"
+        host_view = getattr(client, "host_view_path", None)
+
+        def _host(p: str) -> str:
+            return host_view(handle.sandbox_id, p) if host_view else p
+
+        # Two sockets must be gone: firecracker's own host-initiated
+        # listener at uds_path, and the host-side guest-initiated listener
+        # at uds_path_<PORT> (both resolved through the client's chroot
+        # view when the VMM is jailed).
+        candidates = [
+            _host(handle.vsock_path),
+            _host(
+                guest_initiated_listen_path(
+                    handle.vsock_path, VSOCK_SUPERVISOR_PORT
+                )
+            ),
+        ]
+        present = [p for p in dict.fromkeys(candidates) if Path(p).exists()]
+        if present:
+            return False, f"vsock socket still present: {', '.join(present)}"
+        return True, None
+
+    def capabilities_expired(handle: SandboxHandle, client: FirecrackerClient):
+        if handle.capability_id is None:
+            return False, "no run capability was recorded for this sandbox"
+        from workflo_schema.contracts.common import utc_now_ms
+
+        now = utc_now_ms()
+        vm_running = client.is_running(handle.sandbox_id)
+        if now > handle.capability_expires_at:
+            return True, f"capability {handle.capability_id} expired at {handle.capability_expires_at}"
+        if vm_running:
+            return False, (
+                f"capability {handle.capability_id} still live "
+                f"(expires {handle.capability_expires_at}) and the VMM is running"
+            )
+        return True, (
+            f"capability {handle.capability_id} unusable: VMM terminated "
+            f"(expires {handle.capability_expires_at})"
+        )
+
     return {
         TeardownCheckId.VMM_EXITED: vmm_exited,
         TeardownCheckId.VM_STOPPED: vmm_exited,
         TeardownCheckId.DISK_DESTROYED: disk_destroyed,
         TeardownCheckId.PROCESS_SCOPE_EMPTY: process_scope_empty,
+        TeardownCheckId.CGROUPS_REMOVED: cgroups_removed,
+        TeardownCheckId.NETNS_REMOVED: netns_removed,
+        TeardownCheckId.SOCKETS_CLOSED: sockets_closed,
+        TeardownCheckId.CAPABILITIES_EXPIRED: capabilities_expired,
     }
 
 
@@ -251,7 +418,10 @@ class SandboxManager:
         scratch_dir: str = "/var/lib/workflo/scratch",
         vsock_dir: str = "/run/workflo/vsock",
         apply_network: Callable | None = None,
+        remove_network: Callable | None = None,
         receive_guest_message: Callable | None = None,
+        send_guest_message: Callable | None = None,
+        close_guest_transport: Callable | None = None,
         create_scratch_disk: Callable | None = None,
         uid: int = 0,
         gid: int = 0,
@@ -269,11 +439,18 @@ class SandboxManager:
         self._scratch_dir = scratch_dir
         self._vsock_dir = vsock_dir
         self._apply_network = apply_network
+        self._remove_network = remove_network
         self._receive_guest_message = receive_guest_message
+        self._send_guest_message = send_guest_message
+        self._close_guest_transport = close_guest_transport
         self._uid = uid
         self._gid = gid
         self._create_scratch_disk = create_scratch_disk or _create_scratch_disk
         self._sandboxes: dict = {}
+
+    def sandbox_handle(self, sandbox_id: str) -> SandboxHandle | None:
+        """Look up a handle (including for sandboxes that failed provisioning)."""
+        return self._sandboxes.get(sandbox_id)
 
     # -- ProvisionSandbox -------------------------------------------------
 
@@ -304,6 +481,24 @@ class SandboxManager:
             raise ProvisionError(
                 f"egress policy could not be enforced: {verdict.reason}"
             )
+        # Only claim enforcement when a REAL applier was wired; the noop
+        # (tests / no-network deployments) applied nothing, and the netns
+        # teardown probe must not be asked to remove a table that never
+        # existed.
+        network_applied = self._apply_network is not None and verdict.enforced
+
+        # A VM with no capability-delivery / readiness transport would be a
+        # black box: refuse before allocating anything (fail closed).
+        if self._send_guest_message is None:
+            raise ProvisionError(
+                "no guest transport configured; refusing to provision without "
+                "a capability delivery path"
+            )
+        if self._receive_guest_message is None:
+            raise ProvisionError(
+                "no guest transport configured; refusing to provision without "
+                "a readiness verification path"
+            )
 
         scratch_path = f"{self._scratch_dir}/{sandbox_id}.img"
         from pathlib import Path as _Path
@@ -317,7 +512,7 @@ class SandboxManager:
             ) from exc
 
         guest_cid = _derive_guest_cid(sandbox_id)
-        vsock_path = f"{self._vsock_dir}/{sandbox_id}.sock"
+        vsock_path = vsock_uds_path(self._vsock_dir, sandbox_id)
         vm_config = build_vm_config(
             assignment,
             scratch_disk_path=scratch_path,
@@ -328,6 +523,27 @@ class SandboxManager:
             self._client.start(sandbox_id, vm_config, [])
         except Exception as exc:  # noqa: BLE001 — boot failure is terminal for this attempt
             self._remove_scratch(sandbox_id, scratch_path)
+            if network_applied:
+                # The table went up before boot; boot failure must not leak it.
+                removal_error: str | None = None
+                if self._remove_network is not None:
+                    try:
+                        self._remove_network(sandbox_id)
+                    except Exception as net_exc:  # noqa: BLE001
+                        removal_error = (
+                            f"egress table removal also failed: "
+                            f"{type(net_exc).__name__}: {net_exc}"
+                        )
+                else:
+                    removal_error = (
+                        "egress table was applied but no removal transport "
+                        "is configured"
+                    )
+                if removal_error:
+                    raise ProvisionError(
+                        f"VMM failed to start: {type(exc).__name__}: {exc}; "
+                        f"{removal_error}"
+                    ) from exc
             raise ProvisionError(
                 f"VMM failed to start: {type(exc).__name__}: {exc}"
             ) from exc
@@ -341,19 +557,83 @@ class SandboxManager:
             guest_cid=guest_cid,
             vcpu_count=assignment.resource_limits.vcpus,
             memory_size_mib=assignment.resource_limits.memory_mib,
+            vsock_path=vsock_path,
+            network_applied=network_applied,
+            session=GuestProtocolSession(
+                attempt_id=assignment.attempt_id, sandbox_id=sandbox_id
+            ),
         )
         self._sandboxes[sandbox_id] = handle
 
         # The VM must prove its identity before any project work starts
-        # (brief §3.1: "Verify guest boot and supervisor identity").
+        # (brief §3.1: "Verify guest supervisor identity"): the run
+        # capability is delivered first — the guest cannot announce ready
+        # without it — then readiness is verified on the same transport.
         try:
+            capability = build_run_capability(assignment)
+            self.deliver_run_capability(handle, capability)
             self._await_guest_ready(handle, assignment)
         except Exception:
-            self.force_terminate(handle)
-            self.verify_resources_removed(handle)
+            self.destroy_sandbox(handle)
             raise
         handle.state = SandboxState.READY
         return handle
+
+    def deliver_run_capability(
+        self, handle: SandboxHandle, capability
+    ) -> str:
+        """DeliverRunCapability (ADR-0022 §3.3): send the attempt-bound run
+        capability to the guest over the host→guest transport.
+
+        Fails closed: no send seam, wrong binding, or a transport error
+        aborts provisioning (the guest gets no authority it cannot prove).
+        Returns the capability digest for host evidence.
+        """
+        if self._send_guest_message is None:
+            raise ProvisionError("no guest transport configured for capability delivery")
+        if (
+            capability.attempt_id != handle.attempt_id
+            or capability.sandbox_id != handle.sandbox_id
+        ):
+            raise ProvisionError(
+                "run capability does not bind this sandbox/attempt "
+                f"({capability.attempt_id}/{capability.sandbox_id} vs "
+                f"{handle.attempt_id}/{handle.sandbox_id})"
+            )
+        handle.host_out_sequence += 1
+        frame = frame_message(
+            build_guest_message(
+                message_id=f"host-capability-{handle.host_out_sequence}",
+                attempt_id=handle.attempt_id,
+                sandbox_id=handle.sandbox_id,
+                sequence_number=handle.host_out_sequence,
+                message_type=GuestMessageType.RUN_CAPABILITY_DELIVERED,
+                sent_at=utc_now_ms(),
+                payload={
+                    "capability": capability.model_dump(mode="json"),
+                    "capability_digest": capability.digest(),
+                },
+            )
+        )
+        try:
+            self._send_guest_message(frame)
+        except Exception as exc:  # noqa: BLE001 — transport failure aborts provision
+            raise ProvisionError(
+                f"capability delivery failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        handle.capability_id = capability.capability_id
+        handle.capability_digest = capability.digest()
+        handle.capability_expires_at = capability.expires_at
+        handle.host_evidence.append(
+            {
+                "event": "capability_delivered",
+                "capability_id": capability.capability_id,
+                "capability_digest": handle.capability_digest,
+                "expires_at": capability.expires_at,
+                "observed_at": utc_now_ms(),
+            }
+        )
+        return handle.capability_digest
 
     def _await_guest_ready(
         self, handle: SandboxHandle, assignment: SandboxAssignmentV1
@@ -365,9 +645,13 @@ class SandboxManager:
                 "no guest transport configured; refusing to mark the VM ready "
                 "without verified supervisor identity"
             )
-        session = GuestProtocolSession(
+        # The handle owns the session so the SAME strictly-ordered session
+        # continues after ready (heartbeats, evidence manifests) — a fresh
+        # session per phase would reject legitimate sequence numbers.
+        session = handle.session or GuestProtocolSession(
             attempt_id=assignment.attempt_id, sandbox_id=assignment.sandbox_id
         )
+        handle.session = session
         deadline = time.monotonic() + self._guest_ready_timeout
         while True:
             remaining = deadline - time.monotonic()
@@ -396,6 +680,22 @@ class SandboxManager:
                 "not guest_ready"
             )
 
+    def receive_guest_frame(self, handle: SandboxHandle, timeout: float):
+        """Receive ONE post-ready guest frame on the handle's session.
+
+        Used by the slice runner for heartbeats / evidence manifests.
+        Returns the parsed GuestMessageV1, or None on timeout. Protocol
+        violations (replay, gap, wrong binding) raise — fail closed.
+        """
+        if self._receive_guest_message is None:
+            raise ProvisionError("no guest transport configured")
+        if handle.session is None:
+            raise ProvisionError("sandbox has no protocol session")
+        frame = self._receive_guest_message(timeout=timeout)
+        if frame is None:
+            return None
+        return handle.session.receive(frame)
+
     # -- Status / shutdown / terminate ------------------------------------
 
     def get_sandbox_status(self, handle: SandboxHandle) -> dict:
@@ -408,16 +708,66 @@ class SandboxManager:
         }
 
     def request_graceful_shutdown(self, handle: SandboxHandle, deadline_seconds: int = 30) -> dict:
-        """Request (not prove) a graceful stop; the deadline is enforced."""
+        """Request (not prove) a graceful stop; the deadline is enforced.
+
+        Sends SHUTDOWN_REQUESTED over the host→guest transport (defect fix:
+        the request previously only recorded timestamps — the guest never
+        learned). A transport failure is recorded and re-raised: an
+        unnotified guest must be force-terminated at the deadline, never
+        assumed to have stopped.
+        """
         handle.shutdown_requested_at = utc_now_ms()
         from datetime import datetime, timedelta, timezone
 
         deadline_dt = datetime.now(timezone.utc) + timedelta(seconds=deadline_seconds)
         handle.shutdown_deadline = deadline_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        return {
+        result = {
             "requested_at": handle.shutdown_requested_at,
             "deadline": handle.shutdown_deadline,
+            "guest_notified": False,
         }
+        if self._send_guest_message is None:
+            handle.host_evidence.append(
+                {
+                    "event": "shutdown_not_sent",
+                    "detail": "no guest transport configured",
+                    "observed_at": utc_now_ms(),
+                }
+            )
+            return result
+        handle.host_out_sequence += 1
+        frame = frame_message(
+            build_guest_message(
+                message_id=f"host-shutdown-{handle.host_out_sequence}",
+                attempt_id=handle.attempt_id,
+                sandbox_id=handle.sandbox_id,
+                sequence_number=handle.host_out_sequence,
+                message_type=GuestMessageType.SHUTDOWN_REQUESTED,
+                sent_at=utc_now_ms(),
+                payload={"deadline": handle.shutdown_deadline},
+            )
+        )
+        try:
+            self._send_guest_message(frame)
+        except Exception as exc:  # noqa: BLE001 — recorded, then fail the caller
+            handle.host_evidence.append(
+                {
+                    "event": "shutdown_send_failed",
+                    "detail": f"{type(exc).__name__}: {exc}",
+                    "observed_at": utc_now_ms(),
+                }
+            )
+            raise
+        result["guest_notified"] = True
+        handle.host_evidence.append(
+            {
+                "event": "shutdown_requested_sent",
+                "message_id": f"host-shutdown-{handle.host_out_sequence}",
+                "deadline": handle.shutdown_deadline,
+                "observed_at": utc_now_ms(),
+            }
+        )
+        return result
 
     def force_terminate(self, handle: SandboxHandle) -> None:
         self._client.stop(handle.sandbox_id)
@@ -458,7 +808,7 @@ class SandboxManager:
             outcome = TrustVerificationStatus.VERIFICATION_FAILED
         else:
             outcome = TrustVerificationStatus.UNKNOWN
-        return TeardownVerificationV1(
+        verification = TeardownVerificationV1(
             verification_id=f"tdv-{uuid.uuid4().hex[:12]}",
             outcome=outcome,
             verifier=ProducerIdentityV1(
@@ -469,11 +819,39 @@ class SandboxManager:
             checks=tuple(checks),
             observed_at=utc_now_ms(),
         )
+        # Persist on the handle so a slice report can surface teardown
+        # trust even when the caller that triggered verification failed.
+        handle.last_teardown = verification
+        return verification
 
     def destroy_sandbox(self, handle: SandboxHandle) -> TeardownVerificationV1:
         """Terminate, remove managed resources, then verify independently."""
         self._client.stop(handle.sandbox_id)
         handle.state = SandboxState.TERMINATED
+        # Close the host transport BEFORE verification: the listen socket
+        # file is sandbox-scoped state, and the sockets probe must observe
+        # it gone (the runner owns the channel; we own the ordering).
+        if self._close_guest_transport is not None:
+            try:
+                self._close_guest_transport()
+            except Exception:  # noqa: BLE001 — close is best effort; probe decides
+                pass
         if handle.scratch_disk_path:
             self._remove_scratch(handle.sandbox_id, handle.scratch_disk_path)
+        # Egress teardown: the table that gated the run must go with the run.
+        if handle.network_applied:
+            if self._remove_network is None:
+                handle.network_removal = (
+                    "applied but no removal transport configured"
+                )
+            else:
+                try:
+                    self._remove_network(handle.sandbox_id)
+                    handle.network_removal = "removed"
+                except Exception as exc:  # noqa: BLE001 — probe fails closed
+                    handle.network_removal = (
+                        f"removal failed: {type(exc).__name__}: {exc}"
+                    )
+        else:
+            handle.network_removal = "not applied"
         return self.verify_resources_removed(handle)

@@ -76,6 +76,7 @@ def _manager(
     probes=None,
     apply_network=None,
     receive=None,
+    send=None,
     tmp_path=None,
     guest_ready_timeout=5,
 ):
@@ -86,7 +87,13 @@ def _manager(
         # only need the path to exist so cleanup checks are honest.
         _Path(path).write_bytes(b"")
 
-    return SandboxManager(
+    sent_frames: list = []
+
+    def default_send(frame: bytes) -> None:
+        # Capability/shutdown delivery seam: record the frame, never fail.
+        sent_frames.append(frame)
+
+    manager = SandboxManager(
         client=client,
         pinned=make_pinned(),
         capabilities=make_capabilities(),
@@ -97,10 +104,14 @@ def _manager(
         vsock_dir=str(tmp_path / "vsock") if tmp_path else "/tmp/wf-vsock",
         apply_network=apply_network,
         receive_guest_message=receive or _guest_ready_frames(assignment),
+        send_guest_message=send or default_send,
         create_scratch_disk=fake_create_scratch,
         uid=1000,
         gid=1000,
     )
+    # Exposed so tests can assert on delivered capability/shutdown frames.
+    manager._sent_frames = sent_frames  # type: ignore[attr-defined]
+    return manager
 
 
 def test_signed_assignment_required_in_production(
@@ -218,6 +229,11 @@ def test_jailer_argv_uses_pinned_paths(make_pinned):
     assert argv[0] == "/usr/local/bin/jailer"
     assert "--exec-file" in argv and "/usr/local/bin/firecracker" in argv
     assert "--uid" in argv and "--gid" in argv
+    # Defect pin: the jailer's real flag is --chroot-base-dir (docs/jailer.md);
+    # the old --chroot-base would be rejected at the jailer's arg parsing.
+    assert "--chroot-base-dir" in argv
+    assert "--chroot-base" not in argv
+    assert argv[argv.index("--chroot-base-dir") + 1] == "/srv/jailer"
     assert argv[-2:] == ["--config-file", "/run/cfg.json"]
 
 
@@ -324,3 +340,194 @@ def test_no_probes_at_all_is_unknown_not_clean(
     handle = manager.provision_sandbox(assignment)
     verification = manager.destroy_sandbox(handle)
     assert verification.outcome is TrustVerificationStatus.UNKNOWN
+
+
+def test_capability_is_delivered_before_ready(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """Provision must deliver a digest-bound capability frame first."""
+    from workflo_schema.contracts.canonical import digest_matches
+
+    from workflo_worker_host.guest_supervisor import GuestCapabilityV1
+    from workflo_worker_host.protocol import parse_frame
+
+    client = FakeFirecrackerClient()
+    assignment = make_assignment()
+    manager = _manager(
+        client, assignment, make_pinned=make_pinned,
+        make_capabilities=make_capabilities, tmp_path=tmp_path,
+    )
+    handle = manager.provision_sandbox(assignment)
+
+    sent = manager._sent_frames
+    assert len(sent) == 1, "exactly one host->guest frame before ready"
+    message = parse_frame(sent[0])
+    assert message.message_type is GuestMessageType.RUN_CAPABILITY_DELIVERED
+    # Sequence starts at 1 for the first host frame.
+    assert message.sequence_number == 1
+    capability = GuestCapabilityV1.model_validate(message.payload["capability"])
+    assert capability.attempt_id == assignment.attempt_id
+    assert capability.sandbox_id == assignment.sandbox_id
+    assert capability.allowed_operations == tuple(
+        op.value for op in assignment.capabilities
+    )
+    # The envelope digest must re-derive from the capability payload.
+    assert digest_matches(
+        message.payload["capability_digest"],
+        message.payload["capability"],
+    )
+    # Recorded on the handle for teardown probes + evidence.
+    assert handle.capability_id == capability.capability_id
+    assert handle.capability_digest == capability.digest()
+    assert handle.capability_expires_at == capability.expires_at
+    events = manager.collect_host_lifecycle_evidence(handle)
+    assert any(e.get("event") == "capability_delivered" for e in events)
+
+
+def test_provision_refuses_without_send_seam(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """No capability-delivery transport means no VM (fail closed)."""
+    from pathlib import Path as _Path
+
+    client = FakeFirecrackerClient()
+    manager = SandboxManager(
+        client=client,
+        pinned=make_pinned(),
+        capabilities=make_capabilities(),
+        require_signed_assignment=False,
+        scratch_dir=str(tmp_path / "scratch"),
+        vsock_dir=str(tmp_path / "vsock"),
+        receive_guest_message=lambda timeout=1.0: None,
+        # send_guest_message intentionally omitted
+        create_scratch_disk=lambda path, mib: _Path(path).write_bytes(b""),
+    )
+    with pytest.raises(ProvisionError, match="capability delivery path"):
+        manager.provision_sandbox(make_assignment())
+    assert client.started == [], "VMM must not start without a transport"
+
+
+def test_boot_args_carry_identity_binding(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """The guest must be able to verify WHICH attempt it is (boot args)."""
+    client = FakeFirecrackerClient()
+    assignment = make_assignment()
+    manager = _manager(
+        client, assignment, make_pinned=make_pinned,
+        make_capabilities=make_capabilities, tmp_path=tmp_path,
+    )
+    manager.provision_sandbox(assignment)
+    vm_config = client.started[0][1]
+    boot_args = vm_config["boot-source"]["boot_args"]
+    assert f"workflo.attempt_id={assignment.attempt_id}" in boot_args
+    assert f"workflo.sandbox_id={assignment.sandbox_id}" in boot_args
+
+
+def test_destroy_removes_applied_network_table(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """A table applied at provision must be removed at destroy — recorded
+    on the handle so the netns probe can verify it (defect: seam absent)."""
+    from workflo_schema.contracts.receipt import TeardownCheckId
+
+    client = FakeFirecrackerClient()
+    assignment = make_assignment()
+    applied: list = []
+    removed: list = []
+    manager = _manager(
+        client, assignment, make_pinned=make_pinned,
+        make_capabilities=make_capabilities,
+        apply_network=lambda ruleset: applied.append(ruleset),
+        tmp_path=tmp_path,
+    )
+    # Inject the removal seam post-construction (helper predates it).
+    manager._remove_network = lambda sandbox_id: removed.append(sandbox_id)
+    handle = manager.provision_sandbox(assignment)
+    assert applied, "egress policy must be applied at provision"
+    assert handle.network_applied is True
+
+    verification = manager.destroy_sandbox(handle)
+    assert removed == [assignment.sandbox_id]
+    assert handle.network_removal == "removed"
+    netns = next(
+        c for c in verification.checks
+        if c.check_id == TeardownCheckId.NETNS_REMOVED
+    )
+    assert netns.passed is True
+
+
+def test_destroy_fails_closed_when_removal_seam_missing(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """Applied-but-unremovable network state must NOT verify clean."""
+    client = FakeFirecrackerClient()
+    assignment = make_assignment()
+    manager = _manager(
+        client, assignment, make_pinned=make_pinned,
+        make_capabilities=make_capabilities,
+        apply_network=lambda ruleset: None,
+        tmp_path=tmp_path,
+    )
+    # No remove_network seam wired.
+    handle = manager.provision_sandbox(assignment)
+    assert handle.network_applied is True
+    verification = manager.destroy_sandbox(handle)
+    from workflo_schema.contracts.outcomes import TrustVerificationStatus
+
+    assert verification.outcome is TrustVerificationStatus.VERIFICATION_FAILED
+    assert handle.network_removal == "applied but no removal transport configured"
+
+
+def test_graceful_shutdown_sends_frame_to_guest(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """Defect pin: the shutdown request must REACH the guest as a frame."""
+    from workflo_worker_host.protocol import parse_frame
+
+    client = FakeFirecrackerClient()
+    assignment = make_assignment()
+    manager = _manager(
+        client, assignment, make_pinned=make_pinned,
+        make_capabilities=make_capabilities, tmp_path=tmp_path,
+    )
+    handle = manager.provision_sandbox(assignment)
+    sent_before = len(manager._sent_frames)
+    result = manager.request_graceful_shutdown(handle, deadline_seconds=30)
+
+    assert len(manager._sent_frames) == sent_before + 1
+    message = parse_frame(manager._sent_frames[-1])
+    assert message.message_type is GuestMessageType.SHUTDOWN_REQUESTED
+    assert message.sequence_number == 2  # capability was 1
+    assert message.payload["deadline"] == result["deadline"]
+    assert result["guest_notified"] is True
+    events = manager.collect_host_lifecycle_evidence(handle)
+    assert any(e.get("event") == "shutdown_requested_sent" for e in events)
+
+
+def test_shutdown_send_failure_is_recorded_and_raised(
+    make_assignment, make_pinned, make_capabilities, tmp_path
+):
+    """A transport failure on shutdown must not be silently swallowed."""
+    client = FakeFirecrackerClient()
+    assignment = make_assignment()
+
+    calls = {"n": 0}
+
+    def flaky_send(frame):
+        # Capability delivery (frame 1) succeeds; the transport then
+        # breaks, so the shutdown request (frame 2) fails.
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise OSError("vsock pipe broken")
+
+    manager = _manager(
+        client, assignment, make_pinned=make_pinned,
+        make_capabilities=make_capabilities, send=flaky_send,
+        tmp_path=tmp_path,
+    )
+    handle = manager.provision_sandbox(assignment)
+    with pytest.raises(OSError, match="pipe broken"):
+        manager.request_graceful_shutdown(handle, deadline_seconds=30)
+    events = manager.collect_host_lifecycle_evidence(handle)
+    assert any(e.get("event") == "shutdown_send_failed" for e in events)

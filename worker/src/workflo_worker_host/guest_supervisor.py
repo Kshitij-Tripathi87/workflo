@@ -191,8 +191,16 @@ class GuestSupervisor:
         self.state = SupervisorState.FAILED
         return message
 
-    def build_evidence_manifest(self, artifacts: list) -> dict:
-        """A bounded manifest of digests — never raw source or prompts."""
+    def build_evidence_manifest(
+        self, artifacts: list, *, workload_result: dict | None = None
+    ) -> dict:
+        """A bounded manifest of digests — never raw source or prompts.
+
+        ``workload_result`` (when provided) is the fixed workload's summary:
+        check names, pass/fail flags, and tiny facts — still metadata-only,
+        and it is what lets the host derive an honest QA verdict instead of
+        trusting an unverifiable digest.
+        """
         manifest = {
             "schema_version": SCHEMA_VERSION,
             "attempt_id": self._capability.attempt_id,
@@ -202,13 +210,21 @@ class GuestSupervisor:
             "artifacts": artifacts,
             "built_at": utc_now_ms(),
         }
+        if workload_result is not None:
+            manifest["workload_result"] = workload_result
         entry = {
             "manifest": manifest,
             "manifest_digest": digest_of(manifest),
         }
         self.evidence_manifests.append(entry)
+        # The manifest itself travels with the digest: a digest over content
+        # the host never sees proves nothing. digest_matches() re-derives it
+        # host-side before any verdict is taken from it.
         self._emit(
             GuestMessageType.EVIDENCE_MANIFEST_SUBMITTED,
-            {"manifest_digest": entry["manifest_digest"]},
+            {
+                "manifest_digest": entry["manifest_digest"],
+                "manifest": manifest,
+            },
         )
         return entry

@@ -58,6 +58,37 @@ from workflo_worker_host.guest_supervisor import (
     GuestSupervisor,
     SupervisorState,
 )
+from workflo_worker_host.network import apply_nftables, remove_nftables
+from workflo_worker_host.vsock_channel import (
+    HOST_CID,
+    VSOCK_SUPERVISOR_PORT,
+    ChannelError,
+    HostVsockChannel,
+    guest_initiated_listen_path,
+)
+from workflo_worker_host.workload import (
+    FIXED_WORKLOAD_ID,
+    PINNED_MARKER_SHA256,
+    run_fixed_workload,
+)
+from workflo_worker_host.guest_runtime import (
+    parse_boot_identity,
+    run_guest_slice,
+)
+from workflo_worker_host.slice import (
+    SliceExecutionStatus,
+    SliceQaStatus,
+    SliceReport,
+    run_slice,
+)
+from workflo_worker_host.firecracker_client import (
+    JailerFirecrackerClient,
+    VmmError,
+)
+from workflo_worker_host.manager import (
+    build_run_capability,
+    vsock_uds_path,
+)
 
 __all__ = [
     # assignment
@@ -107,4 +138,30 @@ __all__ = [
     "GuestIdentityError",
     "GuestSupervisor",
     "SupervisorState",
+    # network appliers
+    "apply_nftables",
+    "remove_nftables",
+    # vsock transport
+    "HOST_CID",
+    "VSOCK_SUPERVISOR_PORT",
+    "ChannelError",
+    "HostVsockChannel",
+    "guest_initiated_listen_path",
+    # fixed workload + guest runtime
+    "FIXED_WORKLOAD_ID",
+    "PINNED_MARKER_SHA256",
+    "run_fixed_workload",
+    "parse_boot_identity",
+    "run_guest_slice",
+    # slice runner
+    "SliceExecutionStatus",
+    "SliceQaStatus",
+    "SliceReport",
+    "run_slice",
+    # real VMM client
+    "JailerFirecrackerClient",
+    "VmmError",
+    # capability + path helpers
+    "build_run_capability",
+    "vsock_uds_path",
 ]
