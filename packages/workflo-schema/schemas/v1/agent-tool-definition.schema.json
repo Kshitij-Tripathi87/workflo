@@ -29,6 +29,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentToolDefinitionV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Versioned typed tool registry entry; implementation remains guest-side.",
   "properties": {
     "allowed_roles": {
       "items": {

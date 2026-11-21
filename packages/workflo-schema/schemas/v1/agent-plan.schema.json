@@ -2,6 +2,7 @@
   "$defs": {
     "AgentBudgetV1": {
       "additionalProperties": false,
+      "description": "Hard ceilings for one agent or task; units are explicit integers.",
       "properties": {
         "max_cpu_ms": {
           "default": 60000,
@@ -86,6 +87,7 @@
     },
     "AgentProfileRefV1": {
       "additionalProperties": false,
+      "description": "Immutable reference to one exact profile version and its content digest.",
       "properties": {
         "profile_digest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
@@ -129,6 +131,7 @@
     },
     "AgentTaskV1": {
       "additionalProperties": false,
+      "description": "One planned role invocation with explicit dependencies and budgets.",
       "properties": {
         "allowed_tool_ids": {
           "default": [],
@@ -207,6 +210,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentPlanV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Validated task DAG for one admitted attempt.",
   "properties": {
     "attempt_id": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",

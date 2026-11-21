@@ -2,6 +2,7 @@
   "$defs": {
     "AgentBudgetV1": {
       "additionalProperties": false,
+      "description": "Hard ceilings for one agent or task; units are explicit integers.",
       "properties": {
         "max_cpu_ms": {
           "default": 60000,
@@ -94,6 +95,7 @@
     },
     "AgentFilesystemGrantV1": {
       "additionalProperties": false,
+      "description": "Named workspace scope; deliberately no arbitrary host path field.",
       "properties": {
         "access": {
           "$ref": "#/$defs/AgentFilesystemAccess"
@@ -123,6 +125,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentCapabilityGrantV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Short-lived, attempt-bound capability grant; no ambient authority.",
   "properties": {
     "agent_id": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",

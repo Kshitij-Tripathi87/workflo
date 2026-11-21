@@ -2,6 +2,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentProfileRefV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Immutable reference to one exact profile version and its content digest.",
   "properties": {
     "profile_digest": {
       "pattern": "^sha256:[0-9a-f]{64}$",

@@ -15,6 +15,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentActionEventV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Public action/observation record; intentionally contains no chain-of-thought.",
   "properties": {
     "action": {
       "$ref": "#/$defs/AgentActionKind"

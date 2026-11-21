@@ -16,6 +16,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentArtifactRefV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Metadata-only reference to immutable bytes stored by the evidence service.",
   "properties": {
     "artifact_id": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",

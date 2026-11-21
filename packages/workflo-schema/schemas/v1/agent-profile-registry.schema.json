@@ -2,6 +2,7 @@
   "$defs": {
     "AgentBudgetV1": {
       "additionalProperties": false,
+      "description": "Hard ceilings for one agent or task; units are explicit integers.",
       "properties": {
         "max_cpu_ms": {
           "default": 60000,
@@ -86,6 +87,7 @@
     },
     "AgentProfileV1": {
       "additionalProperties": false,
+      "description": "Approved runtime profile; profile content is immutable once registered.",
       "properties": {
         "budget": {
           "$ref": "#/$defs/AgentBudgetV1"
@@ -144,7 +146,7 @@
         "output_schema_digest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
           "title": "Output Schema Digest",
-            "type": "string"
+          "type": "string"
         },
         "profile_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
@@ -224,6 +226,7 @@
     },
     "AgentToolDefinitionV1": {
       "additionalProperties": false,
+      "description": "Versioned typed tool registry entry; implementation remains guest-side.",
       "properties": {
         "allowed_roles": {
           "items": {
@@ -296,7 +299,7 @@
         "organization_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "title": "Organization Id",
-            "type": "string"
+          "type": "string"
         },
         "user_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
@@ -315,6 +318,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentProfileRegistryV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Tenant-scoped registry snapshot; its digest is bound into admission.",
   "properties": {
     "created_at": {
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
@@ -382,9 +386,9 @@
     },
     "version": {
       "maxLength": 64,
-        "minLength": 1,
-        "title": "Version",
-        "type": "string"
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
     }
   },
   "required": [

@@ -2,6 +2,7 @@
   "$defs": {
     "AgentBudgetV1": {
       "additionalProperties": false,
+      "description": "Hard ceilings for one agent or task; units are explicit integers.",
       "properties": {
         "max_cpu_ms": {
           "default": 60000,
@@ -124,6 +125,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgentProfileV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Approved runtime profile; profile content is immutable once registered.",
   "properties": {
     "budget": {
       "$ref": "#/$defs/AgentBudgetV1"

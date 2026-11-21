@@ -2,6 +2,7 @@
   "$defs": {
     "AgentBudgetV1": {
       "additionalProperties": false,
+      "description": "Hard ceilings for one agent or task; units are explicit integers.",
       "properties": {
         "max_cpu_ms": {
           "default": 60000,
@@ -86,6 +87,7 @@
     },
     "AgentProfileRefV1": {
       "additionalProperties": false,
+      "description": "Immutable reference to one exact profile version and its content digest.",
       "properties": {
         "profile_digest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
@@ -137,6 +139,7 @@
   "$id": "https://workflo.dev/schemas/v1/AgenticMissionV1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "User-authorized mission pinned to one run, source revision, policy, registry.",
   "properties": {
     "budget": {
       "$ref": "#/$defs/AgentBudgetV1"
@@ -153,7 +156,7 @@
       "maxLength": 128,
       "minLength": 8,
       "title": "Idempotency Key",
-        "type": "string"
+      "type": "string"
     },
     "mission_id": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
