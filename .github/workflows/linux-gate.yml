@@ -36,6 +36,7 @@ jobs:
             scripts/linux/golden_run.sh \
             scripts/linux/agent_golden_run.sh \
             scripts/linux/planner_golden_run.sh \
+            scripts/linux/demo_agent_execution.sh \
             scripts/linux/integration_change_demo.sh \
             packages/sandbox-runtime/tests/integration \
           ; do
@@ -45,6 +46,12 @@ jobs:
             fi
           done
           echo "All prerequisites present."
+
+      - name: Validate agent demo shell syntax
+        run: |
+          bash -n scripts/linux/demo_agent_execution.sh
+          bash -n scripts/linux/agent_golden_run.sh
+          bash -n scripts/linux/planner_golden_run.sh
 
       # Installs bubblewrap/nftables/dnsmasq, builds the runtime image at
       # /opt/workflo/workflo-worker, installs all workflo packages into
