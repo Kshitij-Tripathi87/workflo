@@ -15,7 +15,7 @@ export PATH="/opt/workflo/venv/bin:$PATH"
 
 if [ "$(id -u)" -ne 0 ]; then echo "must run as root" >&2; exit 1; fi
 
-WORK=/root/wf-planner-golden
+WORK="${WORKFLO_PLANNER_GOLDEN_DIR:-/root/wf-planner-golden}"
 rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
 
 # --- Fake OpenAI-compatible LLM server (scripted planner) ---
