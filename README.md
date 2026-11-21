@@ -59,3 +59,14 @@ runtime meets the production isolation boundary.
 ## License
 
 See [LICENSE](LICENSE).
+
+
+## Voice QA workspace
+
+The dashboard includes a text-and-voice command workspace for starting governed QA runs. The first voice path is turn-based: browser microphone recording → selected speech-to-text provider → editable transcript → typed QA request preview → explicit user confirmation → existing run API → run status and receipt → selected text-to-speech provider.
+
+Supported speech providers are Sarvam, Fish Audio and ElevenLabs. Speech recognition and speech output are independently selectable. Provider API keys must remain server-side; project-specific keys are stored encrypted using the existing organization key-encryption mechanism.
+
+See [Voice Agent Setup](docs/voice-agent/VOICE_AGENT_SETUP.md) for provider configuration, local setup, API endpoints, and the distinction between REST speech routing and vendor Web SDK agent sessions.
+
+The initial resolver supports bounded QA-run commands and requires an HTTPS repository URL, a full commit SHA and registered QA profiles. It returns a preview and does not submit anything until the user clicks **Start QA run**. This first turn-based voice workflow does not claim that the full multi-agent Supervisor or realtime streaming SDK path is complete.

@@ -1,16 +1,12 @@
-import type { Metadata } from 'next';
-import './globals.css';
+import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'Tenant Shield',
-  description: 'Multi-tenant isolation testing platform with SOC 2 evidence reporting.',
+  title: "Workflo | Voice QA Workspace",
+  description: "Voice and text interface for governed software quality workflows.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="antialiased">{children}</body>
