@@ -110,15 +110,36 @@ jobs:
       # Run it before the longer integration matrix so execution regressions
       # surface early. Preserve canonical receipt roots for artifact collection.
       - name: Agent execution demos through the operator entrypoint
+        id: agent_demo
         if: ${{ always() && steps.provision.outcome == 'success' && steps.agent_unit.outcome == 'success' && steps.unit_assert.outcome == 'success' }}
         shell: bash
         run: |
+          set +e
           sudo -E env \
             WORKFLO_AGENT_GOLDEN_DIR=/root/wf-agent-golden \
             WORKFLO_PLANNER_GOLDEN_DIR=/root/wf-planner-golden \
             bash scripts/linux/demo_agent_execution.sh \
               --mode quick \
-              --output-dir "$GITHUB_WORKSPACE/artifacts/golden-runs/demo-entrypoint"
+              --output-dir "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"
+          demo_status=$?
+          set -e
+
+          # The demo runs as root, but Actions artifact collection runs as
+          # the runner user. Hand ownership of the diagnostics bundle back.
+          if sudo test -d "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"; then
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"
+            sudo chmod -R u+rwX "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"
+          fi
+          exit "$demo_status"
+
+      - name: Upload agent execution demo diagnostics
+        if: ${{ always() && steps.agent_demo.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflo-agent-execution-demo
+          path: ${{ runner.temp }}/workflo-agentic-demo-entrypoint/
+          if-no-files-found: warn
+          retention-days: 7
 
       # JUSTIFIED: Root required for real namespace/cgroup/landlock testing.
       - name: Linux integration gate (root, real namespaces)
