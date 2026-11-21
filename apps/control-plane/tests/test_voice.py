@@ -178,3 +178,23 @@ def test_project_voice_key_storage_fails_closed_without_a_kek(client, monkeypatc
     )
     assert response.status_code == 503
     assert "MASTER_KEK_HEX" in response.json()["detail"]
+
+
+def test_voice_command_merges_spoken_profiles_with_ui_selection(client):
+    headers = create_key(client, ["run_tests"])
+    response = client.post(
+        "/v1/voice/resolve",
+        headers=headers,
+        json={
+            "command": "Run QA including security and browser checks",
+            "repo_url": "https://github.com/acme/service.git",
+            "commit_sha": "e" * 40,
+            "probe_groups": ["test"],
+            "start_command": "npm run start",
+            "port": 3000,
+        },
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["status"] == "ready"
+    assert data["run_request"]["probe_groups"] == ["test", "security", "web"]
