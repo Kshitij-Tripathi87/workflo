@@ -117,3 +117,26 @@ def make_capabilities():
 @pytest.fixture
 def allow_destination():
     return _allow_destination
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Emit GitHub Actions error annotations for failures.
+
+    CI log downloads are not always reachable from review tooling; the
+    PR annotations API is. Under GITHUB_ACTIONS, each failed test prints
+    a ``::error`` workflow command with the traceback tail so the exact
+    failure is visible on the PR without fetching logs.
+    """
+    import os
+
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    failed = terminalreporter.stats.get("failed") or []
+    for report in failed[:10]:  # annotation budget per step
+        nodeid = getattr(report, "nodeid", "unknown test")
+        longrepr = str(getattr(report, "longrepr", "") or "")
+        tail = "\n".join(longrepr.splitlines()[-40:])
+        # Workflow commands are single-line; %0A encodes newlines.
+        message = f"{nodeid}%0A{tail}".replace("\r", "")
+        message = message[:6000]
+        print(f"::error title=pytest failure::{message}", flush=True)
