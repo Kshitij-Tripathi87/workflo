@@ -131,11 +131,42 @@ import sys
 document = json.load(open(sys.argv[1], encoding="utf-8"))
 receipt = document.get("receipt", document)
 findings = receipt.get("run_report", {}).get("findings", [])
+activity = receipt.get("agent_activity") or {}
+print("Agent activity:", json.dumps({
+    "planner": activity.get("planner"),
+    "tool_calls": activity.get("tool_calls"),
+    "tools_used": activity.get("tools_used"),
+    "steps_total": activity.get("steps_total"),
+    "steps_completed": activity.get("steps_completed"),
+    "steps_failed": activity.get("steps_failed"),
+    "denied_attempts": activity.get("denied_attempts"),
+}, sort_keys=True))
+evidence_dir = __import__("pathlib").Path(sys.argv[1]).parent / "evidence"
+record_files = list(evidence_dir.rglob("agent_tool_calls.jsonl")) if evidence_dir.exists() else []
+for record_file in record_files:
+    records = [json.loads(line) for line in record_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    print("Agent tool record summary:", json.dumps([
+        {
+            "tool": record.get("tool"),
+            "denied": record.get("denied"),
+            "ok": record.get("ok"),
+            "status": (record.get("result_summary") or {}).get("status"),
+            "error": (record.get("result_summary") or {}).get("error"),
+            "url": (record.get("args") or {}).get("url"),
+        }
+        for record in records
+    ], sort_keys=True))
 confirmed = [
     finding for finding in findings
     if finding.get("status") == "confirmed"
     and finding.get("title") == "GET /checkout fails (HTTP 500)"
 ]
+if activity.get("planner") != "llm":
+    print("Expected the LLM planner in the signed receipt; got:", activity, file=sys.stderr)
+    raise SystemExit(1)
+if int(activity.get("tool_calls", 0)) < 5:
+    print("Expected at least five governed tool calls; got:", activity, file=sys.stderr)
+    raise SystemExit(1)
 if not confirmed:
     print("Expected a confirmed GET /checkout HTTP 500 finding; got:", findings, file=sys.stderr)
     raise SystemExit(1)
