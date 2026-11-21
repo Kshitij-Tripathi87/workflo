@@ -566,4 +566,4 @@ The Agentic Execution Phase is complete only when all of the following are true:
 - Gate B, C, D, E, and F evidence is retained against the exact release commit; no skipped or mocked test is counted as production acceptance.
 - Operator controls, quotas, metrics, retention, revocation, and rollback are documented and exercised.
 
-**The first milestone to implement after this plan is approved is Phase B: a real, fixed-workload Firecracker/KVM execution path with a complete Gate B evidence bundle.** Agents must not be used to paper over an unproven isolation boundary.
+**The first milestone after plan approval is Phase A: freeze the contracts, assignment evolution, profile registry, and trust/event semantics. The first production-execution milestone is then Phase B: a real, fixed-workload Firecracker/KVM path with a complete Gate B evidence bundle.** Agents must not be used to paper over an unproven isolation boundary.
