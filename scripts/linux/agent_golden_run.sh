@@ -7,7 +7,7 @@ export PATH="/opt/workflo/venv/bin:$PATH"
 
 if [ "$(id -u)" -ne 0 ]; then echo "must run as root" >&2; exit 1; fi
 
-WORK=/root/wf-agent-golden
+WORK="${WORKFLO_AGENT_GOLDEN_DIR:-/root/wf-agent-golden}"
 rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
 
 echo "==> workflo run --path fixture --deep-test (app + governed agent)"
