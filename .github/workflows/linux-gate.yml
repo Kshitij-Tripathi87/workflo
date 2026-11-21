@@ -52,6 +52,7 @@ jobs:
           bash -n scripts/linux/demo_agent_execution.sh
           bash -n scripts/linux/agent_golden_run.sh
           bash -n scripts/linux/planner_golden_run.sh
+          bash scripts/linux/demo_agent_execution.sh --help >/dev/null
 
       # Installs bubblewrap/nftables/dnsmasq, builds the runtime image at
       # /opt/workflo/workflo-worker, installs all workflo packages into
