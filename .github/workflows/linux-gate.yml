@@ -447,7 +447,7 @@ jobs:
         if: ${{ always() && steps.upload_proof.outcome == 'success' }}
         uses: actions/download-artifact@v4
         with:
-          name: golden-run-proof-bundles
+          artifact-ids: ${{ steps.upload_proof.outputs.artifact-id }}
           path: ${{ runner.temp }}/workflo-proof-roundtrip
 
       - name: Verify proof bundles after artifact download and extraction
