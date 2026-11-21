@@ -27,7 +27,6 @@ jobs:
     timeout-minutes: 35
     env:
       DEMO_MODE: ${{ inputs.mode }}
-      DEMO_OUTPUT_DIR: ${{ runner.temp }}/workflo-agent-execution-demo
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -45,6 +44,10 @@ jobs:
           bash -n scripts/linux/setup_env.sh
           bash -n scripts/linux/demo_agent_execution.sh
           bash scripts/linux/demo_agent_execution.sh --help >/dev/null
+
+      - name: Prepare demo output location
+        shell: bash
+        run: echo "DEMO_OUTPUT_DIR=$RUNNER_TEMP/workflo-agent-execution-demo" >> "$GITHUB_ENV"
 
       - name: Provision Linux development sandbox
         id: provision
