@@ -1,47 +1,150 @@
-# Demo Video
+# Workflo agent execution demo
 
-> The 3-minute hackathon demo video is referenced from
-> [`HACKATHON.md`](../HACKATHON.md) and
-> [`README.md`](../README.md).
+This is the runnable demo for Workflo's current agent-execution path. It is designed to let the team test real sandbox lifecycle behavior, governed agent tools, model planning, evidence collection, and receipt verification without waiting for the production Firecracker image pipeline.
 
-## Status
+> **Execution profile:** Linux namespaces + bubblewrap (development/CI only). This demo does **not** prove Firecracker/KVM isolation and must not be used as evidence that Gate B or production agent execution has passed.
 
-**Pending recording.** The script is finalized at
-[`docs/demo_video_script.md`](demo_video_script.md). Recording setup:
+## Start the demo
 
-- 1080p screen capture + voice-over
-- Target runtime: 3 minutes
-- Format: voice-over screen recording
-- Scenes: cold open → risky change → blocked PR + auto-fix
-  (cherry #1) → DataHub assertion writeback (cherry #2) → closing
+The supported quick path runs two complete executions:
 
-## Recording checklist
+1. **Task-spec mode:** the existing Workflo Explorer agent runs its deterministic five-step task inside the isolated runtime.
+2. **Scripted-planner mode:** a local OpenAI-compatible scripted model plans tool calls; the sandboxed agent performs them through the same governed ToolGateway.
 
-- [ ] 1080p recording, 30 fps minimum
-- [ ] Voice-over in quiet room with condenser mic
-- [ ] Font: Inter, monospace for code: JetBrains Mono
-- [ ] Color palette matches website (slate-900 bg, blue/violet accents)
-- [ ] All terminal commands pre-tested and working
-- [ ] Sample dbt project + Cortex server running locally
+No external model API key is required for the quick demo.
 
-## Scenes to capture
+### One-time setup
 
-| Scene | Time | What to show |
-|-------|------|--------------|
-| 1. Cold open | 0:00–0:15 | Cortex logo + tagline |
-| 2. The problem | 0:15–0:45 | Animated diagram: dbt → 3 downstream, column dropped |
-| 3. The agent loop | 0:45–1:30 | Live terminal: `python examples/demo/run_demo.py` |
-| 4. The blocked PR | 1:30–2:00 | PR comment with verdict table |
-| 4a. **Cherry #1: Auto-fix** | 2:00–2:20 | PR comment `<details>` block with SQL patch |
-| 4b. **Cherry #2: Assertion writeback** | 2:20–2:40 | DataHub UI showing verdict in asset docs + tags |
-| 5. Get started | 2:40–3:00 | `curl -sSL cortex.dev/install | bash` |
+Run on Ubuntu Linux or Ubuntu under WSL2, from the repository root:
 
-## Once recorded
+```bash
+sudo bash scripts/linux/setup_env.sh
+```
 
-Upload to YouTube (unlisted or public), then update the URL in:
+The setup installs the Linux development isolation dependencies, builds the trusted runtime tree at `/opt/workflo/workflo-worker`, installs the Workflo CLI and packages into `/opt/workflo/venv`, and creates the disposable fixture repository at `/root/wf-fixture`. Re-running setup recreates that dedicated fixture directory.
 
-1. `HACKATHON.md` (top of file)
-2. `README.md` (Hackathon Submission section)
-3. This file (replace `[pending]` with the actual URL)
+### Run both demo modes
 
-Total effort: ~2 hours from script to upload.
+```bash
+sudo -E bash scripts/linux/demo_agent_execution.sh
+```
+
+The driver creates a new output directory, refuses to overwrite an existing one, executes both runs, and retains the run logs, receipts, public keys, and evidence bundles.
+
+To run one mode only:
+
+```bash
+# Deterministic agent task, no model dependency
+sudo -E bash scripts/linux/demo_agent_execution.sh --mode task-spec
+
+# Scripted local planner driving the real in-sandbox agent
+sudo -E bash scripts/linux/demo_agent_execution.sh --mode scripted
+
+# A configured real model or Workflo inference gateway
+sudo -E bash scripts/linux/demo_agent_execution.sh --mode model \
+  --mission "Explore the app's main flows, test authentication errors, and report reproducible failures."
+```
+
+For a real-model run, configure the endpoint and key in the same root execution context used for the demo:
+
+```bash
+sudo -E /opt/workflo/venv/bin/workflo config set-llm \
+  --base-url <endpoint> --api-key <key> --model <model>
+
+sudo -E /opt/workflo/venv/bin/workflo config test-llm
+
+sudo -E bash scripts/linux/demo_agent_execution.sh --mode model \
+  --mission "Probe the application and investigate any reproducible API failures."
+```
+
+Use `--mode all` to run task-spec, scripted-planner, and configured real-model modes in sequence. The model mode fails rather than silently falling back when the configured endpoint is unavailable or the planner does not actually execute a governed tool call.
+
+Other options:
+
+```bash
+sudo -E bash scripts/linux/demo_agent_execution.sh \
+  --fixture /path/to/a-git-repository-with-app-py \
+  --output-dir /root/workflo-demo-run-01
+```
+
+A custom fixture must be a Git repository with an `app.py` that can be started using `python3 app.py` and binds to port 3457. The fixture is snapshot-pinned before the run.
+
+## What the demo exercises
+
+```text
+Workflo CLI
+    |
+    v
+Supervisor: preflight -> source snapshot -> dependencies
+    |
+    v
+Linux development isolation
+  bwrap + namespaces + cgroups + seccomp (+ Landlock when available)
+    |
+    +---- deterministic pytest execution
+    |
+    +---- app under test
+    |
+    +---- Explorer agent (inside its own sandbox)
+             |
+             v
+         ToolGateway
+         - HTTP GET/POST to approved internal app hosts
+         - bounded log read
+         - bounded repository file list/read
+         - allow/deny decision and tool-call record for every request
+             |
+             v
+         bounded observations -> optional host-side planner
+    |
+    v
+Deterministic Judge -> evidence ledger -> teardown verification
+    |
+    v
+CLI-side Ed25519 receipt signing -> independent workflo verify
+```
+
+The task-spec demo's default agent task performs these checks:
+
+- Requests the app root and health endpoint.
+- Reads the app log and lists repository files through governed tools.
+- Attempts an out-of-policy HTTP request; the ToolGateway must deny and record it.
+
+The scripted-planner mode exercises the plan/observe/plan loop using a local scripted OpenAI-compatible endpoint. This proves the planner protocol and governed execution wiring, **not** the reasoning quality of a real language model.
+
+The model mode uses the configured direct endpoint or Workflo inference gateway. The mission is bounded and secret-redacted. The planner receives bounded runtime observations; the source snapshot stays within the sandbox. The sandboxed ToolGateway remains the only path that can execute tools.
+
+## Output and verification
+
+By default, output is written under:
+
+`/root/workflo-agentic-demo-<UTC timestamp>/`
+
+Each mode directory contains the CLI logs and its run directory. The signed receipt and evidence bundle are verified by `workflo verify` before the mode reports success. For a model-planner run, the driver also checks that the signed `agent_activity.planner` field is `llm` and that at least one governed tool call was made.
+
+A CLI exit code of `1` can represent QA findings; the receipt and teardown verification are still checked separately. Infrastructure failures, missing receipts, planner fallback, or failed receipt/evidence verification stop the demo.
+
+Useful artifacts include:
+
+- `receipt.json` — signed run result and bounded agent activity summary.
+- `evidence/` — hash-chained event ledger and evidence manifest.
+- `agent_tool_calls.jsonl` — detailed governed tool-call records, when included by the runtime profile.
+- `run.stdout`, `run.stderr`, `verify.stdout`, `verify.stderr` — execution and verification diagnostics.
+
+## What this demo does not prove
+
+The demo uses bubblewrap and Linux namespaces. Those are development/CI execution profiles only. A successful run is useful for testing agent dispatch, tool governance, task lifecycle, QA, evidence, and receipts, but it is **not** a production microVM result.
+
+The repository also contains an early Firecracker worker slice with a real jailer/VMM client, host-side vsock channel, guest capability handshake, fixed guest workload, and teardown verification seam. Its guest currently runs a fixed deterministic workload—not the full Workflo Explorer agent. The real KVM integration test still requires a prepared, digest-pinned guest kernel/rootfs and a KVM-capable host. Until the real boot, isolation, adversarial tests, and independent teardown evidence all pass, Gate B remains unproven and production admission must stay disabled.
+
+## Development sequence after the demo
+
+The next execution increments should be delivered as small working slices:
+
+1. Turn the agent's current default task into an admitted, typed task plan with role/profile/tool/budget bindings.
+2. Launch the registered Explorer runtime inside the guest image rather than the development bwrap environment.
+3. Add guest-side agent/tool runtime packaging and the image build/provenance pipeline.
+4. Connect agent task lifecycle and scoped capabilities over the real vsock channel.
+5. Prove the complete agent workload, evidence collection, and teardown on a protected KVM runner.
+
+This keeps the demo testable now while progressing toward the production microVM boundary without confusing a development sandbox with a microVM.
