@@ -298,7 +298,7 @@ Do not start steps 6-9 in parallel before contracts and the vertical slice are s
 - worker-engine currently contains a direct cloud LLM client and a separate llama.cpp path; consolidate before making a source privacy claim.
 - model_server.py documents an Ollama lifecycle while the P4 acceptance documents specify llama.cpp/GGUF. Resolve to one approved release path.
 - apps/control-plane exposes durable dispatch, but the current in-process development dispatcher is not the final customer-runner architecture.
-- apps/dashboard is a placeholder shell; frontend/ is the adjacent Cortex Autopilot UI. Do not build two competing Workflo dashboards.
+- apps/dashboard is the canonical Workflo shell. Integrate the existing data-platform UI and workflows from frontend/ incrementally; initially preserve its implementation behind Workflo service/API façades, map it to canonical tenant/project/asset identities, and consolidate only after route, API, authorization, and data-parity tests. Do not create competing dashboards or duplicate identity/policy/evidence stores.
 - The TypeScript run schema currently has a shorter lifecycle than ADR-0017. It must become a mirror rather than a second state authority.
 - Firecracker is specified in ADR-0022 but does not yet exist in the repository. This is a real implementation gate, not a documentation-only task.
 
