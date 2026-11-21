@@ -30,6 +30,7 @@ __all__ = [
     "ResourceLimitsV1",
     "GuestImageV1",
     "SandboxAssignmentV1",
+    "SandboxAssignmentV2",
     "AssignmentError",
 ]
 
