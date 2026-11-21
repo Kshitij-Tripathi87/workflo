@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Build the six internal wheels into vendor/ for the @cortex/workflo npm shim.
+"""Build the internal wheels into vendor/ for the @cortexstudio/workflo npm shim.
 
 Run from anywhere:
     python scripts/build-wheels.py
@@ -9,6 +9,9 @@ Steps:
   2. Build each internal package with `python -m build --wheel`, in
      dependency order.
   3. Copy the produced wheel into vendor/ and verify it exists.
+  4. Write vendor/manifest.json — the ordered install list that
+     scripts/postinstall.js consumes. The manifest is the single source of
+     truth: add a package here and the postinstall picks it up automatically.
 
 Dependency order matters only for install-time resolution clarity; each
 wheel is self-describing, but we keep the canonical order here so the
@@ -20,6 +23,7 @@ PyPI for isolated build environments.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -31,13 +35,19 @@ REPO_ROOT = PKG_ROOT.parent.parent
 VENDOR_DIR = PKG_ROOT / "vendor"
 DIST_DIR = PKG_ROOT / "dist"
 
-# (repo-relative dir, expected dist-name) in install order.
+# (repo-relative dir, expected dist-name) in install order. Every internal
+# distribution listed in apps/workflo-cli/pyproject.toml must appear here —
+# postinstall installs these wheels before pip resolves the CLI's deps, so a
+# missing one makes pip reach PyPI for a package that was never published
+# ("No matching distribution found for workflo-supervisor").
 PACKAGES = [
     ("packages/workflo-schema", "workflo_schema"),
+    ("packages/sandbox-runtime", "sandbox_runtime"),
     ("packages/sandbox-isolation", "sandbox_isolation"),
     ("packages/probe-engine", "workflo_probe_engine"),
     ("apps/sandbox-executor", "workflo_executor"),
     ("packages/cortex-auth", "cortex_auth"),
+    ("supervisor", "workflo_supervisor"),
     ("apps/workflo-cli", "workflo_cli"),
 ]
 
@@ -111,16 +121,30 @@ def main() -> None:
         built.append(whl)
 
     print("[3/3] copying to vendor/")
+    manifest: list[str] = []
     for whl in built:
         dest = VENDOR_DIR / whl.name
         shutil.copy2(whl, dest)
         if not dest.exists():
             fail(f"copy failed: {whl} -> {dest}")
+        manifest.append(f"vendor/{dest.name}")
         print(f"  {dest.relative_to(PKG_ROOT)}")
+
+    (VENDOR_DIR / "manifest.json").write_text(
+        json.dumps(
+            {
+                "description": "Ordered internal wheels installed by postinstall.js",
+                "wheels": manifest,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    print(f"  vendor/manifest.json ({len(manifest)} entries)")
 
     print(f"\nOK: {len(built)} wheels vendored. Next:")
     print("  npm pack --pack-destination dist")
-    print("  npm install -g dist/cortex-workflo-<version>.tgz")
+    print("  npm install -g \"$PWD\"/dist/cortexstudio-workflo-<version>.tgz")
 
 
 if __name__ == "__main__":

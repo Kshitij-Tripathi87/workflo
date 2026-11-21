@@ -5,8 +5,8 @@
  * What it does:
  *   1. Detect a Python >= 3.11 interpreter (python3 / python / py -3).
  *      On failure prints an OS-specific install hint and exits non-zero.
- *   2. Create <pkgRoot>/.venv and install the six vendored wheels in
- *      dependency order. Transitive deps resolve from PyPI — this is the
+ *   2. Create <pkgRoot>/.venv and install the vendored wheels in dependency
+ *      order, as listed in vendor/manifest.json (written by build-wheels.py). Transitive deps resolve from PyPI — this is the
  *      ONE network call at install time (documented in the README).
  *   3. Write .workflo-install.json marker so re-installs are skipped when
  *      nothing changed (package version, Python version, wheel contents).
@@ -25,16 +25,36 @@ const pkgRoot = path.join(__dirname, "..");
 const venvDir = path.join(pkgRoot, ".venv");
 const markerPath = path.join(pkgRoot, ".workflo-install.json");
 
-// The six internal wheels, in dependency install order. Keep in sync with
-// scripts/build-wheels.py (same list, same order).
-const WHEELS = [
+// Fallback only: build-wheels.py writes vendor/manifest.json, which is the
+// single source of truth for the install list. This copy exists so an older
+// tarball without a manifest still installs.
+const FALLBACK_WHEELS = [
   "vendor/workflo_schema-1.1.1-py3-none-any.whl",
+  "vendor/sandbox_runtime-0.1.0-py3-none-any.whl",
   "vendor/sandbox_isolation-1.1.1-py3-none-any.whl",
   "vendor/workflo_probe_engine-1.1.1-py3-none-any.whl",
   "vendor/workflo_executor-1.1.1-py3-none-any.whl",
   "vendor/cortex_auth-1.1.1-py3-none-any.whl",
+  "vendor/workflo_supervisor-0.1.0-py3-none-any.whl",
   "vendor/workflo_cli-1.1.1-py3-none-any.whl",
 ];
+
+function loadWheels() {
+  const manifest = path.join(pkgRoot, "vendor", "manifest.json");
+  if (fs.existsSync(manifest)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(manifest, "utf8"));
+      if (Array.isArray(parsed.wheels) && parsed.wheels.length > 0) {
+        return parsed.wheels;
+      }
+    } catch (e) {
+      console.warn(`  warning: unreadable vendor/manifest.json (${e.message}) — using built-in list`);
+    }
+  }
+  return FALLBACK_WHEELS;
+}
+
+const WHEELS = loadWheels();
 
 function fail(msg) {
   console.error(`\n✖ workflo postinstall failed: ${msg}`);
