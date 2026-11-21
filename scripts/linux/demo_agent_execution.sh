@@ -120,11 +120,12 @@ echo
 
 run_task_spec() {
   local case_dir="$OUTPUT_DIR/task-spec"
+  local run_dir="${WORKFLO_AGENT_GOLDEN_DIR:-$case_dir/run}"
   mkdir -p "$case_dir"
   echo "==> task-spec: real sandboxed agent + governed tools, no model dependency"
   if env WORKFLO_REPO_ROOT="$REPO_ROOT" \
       WORKFLO_AGENT_FIXTURE="$FIXTURE" \
-      WORKFLO_AGENT_GOLDEN_DIR="$case_dir/run" \
+      WORKFLO_AGENT_GOLDEN_DIR="$run_dir" \
       WORKFLO_CONFIG_DIR="$case_dir/empty-config" \
       bash "$REPO_ROOT/scripts/linux/agent_golden_run.sh" >"$case_dir/driver.log" 2>&1; then
     tail -n 12 "$case_dir/driver.log" || true
@@ -139,11 +140,12 @@ run_task_spec() {
 
 run_scripted_planner() {
   local case_dir="$OUTPUT_DIR/scripted-planner"
+  local run_dir="${WORKFLO_PLANNER_GOLDEN_DIR:-$case_dir/run}"
   mkdir -p "$case_dir"
   echo "==> scripted-planner: local scripted model -> real sandboxed agent -> ToolGateway"
   if env WORKFLO_REPO_ROOT="$REPO_ROOT" \
       WORKFLO_PLANNER_FIXTURE="$FIXTURE" \
-      WORKFLO_PLANNER_GOLDEN_DIR="$case_dir/run" \
+      WORKFLO_PLANNER_GOLDEN_DIR="$run_dir" \
       bash "$REPO_ROOT/scripts/linux/planner_golden_run.sh" >"$case_dir/driver.log" 2>&1; then
     tail -n 16 "$case_dir/driver.log" || true
     echo "PASS: scripted-planner"
