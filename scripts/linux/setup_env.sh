@@ -132,12 +132,21 @@ PORT = int(os.environ.get("PORT", "3000"))
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        status = 200
         if self.path == "/health":
             body = b'{"status":"ok"}'
+            content_type = "application/json"
+        elif self.path == "/checkout":
+            # Intentional, stable demo defect: the agent should reproduce
+            # this 5xx twice and compare it with a healthy control route.
+            status = 500
+            body = b'{"error":"intentional checkout failure for agentic QA demo"}'
+            content_type = "application/json"
         else:
             body = b"<html><body>workflo fixture app</body></html>"
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json" if self.path == "/health" else "text/html")
+            content_type = "text/html"
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
