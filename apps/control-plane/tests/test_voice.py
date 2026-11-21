@@ -149,3 +149,32 @@ def test_voice_provider_key_management_requires_admin_scope(client):
         json={"api_key": "a-sample-provider-api-key"},
     )
     assert response.status_code == 403
+
+
+def test_project_voice_credentials_are_excluded_from_org_export_config():
+    from app.api.v1.orgs import _exportable_project_config
+
+    secret_config = {
+        "environment": "production",
+        "_voice_provider_credentials": {
+            "sarvam": {"api_key": "wfenc1:v1:encrypted-ciphertext"},
+            "elevenlabs": {"api_key": "wfenc1:v1:another-ciphertext"},
+        },
+    }
+    exported = _exportable_project_config(secret_config)
+    assert exported == {"environment": "production"}
+    assert "wfenc1" not in str(exported)
+
+
+def test_project_voice_key_storage_fails_closed_without_a_kek(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "master_kek_hex", "")
+    headers = create_key(client, ["admin"])
+    response = client.put(
+        "/v1/voice/providers/sarvam",
+        headers=headers,
+        json={"api_key": "a-sample-provider-api-key"},
+    )
+    assert response.status_code == 503
+    assert "MASTER_KEK_HEX" in response.json()["detail"]
