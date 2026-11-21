@@ -6,7 +6,7 @@ This is the runnable demo for Workflo's current agent-execution path. It is desi
 
 ## Run a demo from GitHub Actions
 
-Team members can launch the deterministic demo without configuring a local Ubuntu/WSL2 environment:
+After this workflow is merged to the default branch, team members can launch the deterministic demo without configuring a local Ubuntu/WSL2 environment:
 
 1. Open [Actions → Agent execution demo](https://github.com/Kshitij-Tripathi87/workflo/actions/workflows/agent-execution-demo.yml).
 2. Select **Run workflow** and choose `quick` (recommended), `task-spec`, or `scripted`.
