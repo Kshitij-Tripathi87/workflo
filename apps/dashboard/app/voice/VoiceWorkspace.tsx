@@ -132,6 +132,7 @@ export default function VoiceWorkspace() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const spokenRunRef = useRef<string | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const statusByProvider = useMemo(() => {
     const result: Partial<Record<Provider, ProviderStatus>> = {};
@@ -269,6 +270,7 @@ export default function VoiceWorkspace() {
     setError("");
     setResolved(null);
     setRunRequest(null);
+    idempotencyKeyRef.current = null;
     setActivity("Resolving the target and building a typed QA request…");
     try {
       const response = await authFetch("/v1/voice/resolve", {
@@ -308,9 +310,12 @@ export default function VoiceWorkspace() {
     setActivity("Submitting the reviewed QA request…");
     spokenRunRef.current = null;
     try {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = window.crypto.randomUUID();
+      }
       const response = await authFetch("/v1/runs", {
         method: "POST",
-        headers: { "Idempotency-Key": window.crypto.randomUUID() },
+        headers: { "Idempotency-Key": idempotencyKeyRef.current },
         body: JSON.stringify(runRequest),
       });
       const data = (await response.json()) as RunInfo;

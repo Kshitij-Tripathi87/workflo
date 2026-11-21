@@ -275,7 +275,7 @@ async def transcribe_audio(
             detail=f"{provider} is not configured for this project.",
         )
 
-    timeout = httpx.Timeout(60.0, connect=10.0)
+    timeout = httpx.Timeout(settings.voice_http_timeout_seconds, connect=10.0)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             if provider == "sarvam":
@@ -294,16 +294,16 @@ async def transcribe_audio(
                 transcript = data.get("transcript", "")
                 detected_language = data.get("language_code")
             elif provider == "fish":
+                fish_data = {"ignore_timestamps": "true"}
+                if language_code and language_code != "unknown":
+                    fish_data["language"] = language_code
                 response = await client.post(
                     "https://api.fish.audio/v1/asr",
                     headers={
                         "Authorization": f"Bearer {key}",
                         "model": "transcribe-1-pro",
                     },
-                    data={
-                        "language": language_code if language_code != "unknown" else "",
-                        "ignore_timestamps": "true",
-                    },
+                    data=fish_data,
                     files={"audio": (filename, payload, content_type)},
                 )
                 response.raise_for_status()
@@ -368,7 +368,7 @@ async def synthesize_speech(
             detail=f"{body.provider} is not configured for this project.",
         )
 
-    timeout = httpx.Timeout(60.0, connect=10.0)
+    timeout = httpx.Timeout(settings.voice_http_timeout_seconds, connect=10.0)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             if body.provider == "sarvam":
