@@ -65,8 +65,11 @@ esac
 
 if [[ "$(id -u)" -ne 0 ]]; then
   command -v sudo >/dev/null 2>&1 || { echo "sudo is required; run this demo as root." >&2; exit 2; }
-  exec sudo -E bash "$0" --mode "$MODE" --fixture "$FIXTURE" \
-    ${OUTPUT_DIR:+--output-dir "$OUTPUT_DIR"} --mission "$MISSION"
+  sudo_args=(--mode "$MODE" --fixture "$FIXTURE" --mission "$MISSION")
+  if [[ -n "$OUTPUT_DIR" ]]; then
+    sudo_args+=(--output-dir "$OUTPUT_DIR")
+  fi
+  exec sudo -E bash "$0" "${sudo_args[@]}"
 fi
 
 REPO_ROOT="${WORKFLO_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
@@ -91,6 +94,7 @@ done
   echo "Fixture app missing at $FIXTURE. Run setup_env.sh or pass --fixture <git-repo-with-app.py>." >&2
   exit 2
 }
+FIXTURE="$(cd "$FIXTURE" && pwd)"
 
 if [[ -z "$OUTPUT_DIR" ]]; then
   OUTPUT_DIR="/root/workflo-agentic-demo-$(date -u +%Y%m%dT%H%M%SZ)"
@@ -109,26 +113,6 @@ echo "  output:     $OUTPUT_DIR"
 echo "  runtime:    Linux namespaces + bubblewrap (DEVELOPMENT/CI ONLY)"
 echo "  production: Firecracker/KVM Gate B is a separate, unproven boundary"
 echo
-
-run_golden() {
-  local label="$1"
-  local script="$2"
-  local work_env="$3"
-  local case_dir="$OUTPUT_DIR/$label"
-  mkdir -p "$case_dir"
-
-  echo "==> $label"
-  if env WORKFLO_REPO_ROOT="$REPO_ROOT" "$work_env" "$case_dir/run" \
-      WORKFLO_DEMO_FIXTURE="$FIXTURE" bash "$script" >"$case_dir/driver.log" 2>&1; then
-    tail -n 12 "$case_dir/driver.log" || true
-    echo "PASS: $label"
-  else
-    local status=$?
-    tail -n 60 "$case_dir/driver.log" >&2 || true
-    echo "FAIL: $label (exit $status); diagnostics: $case_dir" >&2
-    return "$status"
-  fi
-}
 
 run_task_spec() {
   local case_dir="$OUTPUT_DIR/task-spec"
