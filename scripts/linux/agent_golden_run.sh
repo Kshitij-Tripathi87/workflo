@@ -7,12 +7,12 @@ export PATH="/opt/workflo/venv/bin:$PATH"
 
 if [ "$(id -u)" -ne 0 ]; then echo "must run as root" >&2; exit 1; fi
 
-WORK=/root/wf-agent-golden
+WORK="${WORKFLO_AGENT_GOLDEN_DIR:-/root/wf-agent-golden}"
 rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
 
 echo "==> workflo run --path fixture --deep-test (app + governed agent)"
 set +e
-workflo run --path /root/wf-fixture --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
+workflo run --path "${WORKFLO_AGENT_FIXTURE:-/root/wf-fixture}" --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
   >run.stdout 2>run.stderr
 RUN_EXIT=$?
 set -e

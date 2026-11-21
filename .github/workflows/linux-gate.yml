@@ -36,6 +36,7 @@ jobs:
             scripts/linux/golden_run.sh \
             scripts/linux/agent_golden_run.sh \
             scripts/linux/planner_golden_run.sh \
+            scripts/linux/demo_agent_execution.sh \
             scripts/linux/integration_change_demo.sh \
             packages/sandbox-runtime/tests/integration \
           ; do
@@ -45,6 +46,13 @@ jobs:
             fi
           done
           echo "All prerequisites present."
+
+      - name: Validate agent demo shell syntax
+        run: |
+          bash -n scripts/linux/demo_agent_execution.sh
+          bash -n scripts/linux/agent_golden_run.sh
+          bash -n scripts/linux/planner_golden_run.sh
+          bash scripts/linux/demo_agent_execution.sh --help >/dev/null
 
       # Installs bubblewrap/nftables/dnsmasq, builds the runtime image at
       # /opt/workflo/workflo-worker, installs all workflo packages into
@@ -58,6 +66,7 @@ jobs:
       # sandbox_isolation, probe_engine, ...) that scripts/linux/setup_env.sh
       # installs into /opt/workflo/venv - it is not self-contained.
       - name: Agent-layer unit suites (mock gate)
+        id: agent_unit
         run: |
           /opt/workflo/venv/bin/python -m pytest \
             packages/sandbox-runtime/tests \
@@ -69,6 +78,7 @@ jobs:
       # Exit status alone cannot tell "476 tests verified isolation logic" from
       # "the suite collected nothing and skipped the rest".
       - name: Assert the unit suite actually executed
+        id: unit_assert
         if: always()
         run: |
           python3 - <<'PY'
@@ -95,6 +105,41 @@ jobs:
               sys.exit(f"::error::only {executed} unit tests executed (expected >= {MIN_EXECUTED})")
           print(f"[ok] {executed} unit tests executed")
           PY
+
+      # Exercise the same one-command demo entrypoint the team uses locally.
+      # Run it before the longer integration matrix so execution regressions
+      # surface early. Preserve canonical receipt roots for artifact collection.
+      - name: Agent execution demos through the operator entrypoint
+        id: agent_demo
+        if: ${{ always() && steps.provision.outcome == 'success' && steps.agent_unit.outcome == 'success' && steps.unit_assert.outcome == 'success' }}
+        shell: bash
+        run: |
+          set +e
+          sudo -E env \
+            WORKFLO_AGENT_GOLDEN_DIR=/root/wf-agent-golden \
+            WORKFLO_PLANNER_GOLDEN_DIR=/root/wf-planner-golden \
+            bash scripts/linux/demo_agent_execution.sh \
+              --mode quick \
+              --output-dir "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"
+          demo_status=$?
+          set -e
+
+          # The demo runs as root, but Actions artifact collection runs as
+          # the runner user. Hand ownership of the diagnostics bundle back.
+          if sudo test -d "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"; then
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"
+            sudo chmod -R u+rwX "$RUNNER_TEMP/workflo-agentic-demo-entrypoint"
+          fi
+          exit "$demo_status"
+
+      - name: Upload agent execution demo diagnostics
+        if: ${{ always() && steps.agent_demo.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflo-agent-execution-demo
+          path: ${{ runner.temp }}/workflo-agentic-demo-entrypoint/
+          if-no-files-found: warn
+          retention-days: 7
 
       # JUSTIFIED: Root required for real namespace/cgroup/landlock testing.
       - name: Linux integration gate (root, real namespaces)
@@ -205,16 +250,6 @@ jobs:
       - name: Namespaces golden run (tests tier)
         if: ${{ always() && steps.provision.outcome == 'success' }}
         run: sudo -E bash scripts/linux/golden_run.sh
-
-      # JUSTIFIED: Root required for deep-tier app + governed agent isolation.
-      - name: "Agent golden run (deep tier: app + governed agent)"
-        if: ${{ always() && steps.provision.outcome == 'success' }}
-        run: sudo -E bash scripts/linux/agent_golden_run.sh
-
-      # JUSTIFIED: Root required for planner-mode isolation with real LLM.
-      - name: Planner golden run (scripted LLM planner)
-        if: ${{ always() && steps.provision.outcome == 'success' }}
-        run: sudo -E bash scripts/linux/planner_golden_run.sh
 
       # Separate development v5 gate; the three legacy golden bundles and
       # their independent verifier below are intentionally unchanged.

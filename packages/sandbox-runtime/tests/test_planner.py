@@ -24,7 +24,19 @@ from sandbox_runtime.planner import (
     build_user_prompt,
     PlannerUnavailable,
     SYSTEM_PROMPT,
+    _sanitize_mission,
 )
+
+
+def test_mission_sanitizer_redacts_secrets_and_caps_length():
+    mission = "Check login with api_key=sk-live-planner-secret and Bearer abc123token"
+    sanitized = _sanitize_mission(mission)
+    assert sanitized is not None
+    assert "sk-live-planner-secret" not in sanitized
+    assert "abc123token" not in sanitized
+    assert "<redacted>" in sanitized
+    assert len(_sanitize_mission("x" * 600)) == 512
+    assert _sanitize_mission("   ") is None
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +212,12 @@ class TestPlannerLoop:
         agent_task.start()
 
         events = []
+        mission = "Test the checkout flow; api_key=sk-live-planner-secret"
         result = run_planner_loop(
             tmp_path, f"http://app.workflo.internal:{port}",
             max_batches=4, max_tool_calls=40,
             on_event=lambda note, data: events.append((note, data)),
+            mission=mission,
         )
 
         agent_task.join(timeout=10)
@@ -217,6 +231,10 @@ class TestPlannerLoop:
         second_prompt = FakeLLMHandler.calls[1]["messages"][1]["content"]
         assert "Recent observations" in second_prompt
         assert "HTTP 200" in second_prompt  # bounded observation flowed back
+        first_prompt = FakeLLMHandler.calls[0]["messages"][1]["content"]
+        assert "Test the checkout flow" in first_prompt
+        assert "sk-live-planner-secret" not in first_prompt
+        assert "<redacted>" in first_prompt
 
         # The agent actually operated the app through the governed gateway
         assert gw.tool_calls == 3

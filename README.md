@@ -39,6 +39,15 @@ failing baseline and a passing migration candidate. `workflo run-dev` uses the
 Linux development profile and issues an offline-verifiable receipt v5. The
 [legacy Linux golden run](docs/reconciliation/PHASE_0_WORKFLO_TRUST.md#development-golden-workflow)
 remains available.
+ 
+For an end-to-end agent execution demo (deterministic ToolGateway run plus a
+scripted planner, with optional configured-model execution), see the
+[runnable agent demo](docs/DEMO.md). On Ubuntu/WSL2, run
+`sudo bash scripts/linux/setup_env.sh` once, then
+`sudo -E bash scripts/linux/demo_agent_execution.sh`. This exercises the
+development namespace/bubblewrap path only; it is not Firecracker/KVM Gate B
+evidence and does not enable production execution.
+
 
 Given a receipt, its trusted public key, and its evidence bundle, verify offline:
 
