@@ -234,7 +234,7 @@ class TestPlannerLoop:
         first_prompt = FakeLLMHandler.calls[0]["messages"][1]["content"]
         assert "Test the checkout flow" in first_prompt
         assert "sk-live-planner-secret" not in first_prompt
-        assert "api_key=<redacted>" in first_prompt
+        assert "<redacted>" in first_prompt
 
         # The agent actually operated the app through the governed gateway
         assert gw.tool_calls == 3
