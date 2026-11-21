@@ -479,7 +479,7 @@ export default function VoiceWorkspace() {
           <div className="connect-icon"><KeyRound size={20} /></div>
           <div className="connect-copy">
             <h2>Connect a project</h2>
-            <p>Enter a Workflo project API key with <code>run_tests</code> scope. It remains in this browser tab's memory and is not saved to local storage.</p>
+            <p>Enter a Workflo project API key with <code>run_tests</code> scope. It remains in this browser tab&apos;s memory and is not saved to local storage.</p>
           </div>
           <div className="connect-form">
             <input type="password" value={workfloKey} onChange={(event) => setWorkfloKey(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void connect(); }} placeholder="wf_live_…" autoComplete="off" aria-label="Workflo project API key" />
