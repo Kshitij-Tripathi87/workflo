@@ -1,0 +1,207 @@
+{
+  "$defs": {
+    "AgentBudgetV1": {
+      "additionalProperties": false,
+      "properties": {
+        "max_cpu_ms": {
+          "default": 60000,
+          "maximum": 5184000000,
+          "minimum": 0,
+          "title": "Max Cpu Ms",
+          "type": "integer"
+        },
+        "max_disk_mib": {
+          "default": 512,
+          "maximum": 1048576,
+          "minimum": 0,
+          "title": "Max Disk Mib",
+          "type": "integer"
+        },
+        "max_elapsed_ms": {
+          "default": 60000,
+          "maximum": 86400000,
+          "minimum": 1000,
+          "title": "Max Elapsed Ms",
+          "type": "integer"
+        },
+        "max_inference_requests": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Max Inference Requests",
+          "type": "integer"
+        },
+        "max_log_bytes": {
+          "default": 262144,
+          "maximum": 104857600,
+          "minimum": 0,
+          "title": "Max Log Bytes",
+          "type": "integer"
+        },
+        "max_memory_mib": {
+          "default": 512,
+          "maximum": 262144,
+          "minimum": 256,
+          "title": "Max Memory Mib",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "default": 1048576,
+          "maximum": 1073741824,
+          "minimum": 0,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "max_parallel_tasks": {
+          "default": 1,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Max Parallel Tasks",
+          "type": "integer"
+        },
+        "max_retries": {
+          "default": 0,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 0,
+          "maximum": 2000000,
+          "minimum": 0,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "AgentBudgetV1",
+      "type": "object"
+    },
+    "AgentProfileRefV1": {
+      "additionalProperties": false,
+      "properties": {
+        "profile_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Profile Digest",
+          "type": "string"
+        },
+        "profile_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "version",
+        "profile_digest"
+      ],
+      "title": "AgentProfileRefV1",
+      "type": "object"
+    },
+    "AgentRole": {
+      "enum": [
+        "mission_supervisor",
+        "ingestor",
+        "executor",
+        "explorer",
+        "test_designer",
+        "browser_probe",
+        "security_probe",
+        "judge",
+        "notary"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/AgentTaskV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowed_tool_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Allowed Tool Ids",
+      "type": "array"
+    },
+    "budget": {
+      "$ref": "#/$defs/AgentBudgetV1"
+    },
+    "depends_on": {
+      "default": [],
+      "items": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Depends On",
+      "type": "array"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 8,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "input_artifact_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Input Artifact Ids",
+      "type": "array"
+    },
+    "output_schema_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Output Schema Digest",
+      "type": "string"
+    },
+    "profile": {
+      "$ref": "#/$defs/AgentProfileRefV1"
+    },
+    "role": {
+      "$ref": "#/$defs/AgentRole"
+    },
+    "task_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_type": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Task Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "task_type",
+    "role",
+    "profile",
+    "output_schema_digest",
+    "budget",
+    "idempotency_key"
+  ],
+  "title": "AgentTaskV1",
+  "type": "object"
+}
