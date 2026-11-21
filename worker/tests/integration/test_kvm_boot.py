@@ -29,10 +29,18 @@ pytestmark = [
 
 
 def _require_kvm():
+    import os
     from pathlib import Path
 
     if not Path("/dev/kvm").exists():
         pytest.skip("/dev/kvm not present on this host (documented non-proof)")
+    if not os.access("/dev/kvm", os.R_OK | os.W_OK):
+        # Same condition the probe checks: a kvm device this identity
+        # cannot use is a documented non-proof, not a pass and not a
+        # probe failure (CI runners often ship /dev/kvm without access).
+        pytest.skip(
+            "/dev/kvm not rw-accessible to this identity (documented non-proof)"
+        )
 
 
 def test_probe_reports_kvm_honestly():
