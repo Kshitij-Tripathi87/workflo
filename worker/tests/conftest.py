@@ -136,7 +136,8 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         nodeid = getattr(report, "nodeid", "unknown test")
         longrepr = str(getattr(report, "longrepr", "") or "")
         tail = "\n".join(longrepr.splitlines()[-40:])
-        # Workflow commands are single-line; %0A encodes newlines.
-        message = f"{nodeid}%0A{tail}".replace("\r", "")
+        # Workflow commands are line-based: EVERY newline in the payload
+        # must be %0A-encoded or the command ends at the first one.
+        message = f"{nodeid}\n{tail}".replace("\r", "").replace("\n", "%0A")
         message = message[:6000]
         print(f"::error title=pytest failure::{message}", flush=True)
