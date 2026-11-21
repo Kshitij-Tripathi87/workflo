@@ -20,6 +20,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "argon2-cffi>=23.1.0",
     "cryptography>=42.0.0",
+    "httpx>=0.26.0",
     "workflo-schema",
     "workflo-utils",
     "workflo-executor",
@@ -41,6 +42,4 @@ where = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# tests import the `app` package from this directory; bare `pytest` (as CI runs
-# it) does not put the project root on sys.path on its own.
 pythonpath = ["."]
