@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
 
 from workflo_schema.contracts.agentic import AgentProfileRefV1
 from workflo_worker_host.assignment import AssignmentError, SandboxAssignmentV2
