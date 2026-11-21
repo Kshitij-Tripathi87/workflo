@@ -1,0 +1,263 @@
+{
+  "$defs": {
+    "AgentBudgetV1": {
+      "additionalProperties": false,
+      "properties": {
+        "max_cpu_ms": {
+          "default": 60000,
+          "maximum": 5184000000,
+          "minimum": 0,
+          "title": "Max Cpu Ms",
+          "type": "integer"
+        },
+        "max_disk_mib": {
+          "default": 512,
+          "maximum": 1048576,
+          "minimum": 0,
+          "title": "Max Disk Mib",
+          "type": "integer"
+        },
+        "max_elapsed_ms": {
+          "default": 60000,
+          "maximum": 86400000,
+          "minimum": 1000,
+          "title": "Max Elapsed Ms",
+          "type": "integer"
+        },
+        "max_inference_requests": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Max Inference Requests",
+          "type": "integer"
+        },
+        "max_log_bytes": {
+          "default": 262144,
+          "maximum": 104857600,
+          "minimum": 0,
+          "title": "Max Log Bytes",
+          "type": "integer"
+        },
+        "max_memory_mib": {
+          "default": 512,
+          "maximum": 262144,
+          "minimum": 256,
+          "title": "Max Memory Mib",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "default": 1048576,
+          "maximum": 1073741824,
+          "minimum": 0,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "max_parallel_tasks": {
+          "default": 1,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Max Parallel Tasks",
+          "type": "integer"
+        },
+        "max_retries": {
+          "default": 0,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 0,
+          "maximum": 2000000,
+          "minimum": 0,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "AgentBudgetV1",
+      "type": "object"
+    },
+    "AgentFilesystemAccess": {
+      "enum": [
+        "read",
+        "write"
+      ],
+      "title": "AgentFilesystemAccess",
+      "type": "string"
+    },
+    "AgentFilesystemGrantV1": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AgentFilesystemAccess"
+        },
+        "root": {
+          "$ref": "#/$defs/AgentFilesystemRoot"
+        }
+      },
+      "required": [
+        "root",
+        "access"
+      ],
+      "title": "AgentFilesystemGrantV1",
+      "type": "object"
+    },
+    "AgentFilesystemRoot": {
+      "enum": [
+        "source_snapshot",
+        "workspace",
+        "generated_tests",
+        "artifacts"
+      ],
+      "title": "AgentFilesystemRoot",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/AgentCapabilityGrantV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agent_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Agent Id",
+      "type": "string"
+    },
+    "attempt_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/AgentBudgetV1"
+    },
+    "expires_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "filesystem_grants": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AgentFilesystemGrantV1"
+      },
+      "maxItems": 8,
+      "title": "Filesystem Grants",
+      "type": "array"
+    },
+    "grant_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Grant Id",
+      "type": "string"
+    },
+    "issued_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Issued At",
+      "type": "string"
+    },
+    "network_policy_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Network Policy Digest",
+      "type": "string"
+    },
+    "nonce": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Nonce",
+      "type": "string"
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "policy_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Policy Digest",
+      "type": "string"
+    },
+    "profile_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Profile Digest",
+      "type": "string"
+    },
+    "project_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "sandbox_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Sandbox Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "signature": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Signature"
+    },
+    "task_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tool_ids": {
+      "default": [],
+      "items": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Tool Ids",
+      "type": "array"
+    },
+    "tool_registry_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Tool Registry Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "grant_id",
+    "organization_id",
+    "project_id",
+    "run_id",
+    "attempt_id",
+    "sandbox_id",
+    "task_id",
+    "agent_id",
+    "profile_digest",
+    "policy_digest",
+    "tool_registry_digest",
+    "network_policy_digest",
+    "budget",
+    "nonce",
+    "issued_at",
+    "expires_at"
+  ],
+  "title": "AgentCapabilityGrantV1",
+  "type": "object"
+}
