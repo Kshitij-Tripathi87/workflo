@@ -1,23 +1,32 @@
 {
   "package": "Workflo engineering implementation blueprint",
-  "reviewed_repository": "Kshitij-Tripathi87/workflo",
+  "repository": "Kshitij-Tripathi87/workflo",
   "reviewed_main_commit": "e864c42a160cc85638d0763574814d3aaeeac933",
   "engineering_review": "BLUEPRINT_ENGINEERING_REVIEW.md (merged PR #26)",
   "applied_findings": ["F1", "F2", "F3", "F4", "F5", "F6"],
-  "documents": [
-    {"file":"00-master-implementation-plan.md","bytes":56994,"sha256":"3fcd97c128dbc89e8b974ced10dbad5d098a4a9e9f58c944a43680f748971c1f","lines":795},
-    {"file":"01-system-architecture.md","bytes":16270,"sha256":"5119d701514184ae75578d8dd31a2fd36577e5f874891a71ac27632c07b8e6d2","lines":298},
-    {"file":"02-platform-sandbox-security.md","bytes":27404,"sha256":"8b8dd399e23fde85abbb9e1ac93a7979d39310c150f8a1600196523714868171","lines":413},
-    {"file":"03-inference-provider-privacy.md","bytes":22476,"sha256":"8941bf89a550378c77e37c10167fd2da63ada1cc974fe364c8e98bfa1d784e16","lines":382},
-    {"file":"04-cli-and-configuration.md","bytes":17223,"sha256":"5b6fd52c036dc8ed86b4bbc17dd4cc4335d16e11e95c4ce9be421db47644ddea","lines":318},
-    {"file":"05-web-app-and-runner.md","bytes":15253,"sha256":"df878b4a6d964692b615665a4af4a8287fbf80043a0d1f64eaa99b56e4547412","lines":310},
-    {"file":"06-testing-and-acceptance.md","bytes":18367,"sha256":"f9a8deb67a0ae3508dfff1083c29a7a9b41b7d9ce51021846435bda5dff2724a","lines":352},
-    {"file":"07-backlog-and-milestones.md","bytes":23371,"sha256":"931279555497cb71de609813884ba81dda539651675af207f420e3f9621987dd","lines":425},
-    {"file":"08-open-decisions-and-ADRs.md","bytes":11550,"sha256":"b7f52ef4104e60b0d91806759505332405064e50fe899d67c4b59a4cf4e6fc3c","lines":121},
-    {"file":"09-product-market-strategy.md","bytes":69744,"sha256":"210abb8b980926216742b82d22c8372fe93f11e9a8387d81a70d08e334f7a692","lines":1298},
-    {"file":"README.md","bytes":2333,"sha256":"88495084cb7fb86011a16428cd960a209703d8d96c8ce0858726f66e21f21262","lines":30}
+  "manifest_checksum": "GitHub Git blob SHA-1 (content-addressed object id)",
+  "files": [
+    {"path":"docs/blueprint/00-master-implementation-plan.md","size_bytes":56993,"git_blob_sha1":"57a4f796f21c28aa99d6eeea75072704306bb88e"},
+    {"path":"docs/blueprint/01-system-architecture.md","size_bytes":16269,"git_blob_sha1":"949af4c520f92f52625aac70e962ca01a9415465"},
+    {"path":"docs/blueprint/02-platform-sandbox-security.md","size_bytes":27403,"git_blob_sha1":"a522a98d63ad4659b0558a4837de8c5a659f45d2"},
+    {"path":"docs/blueprint/03-inference-provider-privacy.md","size_bytes":22475,"git_blob_sha1":"0a183a66db472a85df72c59edf480320368dcda2"},
+    {"path":"docs/blueprint/04-cli-and-configuration.md","size_bytes":17105,"git_blob_sha1":"36ff3d6874f63a6f45e78f0ece8740ccd3bef631"},
+    {"path":"docs/blueprint/05-web-app-and-runner.md","size_bytes":15252,"git_blob_sha1":"3d518a22ce49f9c1e26c35d1d533ba165a856830"},
+    {"path":"docs/blueprint/06-testing-and-acceptance.md","size_bytes":18366,"git_blob_sha1":"872dd0072dcbbd0d293578998559b55de19d6860"},
+    {"path":"docs/blueprint/07-backlog-and-milestones.md","size_bytes":23370,"git_blob_sha1":"61b9aec465314bc48dd91fb3aca680f7b8d353b7"},
+    {"path":"docs/blueprint/08-open-decisions-and-ADRs.md","size_bytes":11549,"git_blob_sha1":"4897fb22d0c8c05877940cf76f5fb3def119c5ee"},
+    {"path":"docs/blueprint/09-product-market-strategy.md","size_bytes":69841,"git_blob_sha1":"319401a3479efcd836539af4decc794921c7fad4"},
+    {"path":"docs/blueprint/README.md","size_bytes":2333,"git_blob_sha1":"a6b74d55d69bd7c31fe4d0e6dac3a12172bad7cc"}
   ],
-  "validated_local_markdown_links": true,
-  "master_map_companion_count": 8,
-  "notes": "SHA-256 entries cover the ten substantive Markdown documents and README; MANIFEST.json is intentionally self-excluded."
+  "counts": {
+    "numbered_documents": 10,
+    "companion_specifications": 8,
+    "support_files": 2
+  },
+  "checks": {
+    "master_map_has_eight_companion_documents": true,
+    "superseded_first_handoff_files_included": false,
+    "all_paths_are_under_docs_blueprint": true
+  },
+  "notes": "This manifest fingerprints the exact GitHub blob objects in this tree. It intentionally excludes itself."
 }
