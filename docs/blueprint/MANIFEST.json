@@ -1,0 +1,23 @@
+{
+  "package": "Workflo engineering implementation blueprint",
+  "reviewed_repository": "Kshitij-Tripathi87/workflo",
+  "reviewed_main_commit": "e864c42a160cc85638d0763574814d3aaeeac933",
+  "engineering_review": "BLUEPRINT_ENGINEERING_REVIEW.md (merged PR #26)",
+  "applied_findings": ["F1", "F2", "F3", "F4", "F5", "F6"],
+  "documents": [
+    {"file":"00-master-implementation-plan.md","bytes":56994,"sha256":"3fcd97c128dbc89e8b974ced10dbad5d098a4a9e9f58c944a43680f748971c1f","lines":795},
+    {"file":"01-system-architecture.md","bytes":16270,"sha256":"5119d701514184ae75578d8dd31a2fd36577e5f874891a71ac27632c07b8e6d2","lines":298},
+    {"file":"02-platform-sandbox-security.md","bytes":27404,"sha256":"8b8dd399e23fde85abbb9e1ac93a7979d39310c150f8a1600196523714868171","lines":413},
+    {"file":"03-inference-provider-privacy.md","bytes":22476,"sha256":"8941bf89a550378c77e37c10167fd2da63ada1cc974fe364c8e98bfa1d784e16","lines":382},
+    {"file":"04-cli-and-configuration.md","bytes":17223,"sha256":"5b6fd52c036dc8ed86b4bbc17dd4cc4335d16e11e95c4ce9be421db47644ddea","lines":318},
+    {"file":"05-web-app-and-runner.md","bytes":15253,"sha256":"df878b4a6d964692b615665a4af4a8287fbf80043a0d1f64eaa99b56e4547412","lines":310},
+    {"file":"06-testing-and-acceptance.md","bytes":18367,"sha256":"f9a8deb67a0ae3508dfff1083c29a7a9b41b7d9ce51021846435bda5dff2724a","lines":352},
+    {"file":"07-backlog-and-milestones.md","bytes":23371,"sha256":"931279555497cb71de609813884ba81dda539651675af207f420e3f9621987dd","lines":425},
+    {"file":"08-open-decisions-and-ADRs.md","bytes":11550,"sha256":"b7f52ef4104e60b0d91806759505332405064e50fe899d67c4b59a4cf4e6fc3c","lines":121},
+    {"file":"09-product-market-strategy.md","bytes":69744,"sha256":"210abb8b980926216742b82d22c8372fe93f11e9a8387d81a70d08e334f7a692","lines":1298},
+    {"file":"README.md","bytes":2333,"sha256":"88495084cb7fb86011a16428cd960a209703d8d96c8ce0858726f66e21f21262","lines":30}
+  ],
+  "validated_local_markdown_links": true,
+  "master_map_companion_count": 8,
+  "notes": "SHA-256 entries cover the ten substantive Markdown documents and README; MANIFEST.json is intentionally self-excluded."
+}
