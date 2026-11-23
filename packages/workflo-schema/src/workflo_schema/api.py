@@ -28,10 +28,15 @@ in `docs/api_contract.md` to keep docs and code from drifting.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
+
+if TYPE_CHECKING:
+    # Annotation-only import (runtime import stays inside to_sandbox_spec
+    # to avoid a module-level cycle); satisfies the forward reference.
+    from workflo_schema.sandbox import SandboxSpec
 
 
 # --------------------------------------------------------------------

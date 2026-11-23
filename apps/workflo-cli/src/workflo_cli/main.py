@@ -1879,11 +1879,14 @@ def _fetch_latest_version() -> str:
     import urllib.request
 
     url = "https://registry.npmjs.org/@cortexstudio/workflo"
+    if not url.startswith("https://"):
+        raise RuntimeError("npm registry URL must use https")
     req = urllib.request.Request(
         url,
         headers={"User-Agent": "workflo-cli", "Accept": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    # URL is an https literal validated above.
+    with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
         data = json.loads(resp.read().decode("utf-8"))
     return data["dist-tags"]["latest"]
 

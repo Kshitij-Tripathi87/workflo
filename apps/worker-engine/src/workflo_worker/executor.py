@@ -663,10 +663,18 @@ def _run_canary_check(target_host: str = "https://example.com", timeout_seconds:
     from datetime import UTC, datetime
 
     attempted_at = datetime.now(UTC).isoformat()
+    if not str(target_host).startswith(("https://", "http://")):
+        return {
+            "attempted_at": attempted_at,
+            "target_host": target_host,
+            "request_succeeded": False,
+            "error": "unsupported URL scheme (http/https only)",
+        }
     try:
         ctx = ssl.create_default_context()
         req = urllib.request.Request(target_host, method="HEAD")
-        with urllib.request.urlopen(req, timeout=timeout_seconds, context=ctx):
+        # Scheme validated above (http/https only).
+        with urllib.request.urlopen(req, timeout=timeout_seconds, context=ctx):  # nosec B310
             return {
                 "attempted_at": attempted_at,
                 "target_host": target_host,

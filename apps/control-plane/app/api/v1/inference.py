@@ -123,10 +123,16 @@ def _call_upstream(messages: list[dict]) -> str:
         headers["Authorization"] = f"Bearer {settings.upstream_llm_api_key}"
 
     url = settings.upstream_llm_base_url.rstrip("/") + "/chat/completions"
+    if not url.startswith(("https://", "http://")):
+        raise HTTPException(
+            status_code=500,
+            detail="upstream_llm_base_url must use http(s) — other schemes are rejected",
+        )
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
 
     try:
-        with urllib.request.urlopen(req, timeout=settings.upstream_llm_timeout) as resp:
+        # Scheme validated above; base_url is server-side config, not caller input.
+        with urllib.request.urlopen(req, timeout=settings.upstream_llm_timeout) as resp:  # nosec B310
             payload = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         raise HTTPException(

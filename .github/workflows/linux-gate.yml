@@ -134,7 +134,7 @@ jobs:
 
       - name: Upload agent execution demo diagnostics
         if: ${{ always() && steps.agent_demo.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: workflo-agent-execution-demo
           path: ${{ runner.temp }}/workflo-agentic-demo-entrypoint/
@@ -275,7 +275,7 @@ jobs:
 
       - name: Upload synthetic integration migration proof
         if: ${{ always() && steps.integration_change.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: integration-migration-development-proof
           path: ${{ runner.temp }}/workflo-integration-change-offline/
@@ -469,7 +469,7 @@ jobs:
       - name: Upload golden run proof bundles
         id: upload_proof
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: golden-run-proof-bundles
           path: artifacts/golden-runs/
@@ -492,7 +492,7 @@ jobs:
 
       - name: Download uploaded proof bundle for portability check
         if: ${{ always() && steps.upload_proof.outcome == 'success' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: golden-run-proof-bundles
           path: ${{ runner.temp }}/workflo-proof-roundtrip

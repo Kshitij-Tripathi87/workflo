@@ -1,0 +1,52 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the checkout, report via SARIF-less plain output.
+permissions:
+  contents: read
+
+jobs:
+  python-security:
+    name: Bandit (medium+) + credential patterns
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bandit
+        run: pip install --quiet bandit
+
+      # Fail the build on any medium/high severity finding in the trust-boundary
+      # packages. Low findings (e.g. asserts in non-`__main__` paths) are
+      # tracked as debt and do not gate. Findings are annotated inline.
+      - name: Bandit — medium and high findings fail the build
+        run: |
+          bandit \
+            -r apps/control-plane/app apps/workflo-cli/src worker/src \
+               packages/workflo-schema/src apps/worker-engine/src \
+            --severity-level medium --confidence-level medium \
+            --format txt
+
+      # High-signal hardcoded-credential patterns. This grep is verified empty
+      # on main; a match fails the build with the offending lines echoed.
+      - name: Hardcoded credential patterns must not appear
+        run: |
+          if grep -rInE \
+            "(sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})" \
+            --include='*.py' --include='*.ts' --include='*.tsx' \
+            --include='*.js' --include='*.json' --include='*.yml' \
+            --include='*.yaml' \
+            --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "::error::Potential hardcoded credential matched the pattern scan (see lines above)."
+            exit 1
+          fi
+          echo "No hardcoded credential patterns found."

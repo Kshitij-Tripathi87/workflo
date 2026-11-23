@@ -105,6 +105,7 @@ def _vendor_cache(config: DepConfig, lockfile: Optional[Path]) -> DepResult:
 
 def _fixture_mirror(config: DepConfig, lockfile: Optional[Path]) -> DepResult:
     """Use internal fixture mirror (advanced teams)."""
+    lockfile_sha = _hash_file(lockfile) if lockfile else None
     # This would point to an internal package mirror
     mirror_url = os.environ.get("WORKFLO_PACKAGE_MIRROR")
     if not mirror_url:
@@ -137,6 +138,7 @@ def _fixture_mirror(config: DepConfig, lockfile: Optional[Path]) -> DepResult:
 
 def _user_approved(config: DepConfig, lockfile: Optional[Path]) -> DepResult:
     """Temporary network access for dependency resolution (beta)."""
+    lockfile_sha = _hash_file(lockfile) if lockfile else None
     # This is the legacy two-stage approach - network ON for prep, then OFF for test
     config.cache_dir.mkdir(parents=True, exist_ok=True)
     

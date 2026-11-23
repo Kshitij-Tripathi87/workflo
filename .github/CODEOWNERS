@@ -1,0 +1,10 @@
+# Default owner for everything in the repository.
+# Security-critical areas (worker/, packages/workflo-schema/, .github/) always
+# route to the same owner; keep this list current as the team grows.
+* @Kshitij-Tripathi87
+
+# Trust boundary and contract surfaces — extra scrutiny on every change.
+/worker/ @Kshitij-Tripathi87
+/packages/workflo-schema/ @Kshitij-Tripathi87
+/packages/sandbox-isolation/ @Kshitij-Tripathi87
+/.github/ @Kshitij-Tripathi87
