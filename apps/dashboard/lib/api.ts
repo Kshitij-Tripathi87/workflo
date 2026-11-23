@@ -1,4 +1,4 @@
-/** API client for communicating with the Tenant Shield Control Plane. */
+/** API client for communicating with the Workflo Control Plane. */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
