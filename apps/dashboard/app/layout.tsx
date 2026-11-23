@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Tenant Shield',
-  description: 'Multi-tenant isolation testing platform with SOC 2 evidence reporting.',
+  title: 'Workflo',
+  description:
+    'Execution assurance for AI-assisted software changes — verified runs, evidence and signed receipts.',
 };
 
 export default function RootLayout({
