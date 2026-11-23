@@ -187,7 +187,6 @@ def parse_frame(data: bytes) -> GuestMessageV1:
     body = data[_FRAME_HEADER.size : _FRAME_HEADER.size + length]
     if len(body) != length:
         raise ProtocolError("truncated frame")
-    import hashlib
 
     hashlib.sha256(body).digest()  # cheap integrity touch; parse follows
     try:

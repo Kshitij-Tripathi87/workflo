@@ -405,7 +405,7 @@ jobs:
           fetch-depth: 1
 
       - name: Download producer evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: p4-model-acceptance-producer-${{ github.run_id }}
           path: artifacts/p4-${{ github.run_id }}

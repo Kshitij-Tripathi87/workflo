@@ -18,7 +18,6 @@ from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.key_provisioning import router as key_provisioning_router
 from app.api.v1.inference import router as inference_router
-from app.api.v1.audit import router as audit_router
 from app.api.v1.orgs import router as orgs_router
 from app.api.oauth import router as oauth_router
 from app.db.database import init_db, get_db, verify_production_database
@@ -409,4 +408,6 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    # Dev-only entrypoint: bind loopback. Containers use the Dockerfile CMD
+    # (uvicorn --host 0.0.0.0) and production uses enforce_production_config.
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

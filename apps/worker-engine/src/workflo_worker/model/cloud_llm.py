@@ -137,6 +137,8 @@ class CloudLLMClient:
             }
         ).encode("utf-8")
 
+        if not str(self.config.base_url).startswith(("http://", "https://")):
+            raise CloudLLMError("model endpoint base_url must use http(s)")
         req = urllib.request.Request(
             f"{self.config.base_url}/chat/completions",
             data=body,
@@ -148,7 +150,8 @@ class CloudLLMClient:
         )
         timeout = timeout_seconds or self.config.timeout_seconds
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            # Scheme validated above (http/https only).
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                 payload = resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):

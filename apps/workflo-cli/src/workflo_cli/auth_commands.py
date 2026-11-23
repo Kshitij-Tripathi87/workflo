@@ -27,8 +27,11 @@ DEFAULT_BASE_URL = os.environ.get("WORKFLO_AUTH_BASE_URL", "http://localhost:300
 def _server_up(base_url: str) -> bool:
     """Return True if the control plane's health endpoint responds 200."""
     url = f"{base_url.rstrip('/')}/v1/health"
+    if not url.startswith(("http://", "https://")):
+        return False
     try:
-        with urllib.request.urlopen(url, timeout=2) as resp:
+        # Scheme validated above (http/https only).
+        with urllib.request.urlopen(url, timeout=2) as resp:  # nosec B310
             return resp.status == 200
     except Exception:
         return False

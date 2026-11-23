@@ -23,6 +23,7 @@ import time
 from datetime import datetime, UTC
 from pathlib import Path
 from dataclasses import asdict
+from typing import Optional
 
 from sandbox_runtime.config import RunConfig, RunResult, WorkloadType, NetworkMode, ProbeResult
 from sandbox_runtime.bwrap import run_bwrap

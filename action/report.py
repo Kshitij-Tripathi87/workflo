@@ -54,10 +54,10 @@ def build_pr_comment(
     lines.append("")
     lines.append(f"<table>")
     lines.append("<tr>")
-    lines.append(f"<th align='left'>Verdict</th><td><code>{verdict.upper()</code</td>")
+    lines.append(f"<th align='left'>Verdict</th><td><code>{verdict.upper()}</code></td>")
     lines.append("</tr>")
     lines.append("<tr>")
-    lines.append(f"<th align='left'>Asset</th><td><code>{asset_urn</code</td>")
+    lines.append(f"<th align='left'>Asset</th><td><code>{asset_urn}</code></td>")
     lines.append("</tr>")
     lines.append("<tr>")
     lines.append(

@@ -48,5 +48,4 @@ __all__ = [
 ]
 
 # Re-export class constants for convenience
-from probe_engine.generator import ProbeGenerator
 PROBE_GROUPS = ProbeGenerator.PROBE_GROUPS

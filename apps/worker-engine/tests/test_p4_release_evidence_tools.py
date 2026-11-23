@@ -112,7 +112,8 @@ def test_independent_verification_job_has_no_environment_or_staging_secrets():
     independent = workflow.split("  independent-verification:\n", 1)[1]
 
     assert "runs-on: ubuntu-latest" in independent
-    assert "actions/download-artifact@v4" in independent
+    # Accepts tag or SHA-pinned ref (actions are pinned repo-wide).
+    assert "actions/download-artifact@" in independent
     assert "environment:" not in independent
     assert "secrets." not in independent
     assert "--tamper-checks" in independent

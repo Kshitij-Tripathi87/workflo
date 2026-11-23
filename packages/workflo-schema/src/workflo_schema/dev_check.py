@@ -43,7 +43,8 @@ RETENTION = RetentionSpecV1(
 )
 LANDLOCK_RULES = (
     ("/", "read"),
-    ("/tmp", "rw"),
+    # Declarative Landlock path rule, not a temp-file handle.
+    ("/tmp", "rw"),  # nosec B108
     ("/home/workflo", "rw"),
     ("/workflo/artifacts", "rw"),
     ("/dev/null", "rw"),
