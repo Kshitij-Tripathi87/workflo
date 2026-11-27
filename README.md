@@ -42,7 +42,10 @@ remains available.
  
 For an end-to-end agent execution demo (deterministic ToolGateway run plus a
 scripted planner, with optional configured-model execution), see the
-[runnable agent demo](docs/DEMO.md). On Ubuntu/WSL2, run
+[runnable agent demo](docs/DEMO.md). After the demo workflow is merged to the default
+branch, the team can launch the no-key quick demo from
+[GitHub Actions](https://github.com/Kshitij-Tripathi87/workflo/actions/workflows/agent-execution-demo.yml)
+and download the run artifacts. On Ubuntu/WSL2, run
 `sudo bash scripts/linux/setup_env.sh` once, then
 `sudo -E bash scripts/linux/demo_agent_execution.sh`. This exercises the
 development namespace/bubblewrap path only; it is not Firecracker/KVM Gate B

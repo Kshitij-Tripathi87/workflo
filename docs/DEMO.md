@@ -4,6 +4,18 @@ This is the runnable demo for Workflo's current agent-execution path. It is desi
 
 > **Execution profile:** Linux namespaces + bubblewrap (development/CI only). This demo does **not** prove Firecracker/KVM isolation and must not be used as evidence that Gate B or production agent execution has passed.
 
+## Run a demo from GitHub Actions
+
+After this workflow is merged to the default branch, team members can launch the deterministic demo without configuring a local Ubuntu/WSL2 environment:
+
+1. Open [Actions → Agent execution demo](https://github.com/Kshitij-Tripathi87/workflo/actions/workflows/agent-execution-demo.yml).
+2. Select **Run workflow** and choose `quick` (recommended), `task-spec`, or `scripted`.
+3. Open the completed run and download the `workflo-agent-execution-demo-<run>` artifact.
+
+The `quick` mode runs both complete flows. The artifact contains execution logs, signed receipts, public keys, and evidence bundles. The workflow checks that the expected receipt/evidence files exist; the demo driver itself runs independent `workflo verify` checks before reporting success.
+
+This is still a development/CI execution profile using Linux namespaces and bubblewrap. It is suitable for testing the agent loop, governed tools, deterministic findings, evidence, and receipts. It does not certify the Firecracker/KVM production boundary. Do not upload customer source repositories or secrets to the GitHub-hosted demo runner.
+
 ## Start the demo
 
 The supported quick path runs two complete executions:
