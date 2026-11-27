@@ -570,3 +570,27 @@ The order that *is* safe to execute, once the owner picks one product name:
 3. Introduce `pyproject.toml` workspace tooling (uv) so the 20 projects resolve
    from one lockfile instead of 20 editable installs.
 4. Move committed binary/fixture bulk (`records.json`, wheels) to a release artifact, then delete from the tree.
+
+### 15.6 Follow-up pass: unauthenticated credential bootstrap
+
+An AST sweep of every control-plane route (44 endpoints) for a missing auth
+dependency found one more anonymous credential path:
+
+- `POST /v1/auth/demo-token` returned a **fixed** API key carrying
+  `run_tests`, `read_reports` and `admin` on project `default`. It was gated
+  only on `is_production()`, i.e. on the deployment *label*: any staging,
+  demo or self-serve host left at `ENVIRONMENT=development` handed an
+  admin credential to an anonymous caller. Now default-closed behind
+  `enable_demo_token` (production still always refuses), matching the
+  `allow_anonymous_key_bootstrap` fix in 15.2, with regression tests for both
+  the closed and opted-in paths. The CLI's keyless `--via-api` path now says
+  which flag to set instead of reporting a bare HTTP 404.
+
+The same sweep surfaced two lower-severity items that were left as designed
+and are recorded, not fixed:
+
+- `GET /v1/key-provisioning/{key_id}` is intentionally unauthenticated so any
+  verifier can resolve a signing key. It returns the public key plus
+  `user_id`, `organization_id` and `device_id`, so it is an anonymous
+  identifier-enumeration surface for anyone holding a key id.
+- `GET /v1/inference/health` discloses the configured upstream model name.

@@ -1384,7 +1384,10 @@ def _run_via_api(
                 resp = client.post(f"{base}/v1/auth/demo-token")
             if resp.status_code != 200:
                 click.echo(
-                    f"Failed to obtain demo token: HTTP {resp.status_code}: {resp.text[:200]}",
+                    f"Failed to obtain demo token: HTTP {resp.status_code}: {resp.text[:200]}\n"
+                    "Pass an existing key with --api-key, or enable the demo-token "
+                    "endpoint on the control plane with ENABLE_DEMO_TOKEN=true "
+                    "(local development only; production always refuses it).",
                     err=True,
                 )
                 sys.exit(2)

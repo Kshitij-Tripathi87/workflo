@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     # Authenticated callers can always mint keys for their own project.
     allow_anonymous_key_bootstrap: bool = False
 
+    # Fixed demo API key (POST /v1/auth/demo-token) hands out a constant key
+    # that carries run_tests/read_reports/admin on the demo project. Production
+    # always refuses it, but any deployment that merely is not labelled
+    # production would otherwise expose an admin credential anonymously, so it
+    # is default-CLOSED and must be opted into for local demos.
+    enable_demo_token: bool = False
+
     model_config = {"env_file": ".env", "env_prefix": ""}
 
 

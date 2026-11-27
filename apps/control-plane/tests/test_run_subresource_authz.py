@@ -140,3 +140,20 @@ def test_bearer_verification_only_considers_the_caller():
             assert row.user_id == alice.id
 
     asyncio.run(_run())
+
+
+def test_demo_token_is_closed_unless_explicitly_enabled(client, monkeypatch):
+    """The fixed demo key carries admin scope, so it must be opt-in."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "enable_demo_token", False)
+    assert client.post("/v1/auth/demo-token").status_code == 404
+
+
+def test_demo_token_can_be_opted_into_locally(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "enable_demo_token", True)
+    resp = client.post("/v1/auth/demo-token")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["api_key"].startswith("wfl_")

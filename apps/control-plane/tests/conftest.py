@@ -14,6 +14,9 @@ os.environ.setdefault("REDIS_URL", "")
 # client-supplied project_id). The suite exercises that local bootstrap path
 # deliberately, so it opts in explicitly here.
 os.environ.setdefault("ALLOW_ANONYMOUS_KEY_BOOTSTRAP", "true")
+# POST /v1/auth/demo-token is default-closed for the same reason; the suite
+# bootstraps most API keys through it.
+os.environ.setdefault("ENABLE_DEMO_TOKEN", "true")
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
