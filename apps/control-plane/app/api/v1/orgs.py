@@ -27,6 +27,13 @@ from app.services.audit_service import record_event
 router = APIRouter(prefix="/orgs", tags=["orgs"])
 
 
+def _exportable_project_config(config_json: dict | None) -> dict:
+    """Remove control-plane-only secret material from tenant data exports."""
+    config = dict(config_json or {})
+    config.pop("_voice_provider_credentials", None)
+    return config
+
+
 async def _own_org(authorization: Optional[str], db: AsyncSession) -> tuple:
     token, user = await verify_bearer_token(authorization, db)
     if not user.org_id:
@@ -84,7 +91,7 @@ async def export_org(
             "created_at": org.created_at.isoformat() if org.created_at else None,
         },
         "projects": [
-            {"id": p.id, "name": p.name, "config": p.config_json} for p in projects
+            {"id": p.id, "name": p.name, "config": _exportable_project_config(p.config_json)} for p in projects
         ],
         "runs": [
             {
