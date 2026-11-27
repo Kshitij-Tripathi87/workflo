@@ -168,14 +168,29 @@ A task is done when:
 
 Run these from the repository root after fetching the branch refs. If the environment cannot create nested worktrees, place them as siblings under the workspace parent rather than inside the repository.
 
+First-time setup from the canonical integration checkout (the five remote branches already exist):
+
 ```bash
 git fetch origin
-git worktree add ../.workflo-worktrees/glm-cli-connectors agent/glm-cli-connectors
-git worktree add ../.workflo-worktrees/deepseek-execution agent/deepseek-execution
-git worktree add ../.workflo-worktrees/minimax-security-inference agent/minimax-security-inference
-git worktree add ../.workflo-worktrees/gemini-dashboard agent/gemini-dashboard
-git worktree add ../.workflo-worktrees/gpt6-luna-qa-release agent/gpt6-luna-qa-release
+
+git worktree add --track -b agent/glm-cli-connectors \
+  ../.workflo-worktrees/glm-cli-connectors origin/agent/glm-cli-connectors
+
+git worktree add --track -b agent/deepseek-execution \
+  ../.workflo-worktrees/deepseek-execution origin/agent/deepseek-execution
+
+git worktree add --track -b agent/minimax-security-inference \
+  ../.workflo-worktrees/minimax-security-inference origin/agent/minimax-security-inference
+
+git worktree add --track -b agent/gemini-dashboard \
+  ../.workflo-worktrees/gemini-dashboard origin/agent/gemini-dashboard
+
+git worktree add --track -b agent/gpt6-luna-qa-release \
+  ../.workflo-worktrees/gpt6-luna-qa-release origin/agent/gpt6-luna-qa-release
+
 git worktree list
 ```
 
-Create each agent branch from the same approved integration base. Do not create all branches from a moving branch while other agents are committing; record the base SHA in the task board. Integrate in small batches to minimize drift.
+For a machine where those local branches already exist, omit `-b` and the remote-tracking start point, and use the existing local branch name as the final argument. Do not check out the same local branch in two worktrees.
+
+The five agent branches were initialized from the planning branch so the plan pack is present in each. Before implementation PRs target `main`, merge/rebase the plan PR first or rebase each agent branch onto the updated integration base. Record the common starting SHA in the task board. Integrate small PRs one at a time to minimize drift.
