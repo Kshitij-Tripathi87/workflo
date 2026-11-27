@@ -59,6 +59,13 @@ Verification checks the signed claims and available evidence. It is not proof
 that the source has no defects, that no data was retained, or that a development
 runtime meets the production isolation boundary.
 
+## AI-assisted engineering workspace
+
+The five-agent development plans, model benchmark evidence, repository ownership map,
+task contracts and enterprise quality gates live in
+[agent-workspace/README.md](agent-workspace/README.md). This workspace is for building
+Workflo itself; it is separate from future customer-facing Workflo QA model providers.
+
 ## Where to contribute
 
 - [Product boundaries](PRODUCT_BOUNDARIES.md) — Workflo ownership, compatibility paths, and the adjacent Cortex Autopilot product.
