@@ -235,9 +235,15 @@ async def get_or_create_demo_key(db: AsyncSession) -> str:
 
 @router.post("/demo-token")
 async def issue_demo_token(db: AsyncSession = Depends(get_db)):
-    """Issue the fixed demo API key (development only; no real auth)."""
-    if is_production(settings):
-        raise HTTPException(status_code=404, detail="Demo-token issuance is disabled in production")
+    """Issue the fixed demo API key (development only; no real auth).
+
+    Fail closed: production refuses this unconditionally, and a non-production
+    deployment must set ENABLE_DEMO_TOKEN=true. The response is a constant key
+    with admin scope, so an accidentally exposed staging host would otherwise
+    be an anonymous admin grant.
+    """
+    if is_production(settings) or not settings.enable_demo_token:
+        raise HTTPException(status_code=404, detail="Demo-token issuance is disabled")
     api_key = await get_or_create_demo_key(db)
     return {"api_key": api_key}
 

@@ -97,7 +97,7 @@ def test_unauthenticated_key_bootstrap_is_disabled_in_production(client, monkeyp
         json={"project_id": "default", "label": "unauthorized", "scopes": ["admin"]},
     )
     assert resp.status_code == 404
-    assert "disabled in production" in resp.json()["detail"]
+    assert "disabled" in resp.json()["detail"]
 
 
 def test_demo_token_issuance_is_disabled_in_production(client, monkeypatch):
@@ -108,4 +108,4 @@ def test_demo_token_issuance_is_disabled_in_production(client, monkeypatch):
     monkeypatch.setattr(settings, "production", False)
     resp = client.post("/v1/auth/demo-token")
     assert resp.status_code == 404
-    assert "disabled in production" in resp.json()["detail"]
+    assert "disabled" in resp.json()["detail"]
