@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "enum": [
+        "mission_supervisor",
+        "ingestor",
+        "executor",
+        "explorer",
+        "test_designer",
+        "browser_probe",
+        "security_probe",
+        "judge",
+        "notary"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "AgentToolEffect": {
+      "enum": [
+        "read_only",
+        "sandbox_write",
+        "network_read",
+        "network_write"
+      ],
+      "title": "AgentToolEffect",
+      "type": "string"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/AgentToolDefinitionV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Versioned typed tool registry entry; implementation remains guest-side.",
+  "properties": {
+    "allowed_roles": {
+      "items": {
+        "$ref": "#/$defs/AgentRole"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Allowed Roles",
+      "type": "array"
+    },
+    "effect": {
+      "$ref": "#/$defs/AgentToolEffect"
+    },
+    "idempotent": {
+      "title": "Idempotent",
+      "type": "boolean"
+    },
+    "request_schema_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Schema Digest",
+      "type": "string"
+    },
+    "requires_approval": {
+      "default": false,
+      "title": "Requires Approval",
+      "type": "boolean"
+    },
+    "response_schema_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Response Schema Digest",
+      "type": "string"
+    },
+    "tool_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Tool Id",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tool_id",
+    "version",
+    "request_schema_digest",
+    "response_schema_digest",
+    "effect",
+    "allowed_roles",
+    "idempotent"
+  ],
+  "title": "AgentToolDefinitionV1",
+  "type": "object"
+}

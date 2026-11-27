@@ -1,0 +1,404 @@
+{
+  "$defs": {
+    "AgentBudgetV1": {
+      "additionalProperties": false,
+      "description": "Hard ceilings for one agent or task; units are explicit integers.",
+      "properties": {
+        "max_cpu_ms": {
+          "default": 60000,
+          "maximum": 5184000000,
+          "minimum": 0,
+          "title": "Max Cpu Ms",
+          "type": "integer"
+        },
+        "max_disk_mib": {
+          "default": 512,
+          "maximum": 1048576,
+          "minimum": 0,
+          "title": "Max Disk Mib",
+          "type": "integer"
+        },
+        "max_elapsed_ms": {
+          "default": 60000,
+          "maximum": 86400000,
+          "minimum": 1000,
+          "title": "Max Elapsed Ms",
+          "type": "integer"
+        },
+        "max_inference_requests": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Max Inference Requests",
+          "type": "integer"
+        },
+        "max_log_bytes": {
+          "default": 262144,
+          "maximum": 104857600,
+          "minimum": 0,
+          "title": "Max Log Bytes",
+          "type": "integer"
+        },
+        "max_memory_mib": {
+          "default": 512,
+          "maximum": 262144,
+          "minimum": 256,
+          "title": "Max Memory Mib",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "default": 1048576,
+          "maximum": 1073741824,
+          "minimum": 0,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "max_parallel_tasks": {
+          "default": 1,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Max Parallel Tasks",
+          "type": "integer"
+        },
+        "max_retries": {
+          "default": 0,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 0,
+          "maximum": 2000000,
+          "minimum": 0,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 0,
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "AgentBudgetV1",
+      "type": "object"
+    },
+    "AgentProfileV1": {
+      "additionalProperties": false,
+      "description": "Approved runtime profile; profile content is immutable once registered.",
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/AgentBudgetV1"
+        },
+        "created_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Created At",
+          "type": "string"
+        },
+        "created_by": {
+          "$ref": "#/$defs/RunCreatorV1"
+        },
+        "delegatable_roles": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AgentRole"
+          },
+          "maxItems": 8,
+          "title": "Delegatable Roles",
+          "type": "array"
+        },
+        "entrypoint": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "input_schema_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Input Schema Digest",
+          "type": "string"
+        },
+        "model_artifact_digests": {
+          "default": [],
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Model Artifact Digests",
+          "type": "array"
+        },
+        "model_profile_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Profile Id"
+        },
+        "output_schema_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Output Schema Digest",
+          "type": "string"
+        },
+        "profile_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/AgentRole"
+        },
+        "runtime_bundle_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Runtime Bundle Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "task_types": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Task Types",
+          "type": "array"
+        },
+        "tool_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Tool Ids",
+          "type": "array"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "version",
+        "role",
+        "runtime_bundle_digest",
+        "entrypoint",
+        "task_types",
+        "input_schema_digest",
+        "output_schema_digest",
+        "budget",
+        "created_by",
+        "created_at"
+      ],
+      "title": "AgentProfileV1",
+      "type": "object"
+    },
+    "AgentRole": {
+      "enum": [
+        "mission_supervisor",
+        "ingestor",
+        "executor",
+        "explorer",
+        "test_designer",
+        "browser_probe",
+        "security_probe",
+        "judge",
+        "notary"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "AgentToolDefinitionV1": {
+      "additionalProperties": false,
+      "description": "Versioned typed tool registry entry; implementation remains guest-side.",
+      "properties": {
+        "allowed_roles": {
+          "items": {
+            "$ref": "#/$defs/AgentRole"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Allowed Roles",
+          "type": "array"
+        },
+        "effect": {
+          "$ref": "#/$defs/AgentToolEffect"
+        },
+        "idempotent": {
+          "title": "Idempotent",
+          "type": "boolean"
+        },
+        "request_schema_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Request Schema Digest",
+          "type": "string"
+        },
+        "requires_approval": {
+          "default": false,
+          "title": "Requires Approval",
+          "type": "boolean"
+        },
+        "response_schema_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Response Schema Digest",
+          "type": "string"
+        },
+        "tool_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Tool Id",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_id",
+        "version",
+        "request_schema_digest",
+        "response_schema_digest",
+        "effect",
+        "allowed_roles",
+        "idempotent"
+      ],
+      "title": "AgentToolDefinitionV1",
+      "type": "object"
+    },
+    "AgentToolEffect": {
+      "enum": [
+        "read_only",
+        "sandbox_write",
+        "network_read",
+        "network_write"
+      ],
+      "title": "AgentToolEffect",
+      "type": "string"
+    },
+    "RunCreatorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "organization_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Organization Id",
+          "type": "string"
+        },
+        "user_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "User Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "organization_id"
+      ],
+      "title": "RunCreatorV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://workflo.dev/schemas/v1/AgentProfileRegistryV1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Tenant-scoped registry snapshot; its digest is bound into admission.",
+  "properties": {
+    "created_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "$ref": "#/$defs/RunCreatorV1"
+    },
+    "organization_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Organization Id",
+      "type": "string"
+    },
+    "profiles": {
+      "items": {
+        "$ref": "#/$defs/AgentProfileV1"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Profiles",
+      "type": "array"
+    },
+    "registry_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Registry Id",
+      "type": "string"
+    },
+    "revoked_profile_digests": {
+      "default": [],
+      "items": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "maxItems": 512,
+      "title": "Revoked Profile Digests",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "signature": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Signature"
+    },
+    "tools": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AgentToolDefinitionV1"
+      },
+      "maxItems": 256,
+      "title": "Tools",
+      "type": "array"
+    },
+    "version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "registry_id",
+    "organization_id",
+    "version",
+    "profiles",
+    "created_by",
+    "created_at"
+  ],
+  "title": "AgentProfileRegistryV1",
+  "type": "object"
+}

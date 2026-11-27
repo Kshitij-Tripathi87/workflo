@@ -5,3 +5,4 @@ export * from "./explorer";
 export * from "./tool-gateway";
 export * from "./judge";
 export * from "./receipt";
+export * from "./agentic";

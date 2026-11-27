@@ -10,6 +10,7 @@ from workflo_worker_host.assignment import (
     ResourceLimitsV1,
     GuestImageV1,
     SandboxAssignmentV1,
+    SandboxAssignmentV2,
     constant_time_equals,
 )
 from workflo_worker_host.admission import (
@@ -96,6 +97,7 @@ __all__ = [
     "ResourceLimitsV1",
     "GuestImageV1",
     "SandboxAssignmentV1",
+    "SandboxAssignmentV2",
     "constant_time_equals",
     # admission
     "HostProbeError",
