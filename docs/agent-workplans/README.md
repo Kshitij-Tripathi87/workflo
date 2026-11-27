@@ -89,6 +89,7 @@ Benchmark source material was checked on **27 November 2026**. These are publish
 The detailed instructions are in:
 
 - [Workspace structure and collaboration rules](WORKSPACE-STRUCTURE.md)
+- [Model calibration protocol](MODEL-CALIBRATION.md)
 - [GLM — CLI and connectors](01-glm-cli-connectors.md)
 - [DeepSeek — execution platform](02-deepseek-execution-platform.md)
 - [MiniMax — security and inference](03-minimax-security-inference.md)
