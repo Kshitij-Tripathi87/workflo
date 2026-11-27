@@ -43,6 +43,7 @@ from app.api.v1.auth import (
     verify_token,
 )
 from app.core.crypto import utc_now as _utc_now
+from app.core.rate_limit import check_credential_rate_limit
 from app.db.database import get_db
 from app.db.models import Organization, User
 
@@ -65,6 +66,29 @@ class TokenResponse(BaseModel):
     expires_in: int
     refresh_token: str
     scope: str
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limited(request: Request, endpoint: str) -> JSONResponse | None:
+    """Per-IP ceiling for unauthenticated credential endpoints.
+
+    Both handlers below compare the supplied secret against stored hashes with
+    PBKDF2, so an unthrottled caller can force that work at will. Return the
+    RFC-conformant ``slow_down`` body when the caller is over the ceiling.
+    """
+    allowed, retry_after = check_credential_rate_limit(_client_ip(request), endpoint)
+    if allowed:
+        return None
+    response = _error(
+        "slow_down",
+        f"Too many requests; retry after {retry_after} seconds",
+        status=429,
+    )
+    response.headers["Retry-After"] = str(retry_after)
+    return response
 
 
 def _error(error: str, description: str, status: int = 400) -> JSONResponse:
@@ -117,6 +141,7 @@ async def oauth_device_authorize(
 
 @router.post("/oauth/token", response_model=TokenResponse)
 async def oauth_token(
+    request: Request,
     grant_type: str = Form(...),
     device_code: Optional[str] = Form(None),
     refresh_token: Optional[str] = Form(None),
@@ -130,6 +155,9 @@ async def oauth_token(
     - `urn:ietf:params:oauth:grant-type:device_code` (device flow polling)
     - `refresh_token` (refresh access token)
     """
+    limited = _rate_limited(request, "token")
+    if limited is not None:
+        return limited
     get_client_config(client_id)
 
     if grant_type == "urn:ietf:params:oauth:grant-type:device_code":
@@ -279,6 +307,7 @@ async def _handle_refresh_grant(
 
 @router.post("/oauth/revoke")
 async def oauth_revoke(
+    request: Request,
     token: str = Form(...),
     token_type_hint: Optional[str] = Form(None),
     client_id: str = Form(...),
@@ -288,6 +317,9 @@ async def oauth_revoke(
 
     Always returns 200 per RFC 7009, even if the token is not found.
     """
+    limited = _rate_limited(request, "revoke")
+    if limited is not None:
+        return limited
     get_client_config(client_id)
 
     stmt = select(OAuthToken)

@@ -458,3 +458,115 @@ sandbox -> model -> exploration -> confirmation -> receipt -> independent
 verification. That chain, its negative paths, and the runnable subset are
 specified in **`P4_ACCEPTANCE.md`**; nothing there is claimed as passing that
 was not run.
+
+---
+
+## 15. Review pass — 2026-11-27 (backup workspace)
+
+**Method:** installed all 20 Python projects editable into one interpreter
+(none of them were installed; 12 of 18 suites failed at *collection* with
+`ModuleNotFoundError`, which is an environment gap presenting as a code
+defect), then ran every suite + the type checkers. Security review concentrated
+on the control plane's authentication and authorization paths, because that is
+the only code in the tree that decides "may this caller see this row".
+
+### 15.1 Baseline measured, not assumed
+
+| Suite | Result after install |
+| --- | --- |
+| `apps/control-plane` | 158 passed, 1 skipped (**170** after this pass) |
+| `apps/workflo-cli` | 126 passed |
+| `apps/worker-engine` | 202 passed, **2 failed** |
+| `apps/agent-cli` | 34 passed |
+| `apps/sandbox-executor` | 55 passed |
+| `apps/validation-cli` | 64 passed, 4 deselected |
+| `packages/workflo-schema` | 285 passed |
+| `packages/sandbox-runtime` | 309 passed, 35 skipped, **1 flaky** |
+| `packages/sandbox-isolation` | 85 passed |
+| `packages/probe-engine` | 23 passed |
+| `packages/cortex-auth` | 42 passed |
+| `packages/workflo-utils` | 37 passed |
+| `packages/workflo-datahub` | 19 passed |
+| `supervisor` | 12 skipped (Unix sockets — Windows host) |
+| `worker` | 143 passed, 2 skipped |
+| `backend` | 171 passed, **1 failed** (needs `chromadb`) |
+| `workflo-ai-integration` | 116 passed, 1 skipped |
+
+The two `worker-engine` failures are platform assumptions, not product defects:
+`os.getuid()` does not exist on Windows and `/usr/local/bin/llama-server` is a
+Linux path, in tests not marked Linux-only. The `backend` failure is a missing
+optional dependency (`chromadb`) in a test of the *degradation* path.
+
+### 15.2 Findings and what was done about them
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | **Critical** | `GET /v1/runs/{id}/artifacts`, `/results`, `/report` had **no authentication and no tenant check**. `artifacts_router` is mounted at `/v1` with no global dependency, and the handlers themselves took no `Depends`. Any anonymous caller holding or guessing a run id could read another tenant's test results, assertion text, captured errors and artifact storage paths (broken object-level authorization, OWASP A01). | **Fixed** — `require_api_key` on all three + ownership check returning 404 on mismatch (indistinguishable from missing). 9 regression tests. |
+| 2 | **High** | `POST /v1/keys` accepted an **anonymous, client-supplied `project_id`** outside production — an unauthenticated write that mints an admin-capable key for any tenant's project id, auto-creating the project if absent. `is_production()` was the only guard, so staging was wide open. | **Fixed** — default-closed `ALLOW_ANONYMOUS_KEY_BOOTSTRAP` flag for local dev, and an authenticated caller can only mint keys for its own project (`project_id` in the body is ignored). 2 regression tests. |
+| 3 | **High** | `verify_bearer_token` selected **every** `OAuthToken` row and ran PBKDF2-HMAC-SHA256 (100k iterations) against each one, per request, across all tenants. O(total tokens) CPU per request, triggerable at will by any caller holding one valid token. | **Fixed** — candidate set scoped by the `sub` claim of the already-verified JWT, revoked rows excluded in SQL. |
+| 4 | **High** | Same all-rows + PBKDF2 pattern in `oauth.py` `_handle_refresh_grant` and `oauth_revoke`, on **unauthenticated** endpoints: no credential is needed to make the server hash-loop over the whole token table. | **Mitigated** — per-IP rate ceiling (`check_credential_rate_limit`, 120/min) on both endpoints. A full fix needs a deterministic lookup digest column; see 15.3. |
+| 5 | Medium | `api_key_service.validate_key` still scans every API-key row across all tenants, revealing each row under *its own* project context to do so. Correctness is fine (PBKDF2 still decides), but it is the same O(n) amplification for the API-key path, which is the *primary* auth path. | **Documented**, fix designed in 15.3 (needs a schema column). |
+| 6 | Medium | No reproducible Python bootstrap: ~20 separate setuptools projects, no lockfile, no workspace, and README install steps that only cover 5 of them. | **Fixed** — `scripts/python-env.sh` (`install` / `test` / `list`) + `make python-install`, `make python-test`. |
+| 7 | Low | `security.py` docstring claimed `X-API-Key` takes precedence over `X-Workflo-Key`; the code checks `X-Workflo-Key` first. | **Fixed** — precedence is now the `_API_KEY_HEADERS` tuple, used by both the required and optional dependencies so they cannot drift. |
+| 8 | Low | `apps/worker-engine` has 2 tests that can only pass on Linux but are collected everywhere. | Documented; mark with the existing `linux` marker. |
+| 9 | Low | `packages/sandbox-runtime` has one flaky test (passes on re-run; not reproducible in two attempts). | Documented. |
+| 10 | Process | No `[tool.ruff]` / `[tool.mypy]` anywhere, so `ruff` with current defaults reports **222** findings in the control plane alone — all style noise that hides real findings. | Documented; ruleset is a decision, not a cleanup (see 15.4). |
+
+### 15.3 Designed, not yet implemented: credential lookup indices
+
+The PBKDF2 columns use a **random per-value salt**, which is correct for storage
+but makes the hash unusable as a lookup key — hence every verifier scans the
+table. The fix is a deterministic, indexed lookup column:
+
+```
+api_keys.lookup_digest            -- HMAC-SHA256(lookup_key, raw_key)
+oauth_tokens.access_lookup_digest -- HMAC-SHA256(lookup_key, raw_access)
+oauth_tokens.refresh_lookup_digest
+```
+
+`lookup_key` must be a **dedicated** secret (not `jwt_secret`): rotating
+`jwt_secret` must not invalidate every issued credential, and rotating
+`lookup_key` does. Verifiers become `WHERE lookup_digest = :d`, then one PBKDF2
+compare. Rows with a NULL digest (pre-migration) keep the bounded scan path
+until backfilled. This is the correct fix for findings 4 and 5 and should land
+with its migration before any multi-tenant deployment.
+
+### 15.4 What this pass did **not** review
+
+Stated plainly so nobody mistakes a green suite for a cleared codebase:
+
+- `client/`, `frontend/`, `website/`, `apps/dashboard/` — no JavaScript/TypeScript
+  read in this pass; they hold no server-side authorization logic, but they are
+  unreviewed.
+- `backend/` business logic (Cortex) — exercised by its suite, not read line by
+  line. It is a separate product surface per `PRODUCT_BOUNDARIES.md`.
+- `packages/sandbox-runtime/` kernel isolation code (bwrap/cgroups/netns/Landlock)
+  — the security claims there are only provable by the real-namespace integration
+  gate on Linux, which did not run here (35 skips on this host).
+- `worker/` was reviewed in the previous pass (protocol, capability, framing);
+  this pass only re-ran its suite.
+
+### 15.5 Restructure: the decision this repo keeps deferring
+
+The tree still carries **three products** (`PRODUCT_BOUNDARIES.md`), and the
+duplication is structural, not cosmetic:
+
+- two Python backends (`backend/`, `apps/control-plane/`),
+- three CLIs (`workflo-cli`, `agent-cli`, `validation-cli`) — and **two of them
+  register the same `workflo` console script**, so installing both silently
+  clobbers one entry point,
+- four frontends (`client/`, `frontend/`, `apps/dashboard/`, `website/`),
+- 20 Python projects with no workspace tool, and 6 vendored wheels plus a
+  3.7 MB `records.json` committed as fixtures.
+
+Deleting a product is an owner decision, so this pass does not delete anything.
+The order that *is* safe to execute, once the owner picks one product name:
+
+1. Pick ONE Python backend and ONE CLI; archive the others by moving them under
+   `archive/` in a single commit (history preserved, imports unchanged).
+2. Rename the losing `workflo` entry point (immediate, one-line fix, no
+   behaviour change) — this is the only structural defect in the list that is
+   actively dangerous today.
+3. Introduce `pyproject.toml` workspace tooling (uv) so the 20 projects resolve
+   from one lockfile instead of 20 editable installs.
+4. Move committed binary/fixture bulk (`records.json`, wheels) to a release artifact, then delete from the tree.

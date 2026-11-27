@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # Run creation idempotency: dev permits absent keys (one is generated);
     # production must require the client-supplied Idempotency-Key.
     require_idempotency_key: bool = False
+    # Anonymous API-key creation (POST /v1/keys with no credential). This
+    # exists so a fresh local deployment can mint its first key, but it is
+    # also an unauthenticated write that accepts a client-supplied
+    # project_id — i.e. arbitrary-tenant key minting. It is therefore
+    # default-CLOSED and must be opted into explicitly for local development.
+    # Authenticated callers can always mint keys for their own project.
+    allow_anonymous_key_bootstrap: bool = False
 
     model_config = {"env_file": ".env", "env_prefix": ""}
 

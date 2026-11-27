@@ -10,6 +10,10 @@ import os
 # Configure test DB BEFORE importing app modules
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "")
+# POST /v1/keys without a credential is default-closed (it accepts a
+# client-supplied project_id). The suite exercises that local bootstrap path
+# deliberately, so it opts in explicitly here.
+os.environ.setdefault("ALLOW_ANONYMOUS_KEY_BOOTSTRAP", "true")
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
