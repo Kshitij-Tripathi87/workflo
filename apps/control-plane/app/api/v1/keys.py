@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.db.models import ApiKey
 from app.services.api_key_service import ApiKeyService
 from app.services.audit_service import record_event
-from app.core.security import require_api_key, require_scope
+from app.core.security import optional_api_key, require_api_key
 from app.core.config import settings
 from app.core.startup_guards import is_production
 
@@ -48,17 +48,45 @@ async def _ensure_default_project(db: AsyncSession, api_key: ApiKey | None = Non
 
 
 @router.post("", response_model=CreateKeyResponse)
-async def create_key(req: CreateKeyRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Create a new API key. Returns the raw key once — store it securely."""
+async def create_key(
+    req: CreateKeyRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    caller: ApiKey | None = Depends(optional_api_key),
+):
+    """Create a new API key. Returns the raw key once — store it securely.
+
+    Authorization:
+      * In production the route does not exist (404) — use
+        app.db.bootstrap_api_key out of band.
+      * An authenticated caller may mint keys for ITS OWN project only;
+        ``project_id`` in the body is ignored.
+      * An anonymous caller is allowed only when
+        ALLOW_ANONYMOUS_KEY_BOOTSTRAP is explicitly enabled (local
+        development). Before this gate, any anonymous caller could create an
+        admin-scoped key for an arbitrary ``project_id`` — including another
+        tenant's, which is privilege escalation.
+    """
     if is_production(settings):
         raise HTTPException(
             status_code=404,
             detail="Unauthenticated API-key bootstrap is disabled in production; use app.db.bootstrap_api_key",
         )
-    # Allow creation without auth for bootstrapping (first key)
-    await _ensure_default_project(db)
+    if caller is None and not settings.allow_anonymous_key_bootstrap:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Anonymous API-key creation is disabled. Authenticate with an existing "
+                "key, or set ALLOW_ANONYMOUS_KEY_BOOTSTRAP=true for local development."
+            ),
+        )
+    if caller is not None:
+        project_id = caller.project_id
+    else:
+        await _ensure_default_project(db)
+        project_id = req.project_id
     service = ApiKeyService(db)
-    raw_key, record = await service.create_key(req.project_id, req.label, req.scopes)
+    raw_key, record = await service.create_key(project_id, req.label, req.scopes)
     await record_event(
         action="api_key.create",
         outcome="success",

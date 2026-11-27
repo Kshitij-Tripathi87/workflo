@@ -118,6 +118,21 @@ def check_login_rate_limit(ip: str) -> tuple[bool, int]:
     return get_rate_limiter().hit(f"auth.login:{ip}", LOGIN_LIMIT, LOGIN_WINDOW_SECONDS)
 
 
+# Credential endpoints (`/oauth/token`, `/oauth/revoke`) are unauthenticated and
+# must PBKDF2-compare the supplied secret against stored hashes. Without a
+# ceiling, a caller can force that comparison work at will. The window is
+# deliberately generous: the device flow legitimately polls every few seconds.
+CREDENTIAL_LIMIT = 120
+CREDENTIAL_WINDOW_SECONDS = 60
+
+
+def check_credential_rate_limit(ip: str, endpoint: str) -> tuple[bool, int]:
+    """Per-IP ceiling for unauthenticated credential endpoints."""
+    return get_rate_limiter().hit(
+        f"auth.credential:{endpoint}:{ip}", CREDENTIAL_LIMIT, CREDENTIAL_WINDOW_SECONDS
+    )
+
+
 def check_tenant_rate_limit(project_id: str, action: str = "runs.create") -> tuple[bool, int]:
     """Per-tenant run submission ceiling. One noisy project cannot consume
     the whole worker capacity — blast-radius containment for multi-tenancy."""

@@ -1,20 +1,40 @@
-"""Artifact listing and metadata endpoints."""
+"""Artifact listing and metadata endpoints — tenant-scoped.
+
+Security note: a run id is an identifier, never an authorization token.
+These endpoints used to be unauthenticated, so anyone who held or guessed a
+run id could read another tenant's test results, assertion text, captured
+errors and artifact storage paths (broken object-level authorization,
+OWASP A01). Every handler now requires an API key AND checks that the run
+belongs to the caller's project, returning 404 rather than 403 so run ids
+are not enumerable across tenants — the same rule app/api/v1/runs.py uses.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.security import require_api_key
 from app.db.database import get_db
-from app.db.models import Artifact, TestRun, TestResultRecord
+from app.db.models import ApiKey, Artifact, TestRun, TestResultRecord
 
 router = APIRouter(prefix="/runs", tags=["artifacts"])
 
 
-@router.get("/{run_id}/artifacts")
-async def list_artifacts(run_id: str, db: AsyncSession = Depends(get_db)):
+async def _get_own_run(run_id: str, api_key: ApiKey, db: AsyncSession) -> TestRun:
+    """Return the run only if it belongs to the caller's project (else 404)."""
     run = await db.get(TestRun, run_id)
-    if not run:
+    if not run or run.project_id != api_key.project_id:
         raise HTTPException(status_code=404, detail="Run not found")
+    return run
+
+
+@router.get("/{run_id}/artifacts")
+async def list_artifacts(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_own_run(run_id, api_key, db)
     stmt = select(Artifact).where(Artifact.run_id == run_id)
     result = await db.execute(stmt)
     artifacts = result.scalars()
@@ -30,10 +50,12 @@ async def list_artifacts(run_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{run_id}/results")
-async def get_results(run_id: str, db: AsyncSession = Depends(get_db)):
-    run = await db.get(TestRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+async def get_results(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_own_run(run_id, api_key, db)
     # Use explicit SELECT to avoid lazy-loading issues with async SQLAlchemy
     stmt = select(TestResultRecord).where(TestResultRecord.run_id == run_id)
     result = await db.execute(stmt)
@@ -52,11 +74,13 @@ async def get_results(run_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{run_id}/report")
-async def get_report_link(run_id: str, db: AsyncSession = Depends(get_db)):
+async def get_report_link(
+    run_id: str,
+    api_key: ApiKey = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+):
     """Return a link to the SOC2 compliance report for this run."""
-    run = await db.get(TestRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = await _get_own_run(run_id, api_key, db)
     # In production, this returns a presigned S3 URL
     # For now, return a placeholder
     return {
