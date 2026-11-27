@@ -5,7 +5,7 @@ export default function Home() {
       <p className="mt-4 text-lg text-gray-600">
         Verified execution evidence for AI-assisted software changes.
       </p>
-      <div className="mt-8 grid grid-cols-3 gap-4">
+      <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <a href="/projects" className="rounded-lg border p-4 hover:border-workflo-500">
           <h2 className="font-semibold">Projects</h2>
           <p className="text-sm text-gray-500">
@@ -22,6 +22,12 @@ export default function Home() {
           <h2 className="font-semibold">Settings</h2>
           <p className="text-sm text-gray-500">
             Inference providers, privacy mode and keys
+          </p>
+        </a>
+        <a href="/voice" className="rounded-lg border p-4 hover:border-workflo-500">
+          <h2 className="font-semibold">Voice QA</h2>
+          <p className="text-sm text-gray-500">
+            Spoken or typed QA requests with review before execution
           </p>
         </a>
       </div>

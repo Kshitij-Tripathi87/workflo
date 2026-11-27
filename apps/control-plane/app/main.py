@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Request, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,7 @@ from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.key_provisioning import router as key_provisioning_router
 from app.api.v1.inference import router as inference_router
+from app.api.v1.voice import router as voice_router
 from app.api.v1.orgs import router as orgs_router
 from app.api.oauth import router as oauth_router
 from app.db.database import init_db, get_db, verify_production_database
@@ -76,6 +78,19 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    origins = [
+        origin.strip()
+        for origin in settings.dashboard_origins.split(",")
+        if origin.strip()
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Workflo-Key", "X-API-Key", "X-TenantShield-Key", "Idempotency-Key", "X-Request-ID"],
+    )
+
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
         """Attach a correlation ID to every request (SOC 2 CC7.2).
@@ -101,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/v1", tags=["auth"])
     app.include_router(key_provisioning_router, prefix="/v1", tags=["key-provisioning"])
     app.include_router(inference_router, prefix="/v1", tags=["inference"])
+    app.include_router(voice_router, prefix="/v1", tags=["voice"])
     # Standard OAuth endpoints (RFC 8628/6749/7009) at root level for
     # cortex-auth client compatibility.
     app.include_router(oauth_router)
