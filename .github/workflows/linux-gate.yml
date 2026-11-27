@@ -282,6 +282,10 @@ jobs:
             fi
           done
 
+          # Evidence bundles are copied with cp -a from root-owned sandbox paths.
+          # Transfer ownership before the unprivileged runner traverses or verifies them.
+          sudo chown -R "$(id -u):$(id -g)" "$ROOT"
+
           count="$(find "$ROOT" -type f -name receipt.json | wc -l)"
           if [ "$count" -ne 3 ]; then
             echo "::error::Expected 3 golden receipts; collected $count"
