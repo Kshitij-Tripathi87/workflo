@@ -1,152 +1,155 @@
-# Engineering task contract and handoff template
+# Engineering task contract and implementation handoff
 
-Every non-trivial task assigned to any of the five agents must use this contract. Do not issue broad natural-language requests without scope, acceptance criteria and path ownership.
+Every non-trivial task assigned to one of the five models must use this contract. Agents do not receive broad repository write access through a vague prompt. A task must have one owner, one reviewer, one immutable base, a specific path allowlist and executable acceptance criteria.
 
-## 1. Task template
+## 1. Mandatory task definition
 
-    task_id: WF-XXXX
-    title: short action-oriented title
+    task_id: WF2-XXX
+    title: Action-oriented, observable outcome
     status: READY
     priority: P0 | P1 | P2 | P3
 
-    owner:
-      agent: Gemini | DeepSeek | MiniMax | GLM | GPT-6 Luna
-      exact_model_id: exact provider/model version
-      reviewer: named different agent
+    ownership:
+      agent_name: Gemini | DeepSeek | MiniMax | GPT-6 Luna | GLM
+      exact_model_id: exact model identifier and version
+      implementation_owner: one agent only
+      reviewer: a different agent
       human_approver: project owner
 
-    baseline:
+    source:
       repository: Kshitij-Tripathi87/workflo
-      base_sha: full immutable commit SHA
+      base_sha: immutable full commit SHA
       branch: task-specific branch
-      worktree: isolated path
+      worktree: isolated sibling path
+      baseline_run_id: test/build run or explicit "not available"
 
     context:
       product_boundary: Workflo Trust MVP
-      governing_docs: exact ADR/spec/status paths
-      current_behavior: observed behavior with source references
-      prior_attempts: known relevant work
+      governing_docs: exact ADR/spec/status file list
+      current_behavior: observed code behavior with source references
+      prior_attempts: related commits/PRs and unresolved findings
 
     objective:
-      required_outcome: one verifiable outcome
-      user_impact: why it matters
+      required_outcome: verifiable observable behavior
+      user_impact: user problem solved
+      non_goals: explicit exclusions
 
-    allowed_paths:
-      - exact/path/one
-      - exact/path/two
-
-    forbidden_paths:
-      - exact/path/secret-or-sensitive
-      - exact/path/out-of-scope
+    paths:
+      allowed:
+        - exact/path/file-or-directory
+      forbidden:
+        - exact/path/file-or-directory
 
     interfaces:
-      public_contracts: affected APIs/schemas/CLI
-      compatibility: behavior that must remain stable
-      migration: required versioned migration or none
+      public_contracts: affected CLI/API/schema/protocol
+      compatibility: behavior that must not change
+      migration: versioned migration or none
+      deprecation: removal condition and rollback
 
-    constraints:
-      security_invariants: list
-      performance_limits: list or unknown
-      dependencies: existing approved dependencies only
-      no_go: explicit operations the agent cannot perform
+    invariants:
+      security: exact trust boundaries preserved
+      privacy: permitted/prohibited data classes
+      tenancy: resource ownership and authorization
+      reliability: idempotency, retries, recovery and limits
+      performance: measured target or "not yet baselined"
 
-    implementation_plan:
-      - inspect existing implementation
-      - propose minimal design
-      - implement
-      - test
-      - handoff
+    implementation:
+      steps:
+        - inspect current implementation and tests
+        - state a minimal design and files to change
+        - implement only the approved slice
+        - run required positive and negative tests
+        - record evidence and handoff
 
     acceptance:
-      functional:
-        - observable expected result
-      negative:
-        - prohibited behavior must fail
-      regression:
-        - existing behavior that must remain
-      security:
-        - trust boundaries and proof required
+      functional: observable expected behavior
+      negative: prohibited behaviors that must fail closed
+      regression: compatibility that must remain
+      security: trust boundary and required proof
+      operational: restart, retry, rollback, install or recovery proof
 
-    required_tests:
-      unit: exact test modules/commands
-      integration: exact test modules/commands
+    test_plan:
+      unit: exact modules/commands
+      integration: exact modules/commands
       security: exact negative tests
       system: exact end-to-end checks
-
-    evidence:
-      expected_artifacts:
-        - test logs
-        - changed-file list
-        - reports
-        - hashes if applicable
+      platform: OS/architecture matrix
+      unavailable: explicit reason and impact
 
     handoff:
-      report_path: agent-workspace/agents/<owner>/handoffs/<task-id>.md
-      status_allowed: IMPLEMENTED_UNVERIFIED | VERIFIED | BLOCKED
+      report: agent-workspace/agents/<model>/handoffs/<task-id>.md
+      artifacts: logs, reports, hashes and test results
+      allowed_status: IMPLEMENTED_UNVERIFIED | BLOCKED
 
-## 2. Task design rules
+## 2. Rules for task design
 
-- The objective must describe observable behavior, not an implementation preference.
-- Allowed paths must be exact enough to prevent repository-wide accidental refactoring.
-- Acceptance criteria must be executable or independently inspectable.
-- Positive and negative paths are both required for security-relevant behavior.
-- Every task needs a baseline SHA and a clean worktree.
-- A task should normally change one component boundary. Cross-component work needs an integration plan.
-- Do not add a dependency unless the contract names the reason, licence, version and security review.
-- Do not make an ADR decision in code. Proposed decisions need an ADR and owner ratification.
-- No ticket can define itself as passed by the same model that implemented it.
-- A test that is skipped, xfailed, mocked or not executed is not a passed real-world security test. Record exact counts and reasons.
-- For Linux/KVM work, distinguish unit tests, mocked tests, namespace/bwrap development tests and real Firecracker/KVM acceptance.
+- Objective describes observable behavior, not merely “refactor”, “improve” or “make robust”.
+- Allowed paths are specific enough to prevent accidental repo-wide refactoring.
+- Acceptance is executable or independently inspectable.
+- Security-relevant changes require positive and negative tests.
+- Every task has exact base SHA, branch and clean worktree.
+- Cross-component changes require an interface contract and dependency owner.
+- New dependencies require reason, exact version, license, maintenance status and security review.
+- Do not make an ADR decision in implementation code. Proposed decisions require an ADR and owner ratification.
+- No ticket can be marked passed by the model that implemented it.
+- Mocked, skipped or xfailed tests are not equivalent to real acceptance. Record all counts and reasons.
+- For isolation work, distinguish unit tests, fake process tests, namespace/bwrap development tests and real Firecracker/KVM acceptance.
+- For cross-platform work, record target triple, host OS and actual clean-machine result for each target.
 
 ## 3. Required implementation report
 
-    # Handoff: WF-XXXX
+    # Handoff: WF2-XXX
 
     ## Result
-    Status: IMPLEMENTED_UNVERIFIED or VERIFIED
+    Status: IMPLEMENTED_UNVERIFIED or BLOCKED
     Base SHA:
     Result SHA:
     Agent/model:
     Reviewer:
 
-    ## Summary
-    What changed and what user-visible/system behavior it enables.
+    ## Behavior delivered
+    User-visible and system-level behavior, including what is not delivered.
 
     ## Files changed
     | Path | Change | Reason |
-    | --- | --- | --- |
+    |---|---|---|
 
-    ## Design and invariants
+    ## Contracts and invariants
     - Governing ADRs:
-    - Contracts affected:
+    - Contracts/version:
     - Security boundaries preserved:
+    - Privacy/data-flow impact:
+    - Tenant scope:
     - Compatibility preserved:
 
     ## Validation
-    | Command | Exit code | Passed | Failed | Skipped | Notes |
-    | --- | ---: | ---: | ---: | ---: | --- |
+    | Command | Exit | Passed | Failed | Skipped | Not run | Environment |
+    |---|---:|---:|---:|---:|---:|---|
 
     ## Negative-path evidence
-    List each tested failure path and outcome. Do not replace evidence with assertion.
+    Each attack/failure input, expected behavior, observed result and artifact reference.
+
+    ## Operational proof
+    Startup, cancellation, restart, retry, idempotency, teardown and rollback as relevant.
 
     ## Review findings
-    | Severity | Finding | Evidence | Resolution |
-    | --- | --- | --- | --- |
+    | Severity | File/line | Finding | Reproduction | Resolution |
+    |---|---|---|---|---|
 
     ## Risks and limitations
-    State what is not proven.
+    What is not proven, unavailable hardware, skipped gates and required owner decisions.
 
     ## Follow-up tasks
-    Exact task IDs or "none".
+    Exact task IDs or none.
 
-## 4. State transitions
+## 4. Status transitions
 
-- NOT_STARTED → READY only after prerequisites, scope and owner are explicit.
-- READY → IN_PROGRESS only after base SHA and worktree are recorded.
+- NOT_STARTED → READY only after dependencies, owner, path scope and acceptance are explicit.
+- READY → IN_PROGRESS only after base SHA/worktree are recorded and baseline is run.
 - IN_PROGRESS → IMPLEMENTED_UNVERIFIED only after code is committed and handoff is complete.
-- IMPLEMENTED_UNVERIFIED → VERIFIED only after independent review and required deterministic tests pass.
+- IMPLEMENTED_UNVERIFIED → VERIFIED only after independent review and mandatory tests pass.
 - VERIFIED → ACCEPTED only after human approval.
-- Any active state may transition to BLOCKED with evidence and reason.
+- Any active state may become BLOCKED with exact evidence and reason.
 - DEFERRED and REJECTED require a recorded decision.
 
-No task moves to VERIFIED if a mandatory test was skipped or if a critical acceptance criterion is not demonstrated.
+A mandatory test that is skipped, mocked or not run cannot silently count as a pass. If the gate requires real hardware and that hardware is unavailable, the task remains blocked for that acceptance dimension.

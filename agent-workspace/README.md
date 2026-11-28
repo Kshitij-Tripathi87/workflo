@@ -1,61 +1,66 @@
-# Workflo agent workspace
+# Workflo five-agent engineering workspace
 
-**Purpose:** one shared, version-controlled operating area for the five development agents building Workflo. This workspace governs development of Workflo itself. It does not define or select model providers for Workflo's future customer-facing QA agents.
+**Version:** v2 — CLI-first beta plan  
+**Baseline:** main at 373b02918a87854efe4427b1f4e4ae79905457e8 (2026-11-28)
 
-**Baseline reviewed:** repository main at 25e83ec7b3316b630520bbdba8092d0e591cc3de (2026-11-23). The repository tree contained 1,586 entries when audited on 2026-11-27. This is a documentation and coordination baseline, not a claim that the latest code has been executed and re-tested.
+This workspace coordinates five AI coding agents building Workflo itself. These models are engineering tools. They are not customer-facing Workflo QA models. Workflo does not sell, host or provide customer API models or API credits.
 
-## Read in this order
+## Product-owner decisions
 
-1. 00_WORKSPACE_RESTRUCTURE.md — repository reality, canonical product boundaries and safe workspace structure.
-2. 01_MODEL_BENCHMARKS_AND_ROUTING.md — exact model versions, benchmark evidence, limitations and task routing.
-3. 02_AGENT_OPERATING_PROTOCOL.md — shared-folder concurrency, Git worktrees, ownership, permissions and handoffs.
-4. 03_TASK_CONTRACT_AND_HANDOFF.md — mandatory task definition and definition of done.
-5. 04_QUALITY_GATES_AND_ENTERPRISE_CONTROLS.md — security, testing, release and compliance-readiness requirements.
-6. 05_PATH_OWNERSHIP_MATRIX.md — canonical directories, owners and forbidden overlap.
-7. coordination/TASK_BOARD.md — prioritized starting backlog.
-8. The individual plan under agents/<agent-id>/PLAN.md.
+| Area | Decision |
+|---|---|
+| Beta users | 10–15 concurrent users, each able to submit multiple runs |
+| Execution | Support customer-controlled and managed execution modes architecturally; customer-controlled is the beta default |
+| Budget | Zero Workflo-owned runtime spend; customer-owned compute and customer BYOK |
+| CLI/runtime | Rebuild in Rust or Go; Rust is the current recommendation pending a measured spike |
+| Client OS | Linux, macOS and Windows |
+| Launch languages | Python, Node.js, Go and Java |
+| Inference | Customer BYOK; hosted prompts are metadata-only and require explicit consent |
+| Testing | Core, Deep AI and Security are separate gates |
+| Integrations | GitHub, private repositories and pull-request checks |
+| Web app | API contracts designed now; substantial web implementation after the CLI gate |
+| Identity | Individual accounts and organization/team workspaces |
+| Release | No fixed deadline; release only when all required gates pass |
 
-## The five agents
+## Read order
 
-| Agent | Role | Primary responsibility |
+1. [06 — CLI-first beta blueprint](06_CLI_FIRST_BETA_BLUEPRINT.md): target architecture, CLI contract, runtime boundary, phases and release gates.
+2. [00 — Workspace restructuring](00_WORKSPACE_RESTRUCTURE.md): current repository map, incremental Rust migration and source-move restrictions.
+3. [01 — Model benchmark routing](01_MODEL_BENCHMARKS_AND_ROUTING.md): exact-model evidence, model assignment and Workflo bake-off.
+4. [02 — Agent operating protocol](02_AGENT_OPERATING_PROTOCOL.md): concurrency, permissions, branch/worktree rules and handoffs.
+5. [03 — Task contract and handoff](03_TASK_CONTRACT_AND_HANDOFF.md): required ticket format and definition of done.
+6. [04 — Quality gates and enterprise controls](04_QUALITY_GATES_AND_ENTERPRISE_CONTROLS.md): security, privacy, tenant isolation, testing and release evidence.
+7. [05 — Path ownership matrix](05_PATH_OWNERSHIP_MATRIX.md): allowed writes and protected directories.
+8. [07 — API contracts and account model](07_API_CONTRACTS_AND_ACCOUNT_MODEL.md): API-first account, membership and run contract.
+9. [Coordination task board](coordination/TASK_BOARD.md): dependency-ordered execution backlog.
+10. Individual model plans under agents/.
+
+## Five-agent allocation
+
+| Agent | Exact model | Primary responsibility |
 |---|---|---|
-| Gemini 4 Hydrogen | Principal architect | Architecture, system decomposition, ADRs, cross-module reasoning and design review |
-| DeepSeek V4.1 Flash-1017 | Systems implementation lead | Runtime, worker, sandbox, daemon, Linux and backend implementation |
-| MiniMax M3.1 Flash | Integration and automation lead | Control-plane integration, GitHub, CI/CD, packaging and release automation |
-| GPT-6 Luna | Independent QA and verification engineer | Test strategy, acceptance tests, regression, code review and evidence checks |
-| GLM-5.3-Flash | Developer experience engineer | CLI UX, dashboard after stabilization, documentation and bounded frontend/tooling work |
+| Architect | Gemini 4 Hydrogen | Repository mapping, architecture, ADR proposals, cross-platform design and integration review |
+| Systems engineer | DeepSeek V4.1 Flash-1017 | Rust CLI, local daemon/client runtime, typed protocol and execution lifecycle integration |
+| Integration engineer | MiniMax M3.1 Flash | GitHub/private-repository workflow, PR checks, CI, npm/pnpm/Bun and native distribution |
+| API and verification engineer | GPT-6 Luna | OpenAPI, individual/team accounts, tenant model, contract tests and independent acceptance review |
+| Developer-experience engineer | GLM-5.3 Flash | CLI UX specification, documentation, examples and dashboard only after the CLI/API gates |
 
-The model version is part of the assignment. Do not silently substitute a preview, predecessor, non-Flash sibling or newer alias and carry the old benchmark claims forward.
+## Non-negotiable product and engineering boundaries
 
-## Operating principles
-
-- One repository and one product architecture; five agents do not create five parallel architectures.
-- One implementation owner per task and one active writer per path set.
-- Use separate Git branches/worktrees for parallel source changes. Shared workspace means shared repository and common plan, not concurrent writes into one mutable checkout.
-- The main branch is an integration target, not an agent scratchpad.
-- Product boundaries and accepted ADRs outrank model suggestions.
-- The canonical contract authority is intended to be packages/workflo-schema; ADR-0015 remains proposed and requires owner ratification before dependent architecture is treated as frozen.
-- Firecracker/KVM is the only approved production execution boundary. Docker and bwrap are development/CI profiles and are never production fallbacks.
-- A model may propose, implement, test or review. It cannot self-certify a security property, sign its own evidence or approve its own merge.
-- No model receives signing keys, production secrets, customer data or unrestricted production access.
-- Do not relocate source code as a workspace-cleanup exercise. Any future source move requires a dependency/import/CI impact plan and a separate owner-approved migration task.
-
-## Immediate use
-
-The coordinator assigns a task from coordination/TASK_BOARD.md, copies the template in 03_TASK_CONTRACT_AND_HANDOFF.md, names the implementation owner, reviewer and exact path allowlist, and creates a branch/worktree. The agent returns code plus test output, changed-file inventory, evidence and unresolved risks. The reviewer checks the output from a separate model and the CI system runs the authoritative gates. A human approves merge.
+- One repository, one product architecture and one canonical contract authority.
+- One implementation owner and one writer per task/path set.
+- Parallel agents use separate branches and Git worktrees. Shared workspace means a common repository and shared plans, not five writers in one mutable checkout.
+- Rust migration is incremental. Keep the existing Python CLI available until parity, compatibility, rollback and clean-machine installation gates pass.
+- The existing worker/ path remains the unique Firecracker host lineage. Do not create another production host in a different directory.
+- Firecracker/KVM is the only approved production boundary for untrusted code under ADR-0022. Docker, bwrap and namespace paths are development/CI only and are never silent production fallbacks.
+- Linux/macOS/Windows CLI support does not mean strict local sandboxing on all three operating systems. Beta strict execution is on customer-controlled Linux/KVM; macOS and Windows clients connect to that runner.
+- The beta has no Workflo-funded runner fleet. A future managed-runner adapter may be designed, but it is not offered or promised by this zero-budget plan.
+- Source code, diffs, snippets, environment variables, credentials and raw logs are forbidden in hosted model prompts. Hosted prompts are disabled by default. Explicit consent permits only schema-allowlisted metadata; consent cannot widen that data boundary.
+- Core, Deep AI and Security outcomes remain independently visible. A skipped required gate cannot be treated as a pass.
+- AI output is a hypothesis, not evidence. No model self-certifies its own code, tests, findings or security boundary.
+- No coding agent receives production secrets, private signing keys, customer credentials or unrestricted customer repository access.
+- These five models are development agents only. Customer inference remains BYOK/local; Workflo does not provide API models.
 
 ## Status vocabulary
 
-Use only these statuses:
-
-- NOT_STARTED
-- READY
-- IN_PROGRESS
-- BLOCKED
-- IMPLEMENTED_UNVERIFIED
-- VERIFIED
-- ACCEPTED
-- DEFERRED
-- REJECTED
-
-“Implemented” is not “verified”; “verified” is not “accepted”; “accepted” is not “production-ready”.
+Use only NOT_STARTED, READY, IN_PROGRESS, BLOCKED, IMPLEMENTED_UNVERIFIED, VERIFIED, ACCEPTED, DEFERRED or REJECTED. Implemented is not verified; verified is not accepted; accepted is not automatically production-ready.

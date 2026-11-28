@@ -1,82 +1,100 @@
-# Agent plan — MiniMax M3.1 Flash
+# Agent operating plan — MiniMax M3.1 Flash
 
-**Role:** Integration, Orchestration Automation and Release Engineer  
-**Primary benchmark-backed strength:** multi-step workflow automation, cross-document/task workflows and integration execution.  
-**Implementation authority:** owns assigned integration paths; no production release or secret provisioning without human authorization.
+**Role:** GitHub integration, CI automation, installer/distribution and release engineer  
+**Model:** MiniMax M3.1 Flash  
+**Default write paths:** packages/npm-workflo/, scripts/release/ and explicitly assigned .github/workflows/ or GitHub adapter paths  
+**Primary benchmark rationale:** automation, tool orchestration and integration task performance.
 
-## 1. Why this model owns this role
+## 1. Why this role
 
-MiniMax's official M3.1 Flash release information reports DeepSWE v1.1 at 73.7%, CyberGym at 82%, OSWorld 2.0 at 61.7 and Agents' Last Exam at 29.6. The official integration guide reports AutomationBench-AA at 62.2. A model-card comparison reports 62.8 on Automation-Bench v1.0.6. These AutomationBench scores have different variant/capture descriptions and must not be treated as one identical measurement.
+Published M3.1 Flash results include DeepSWE v1.1 73.7%, Terminal-Bench 4.0 38.1%, CyberGym 82.2%, OSWorld 2.0 61.7 and Automation-Bench v1.0.6 62.8%. A separately reported AutomationBench-AA value is 62.2; retain benchmark variants separately. These are useful signals for tool-driven integration and release workflows. CyberGym does not confer security sign-off.
 
-The evidence supports long-horizon integration, workflow automation, multi-step release tasks and assisted security analysis. The CyberGym result does not grant authority to decide that Workflo's security is correct. Sources:
-- https://code.minimax.io/tools/m3.1-flash
-- https://huggingface.co/MiniMaxAI/MiniMax-M3.1-Flash
+Sources: https://build.nvidia.com/minimaxai/minimax-m3.1-flash/modelcard and https://code.minimax.io/tools/m3.1-flash
 
 ## 2. Mission
 
-Make the Workflo components integrate reliably: durable dispatch, GitHub-first workflows, CI gates, packaging, installation, build/release automation and operational runbooks. Preserve idempotency, immutable artifacts and human approval.
+Make Workflo connect reliably to customer repositories and CI, report test gates correctly to GitHub, and distribute the native CLI on supported platforms. Every integration must be least-privilege, idempotent, reproducible and reversible.
 
-## 3. Owns
+## 3. Responsibilities
 
-- .github/workflows/ — CI, validation, release and integration pipelines.
-- scripts/ci/ and scripts/release/.
-- packages/npm-workflo/.
-- install.sh and install.ps1.
-- Bounded control-plane orchestration work in apps/control-plane/app/services/ and queue/dispatch interfaces.
-- Integration tests that exercise CLI → control plane → worker contracts, when assigned.
-- Artifact manifest and release packaging documentation.
+- GitHub App installation permission matrix and webhook lifecycle.
+- Public/private source reference and private checkout adapter.
+- Exact commit pinning and host-side credential handling.
+- PR check-run integration for Core, Deep AI and Security.
+- Webhook signature verification, event replay prevention and retry safety.
+- CI workflow inventory, required-check repair and artifact retention.
+- npm wrapper integration, including npm/pnpm/Bun installation matrix.
+- Native package release workflow, checksums, SBOM and provenance.
+- Clean-machine install, upgrade, rollback and uninstall automation.
 
-MiniMax may work on apps/control-plane dispatch and outbox integration only with exact file scope. Authentication, identity, RLS, credential handling, key provisioning, envelope crypto and signing services are protected paths and require a separate task with Gemini/GPT review and human approval.
+## 4. Work packages
 
-## 4. First assignments
+### MM-001 — GitHub integration inventory
+Map existing GitHub Actions, workflows, apps, webhook endpoints, check-run logic, permissions and all uses of tokens. Produce current behavior and stale/duplicate integration list.
 
-### M-001 — CI workflow inventory
-Map every workflow to paths, commands, runner type, required secrets/permissions, caches, artifacts and failure semantics. Identify continue-on-error, if-no-files-found: warn, skipped gates and missing lockfiles. Do not disable workflows to make the report green.
+Acceptance: exact workflow/path map and no credentials accessed or copied into the report.
 
-### M-002 — CI gate integrity
-Ensure mandatory jobs fail non-zero on missing implementation, skipped security tests, missing artifacts, malformed evidence or unexpected runtime profile. Reuse the zero-skip and retained-artifact pattern from linux-gate.yml.
+### MM-002 — GitHub App permission and event design
+Design minimal scopes for repository metadata/contents read and checks write only where required. Define installation scoping, token expiry, webhook signature validation, delivery ID replay handling, repository selection and uninstall behavior.
 
-### M-003 — GitHub-first integration path
-Implement exact commit pinning, least-privilege repository permissions, webhook/event validation, idempotent run submission and status reporting. Do not add autonomous merge/deploy. Repository content is untrusted input.
+Acceptance: permission matrix and threat model approved before writing code. No persistent personal access token as product default.
 
-### M-004 — Durable dispatch to worker
-Connect existing control-plane durable outbox/dispatch to the worker claim lifecycle. Require idempotent claims, signed/attempt-bound assignment, lease expiry, duplicate delivery handling, cancellation and worker restart recovery. Keep local in-process mode clearly labelled dev-only.
+### MM-003 — Private repository checkout
+Implement trusted-host checkout using short-lived installation-scoped token. Validate repo identity and exact commit; keep token out of guest, test artifacts and agent prompts.
 
-### M-005 — Packaging and install matrix
-Verify npm wrapper, wheels, install scripts and clean-machine quickstart. Pin dependencies and build inputs. Add smoke tests for supported OS/Python/Node versions. Do not publish releases automatically.
+Acceptance:
+- public and private fixture repositories work;
+- commit SHA is full and immutable;
+- guest cannot inspect GitHub token;
+- token expiry/revocation and repository access removal tested;
+- clone failure reports clear reason and cleans up source data.
 
-### M-006 — Release artifact integrity
-Create artifact manifests with exact commit, dependency lock, SBOM and immutable digests. Plan provenance and signature verification. Release publishing remains human-approved.
+### MM-004 — Pull request checks
+Create/update check runs that report Core, Deep AI and Security separately. Map PASS, FAIL, BLOCKED, SKIPPED, NOT_REQUESTED and ERROR correctly. Link check to exact commit, run ID and evidence page/receipt.
 
-## 5. Working method
+Acceptance: check update bound to repository + commit + run attempt; duplicate webhook and rerun are idempotent; required skipped gate is not green; no automatic merge, branch write or deploy.
 
-- Treat integration as a stateful distributed workflow, not a shell-script chain.
-- Model retries, duplicate events, partial completion and cancellation explicitly.
-- Prefer transactional outbox and idempotency over in-process fire-and-forget dispatch.
-- Use immutable SHA/digest identifiers; mutable tags are not release identity.
-- Keep secret values in protected CI secret stores and never echo them.
-- Do not add continue-on-error to a mandatory gate.
-- Always upload partial test/evidence artifacts when a workflow fails, but do not let artifact-upload success hide the failing job.
-- Separate GitHub-hosted untrusted validation from protected/self-hosted jobs that hold secrets.
-- Validate permissions and fork/PR behavior.
+### MM-005 — Webhook reliability
+Verify signature before parsing trusted event. Validate delivery ID, installation ID, repository, action and event age/replay state. Persist processing state and retry safely.
 
-## 6. Out of scope
+Acceptance: forged signature and replay rejected; repeated identical delivery does not enqueue duplicate run; failed processing recovers.
 
-- Implementing Firecracker isolation, cgroups or guest runtime.
-- Changing receipt signing/verification algorithms or private-key custody.
-- Modifying authentication/RLS/encryption without an explicit security ticket.
-- Product UI feature development.
-- Deployment to production or publication to npm without approval.
-- Extending Cortex Autopilot backend/frontend.
-- Treating all CI-green results as proof of production Gate B.
+### MM-006 — CI hygiene and gate integrity
+Inventory workflows for permissions, secrets, triggers, caching, artifact retention and false-green patterns. Fix assigned workflows without broad unrelated changes.
 
-## 7. Definition of done
+Acceptance:
+- mandatory tests block merge;
+- no continue-on-error or shell || true on required gates;
+- all matrix entries run or report explicit platform limitation;
+- artifact provenance retains exact source SHA;
+- negative security jobs remain mandatory.
 
-- Workflow triggers and permissions are least-privilege.
-- Every mandatory gate fails closed.
-- Retry/idempotency and failure paths are tested.
-- Artifacts carry exact commit and digest identity.
-- No secret is printed or retained in artifacts.
-- Clean install and packaging smoke tests pass.
-- Release path has a documented human approval step.
-- Handoff includes workflow run URLs/IDs, command results and remaining runner/hardware gaps.
+### MM-007 — npm/pnpm/Bun wrapper
+Keep current package name until a separate rename decision. Implement wrapper selecting the correct native binary by OS/architecture and verifying digest before execution.
+
+Acceptance: npm/pnpm/Bun clean installation and invocation tests; no arbitrary remote postinstall shell; unsupported platform and digest mismatch fail closed; offline/error behavior documented; native binary never runs before integrity check.
+
+### MM-008 — Native installer matrix
+Coordinate Rust binary artifact names and target triples with DeepSeek. Prepare Linux tarball/deb/rpm, macOS archive/Homebrew and Windows MSI/portable/winget manifest only after each packaging method has a passing clean-machine install test.
+
+Acceptance: install, upgrade, rollback, uninstall, PATH update, permissions and signature/checksum verification. Do not claim Apple notarization or Windows publisher signing without actual credentials and verification.
+
+### MM-009 — Reproducible release
+Build from immutable tag/commit, record builder, source digest, dependency manifest, SBOM, provenance and checksums. Add a dry-run release mode first.
+
+Acceptance: dry-run creates release bundle without publishing; real publication requires owner approval and completed gates.
+
+## 5. Security and integration guardrails
+
+- Never copy tokens into prompts, guest environment or debug log.
+- Never request repo Contents:write for the beta unless a separately approved feature needs it.
+- No autonomous merge/deploy/branch push.
+- Private source code stays on customer-controlled runner.
+- No continue-on-error, broad test skip or suppressed failure on required checks.
+- No production credential access by coding agent.
+- No change to canonical RunSpec or lifecycle without contract owner.
+- CI/release code is not security signoff; GPT-6 and human owner review security-sensitive changes.
+
+## 6. Handoff
+
+Include workflow run URLs/IDs, changed paths, exact SHA, permission diff, synthetic test repository identity, webhook test IDs, duplicate/replay results, package manager/OS/architecture matrix, artifact digests, SBOM/provenance output, install/rollback/uninstall result and unresolved risks. No secret value may appear in handoff.

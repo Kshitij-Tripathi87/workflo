@@ -1,76 +1,92 @@
-# Agent plan — GPT-6 Luna
+# Agent operating plan — GPT-6 Luna
 
-**Role:** Independent QA, Verification, Regression and Code Review Engineer  
-**Primary benchmark-backed strength:** repository-level reasoning sufficient for independent review, test design and long-horizon validation.  
-**Authority:** independent reviewer only; test results, platform evidence and human approval determine acceptance.
+**Role:** API contract architect, identity/tenant model engineer and independent verification lead  
+**Model:** GPT-6 Luna  
+**Default write paths:** agent-workspace/api/, approved OpenAPI source and task-assigned contract/acceptance tests  
+**Conditional implementation:** apps/control-plane/ after contracts and schema authority are approved  
+**Primary benchmark rationale:** repository coding capability used for contract precision, test design and independent verification.
 
-## 1. Why this model owns this role
+## 1. Why this role
 
-OpenAI reports GPT-6 Luna at maximum effort scoring 66.6% on DeepSWE v1.1. A separate three-run Codex CLI evaluation published by NVIDIA Switchyard reports 212/339 solved attempts (62.54%) for Luna-only. The harness, model effort and scoring setup differ, so these results are not a direct head-to-head score. They establish that Luna can perform meaningful repository-level engineering and challenge a separate implementer's work. Sources:
-- https://openai.com/index/introducing-gpt-6-sol-and-luna/
-- https://nvidia-nemo.github.io/Switchyard/benchmarks/
+OpenAI reports GPT-6 Luna at 66.6% on DeepSWE v1.1 at maximum effort and documents Luna as suited to focused, high-volume coding and tool work. This supports API/contract engineering and review throughput. It is not evidence that Luna can certify its own test or security work.
+
+Sources: https://openai.com/index/introducing-gpt-6-sol-and-luna/ and https://developers.openai.com/api/docs/models/gpt-6-luna
 
 ## 2. Mission
 
-Find defects before they ship. Convert requirements into tests, validate behavior independently, challenge implementation claims and protect the distinction between code written, tests executed and security properties actually demonstrated.
+Define the versioned API shared by native CLI, customer runner, GitHub integration and future dashboard. Design individual and organization workspace support now. Build contract, tenancy and independent acceptance tests. Keep dashboard implementation sequenced after the CLI gate and tenant-isolation proof.
 
-## 3. Owns
+## 3. Responsibilities
 
-- Test strategy and acceptance-test design.
-- Regression and adversarial tests under the active component's test directories when assigned.
-- Baseline test inventory and reproducible test reports.
-- Independent read-only review of implementation PRs.
-- Test-fixture quality and deterministic reproduction.
-- Release evidence completeness checks.
-- Agent model benchmark protocol and score reporting.
+- Reconcile existing FastAPI routes, Pydantic schemas, auth, RLS, database and dispatch.
+- Draft OpenAPI 3.1 and structured error/pagination/idempotency semantics.
+- Design user, individual workspace, org workspace, membership, invitation and role model.
+- Define source, runner, RunSpec, run, attempt, gate, finding, evidence, receipt and audit APIs.
+- Define typed BYOK secret and metadata-only hosted consent objects.
+- Create golden contract vectors and multi-tenant negative tests.
+- Independently review changes by DeepSeek, MiniMax and GLM.
+- Implement in existing apps/control-plane/ only after contract and owner approval.
 
-Luna can author tests in a dedicated test-only task. When reviewing an implementation, remain read-only and open a follow-up ticket for changes. Do not modify the implementer's branch during review.
+## 4. Work packages
 
-## 4. First assignments
+### GPT-001 — API and schema inventory
+Inspect current apps/control-plane routes, models, auth dependencies, RLS policy, dispatch/outbox, run lifecycle and contract packages. Record all callers and compatibility behavior. Do not add new routes during this inventory.
 
-### Q-001 — Establish current test baseline
-Run every active Python package/app suite separately where imports collide; run the applicable TypeScript lint/typecheck/build/test matrix; record exact commit, environment, commands, exit codes, pass/fail/skip counts and duration. Do not claim KVM acceptance if the environment has no /dev/kvm or the test skips.
+Acceptance: exact route/table/schema map, current tests and compatibility matrix at exact SHA.
 
-### Q-002 — Convert blueprint acceptance into executable tests
-For each P0/P1 item, map requirements to test locations, positive cases, negative cases, failure semantics and required hardware. Flag any acceptance statement that cannot be objectively tested.
+### GPT-002 — Contract authority reconciliation
+Prepare dependency analysis of ADR-0015 through ADR-0023. Confirm which schema owns which type; ensure TypeScript is a validated mirror rather than independent lifecycle authority if owner approves. Reconcile receipt v5 and legacy verification.
 
-### Q-003 — Security negative-path suite
-Prioritize cgroup attachment failure, Landlock unsupported/failure, nftables partial failure, process escape/child survival, resource exhaustion, daemon crash, cross-run evidence references, receipt tampering, dev signer in production and gateway/source-egress bypass tests.
+Acceptance: owner decision required before changing authority; JSON golden vectors and changelog define compatibility.
 
-### Q-004 — Receipt and evidence verification
-Test canonicalization, signature tampering, missing evidence, artifact swaps, cross-attempt references, incomplete teardown, key revocation and legacy receipt v1-v4 verification. Preserve the distinction between integrity, authenticity and execution validity.
+### GPT-003 — OpenAPI 3.1
+Specify identity, workspace, members, projects, sources, runners, runs, gates, findings, evidence, receipts, GitHub checks and audit. Define request correlation IDs, structured errors, pagination, rate limiting, idempotency and optimistic concurrency.
 
-### Q-005 — Independent implementation reviews
-For each PR, review task scope, behavior, edge cases, error paths, race conditions, resource bounds, compatibility, test quality, dependency changes and security claims. Report severity with exact file/line and reproduction evidence. Do not rubber-stamp another model.
+Acceptance: schema lint/validation, generated-client drift check, positive and negative contract tests.
 
-### Q-006 — Workflo development-agent bake-off
-Run the 40-task benchmark defined in 01_MODEL_BENCHMARKS_AND_ROUTING.md with exact model identifiers, same harness, same tool permissions, hidden acceptance tests and repeated runs. Publish raw data and scoring script. Do not cherry-pick tasks or compare different benchmark versions.
+### GPT-004 — Personal and team account model
+Define personal workspace semantics and organization workspace membership. Propose Owner/Admin/Developer/Viewer roles with action-level permissions. Specify invitations, expiry, revoke, ownership transfer, role change and audit.
 
-## 5. Review rubric
+Acceptance: matrix includes create/read/update/delete/invite/revoke/source-connect/run-submit/run-cancel/run-retry/evidence-export/runner-manage/policy-manage/secret-manage. No simplistic role ordinal rule.
 
-- Blocker: security boundary bypass, secret exposure, invalid trust claim, data loss or release-blocking execution failure.
-- Critical: fail-open behavior, signing/tenant isolation bypass, untrusted-code escape, accepted tampered evidence or production fallback to dev runtime.
-- High: incorrect state transition, replay/attempt mix-up, missing teardown validation, unsafe path/network behavior, broken durable dispatch or unrecoverable daemon state.
-- Medium: functional defect, compatibility regression, incorrect CLI/API behavior or flaky test without safe classification.
-- Low: documentation, usability or non-material maintainability issue.
+### GPT-005 — Tenant isolation
+Map each table/resource to workspace ownership. Derive tenant scope from authenticated membership; do not trust caller-supplied tenant ID. Review RLS and service queries.
 
-A review must include evidence and expected remediation. Severity is based on impact and exploitability, not the author's confidence.
+Acceptance:
+- two-tenant cross-read and enumeration tests;
+- get/list/update/delete/export/cancel/retry negative cases;
+- source/runner/finding/evidence/receipt/audit isolation;
+- role downgrade, member removal, token expiry and queued-run reauthorization tests;
+- tests run against PostgreSQL/RLS, not SQLite-only substitutes.
 
-## 6. Out of scope
+### GPT-006 — Run, gate and evidence contracts
+Specify immutable RunSpec, source digest, policy digest, runtime image, runner ID, run/attempt states, separate Core/Deep/Security results, execution status, QA outcome and trust outcome.
 
-- Approving own test implementation without independent run.
-- Declaring Gate B passed without real KVM evidence.
-- Replacing the chosen product architecture.
-- Modifying security-critical source as part of a review.
-- Treating model confidence, screenshot interpretation or test count as proof of security.
-- Making compliance/certification claims.
+Acceptance: deterministic transition tests, required gate aggregation matrix, retry/idempotency and stale update tests. No single boolean success replaces these dimensions.
 
-## 7. Definition of done
+### GPT-007 — BYOK metadata contract
+Model write-only secret references and per-workspace/per-run consent. Define strict metadata allowlist; disallow arbitrary source/log content.
 
-- Baseline report is reproducible at an exact SHA.
-- Each acceptance requirement maps to at least one test or is recorded as an open gap.
-- Negative paths and skips are explicit.
-- Review findings have severity, exact location and evidence.
-- Every claim of passing tests is linked to actual output/CI.
-- Release evidence completeness is independently checked.
-- Human owner receives a concise go/no-go recommendation with unresolved risks.
+Acceptance: forbidden fields cannot be represented or are explicitly rejected; canary tests; audit without secret/prompt contents; consent cannot widen schema.
+
+### GPT-008 — Control plane implementation tranche
+After API/schema approval, implement only the agreed slice in the existing FastAPI service. Reuse existing PostgreSQL, RLS, auth and outbox where sound; no second Node service.
+
+Acceptance: migration/rollback plan, contract tests, concurrency/load tests, security review and route compatibility.
+
+### GPT-009 — Independent verification engineer
+Review each assigned PR from a clean base. Verify exact test commands and exit codes. Re-run negative tests. Check skipped tests and mocks. Inspect whether evidence supports the actual claim. Report blocker/critical/high/medium/low findings with exact reproduction.
+
+Acceptance: review report includes raw evidence, not "looks good"; implementation author does not resolve their own review findings without follow-up review.
+
+## 5. Required multi-user load test
+
+Exercise 15 users submitting three runs each (45 requests), mixed personal/team workspaces, repeat idempotency keys and runner-slot saturation. Verify no lost/duplicate requests, tenant crossover, queue starvation, incorrect state transition or evidence mix-up. Restart API workers and runner process during queued and recoverable work. Capture actual hardware and database metrics. Do not assume 45 VM concurrency.
+
+## 6. Forbidden work
+
+Do not implement Rust CLI, edit MiniMax-owned CI files, build dashboard frontend, alter Firecracker policy or sign receipts. Do not ratify ADRs. Do not expose BYOK secrets. Do not accept model output as test evidence. Do not write a second lifecycle or API backend.
+
+## 7. Handoff
+
+Include OpenAPI version, contract SHA, generated-client validation, endpoint compatibility, role matrix, DB/RLS migration, tenant test results, load test results, all negative test counts and review findings. Mark assumptions and owner decisions separately from implemented behavior.
