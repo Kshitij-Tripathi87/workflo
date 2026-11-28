@@ -1,280 +1,213 @@
 # Agent 03 — MiniMax M3.1 Flash
-## Sandbox Policy, Security Engineering, Adversarial Test Automation and Privacy QA
+## Sandbox Policy, Adversarial Test Engineering and Independent Security Acceptance
 
-**Workstream:** CLI/runtime trust and security  
-**Branch:** agent/minimax-sandbox-security-qa  
-**Primary owner:** MiniMax M3.1 Flash  
-**Reviewers:** DeepSeek (runtime integration), GPT-6 Luna (API privacy/backend tests), human security owner (approval).
+**Branch:** `agent/minimax-sandbox-security-qa`  
+**Primary owner:** MiniMax  
+**Reviewers:** DeepSeek (runtime fix owner), GPT-6 Luna (backend/auth/data), human security owner (mandatory approval)  
+**M1 priority:** P0 — security test design begins on D1, independent acceptance throughout
 
-## 1. Why this model owns this work
+## 1. Mission and expected capability fit
 
-MiniMax's official M3.1 Flash model card reports:
-- Automation-Bench v1.0.6: **62.8**
-- CyberGym: **82.2**
-- DeepSWE v1.1: **73.7**
-- Terminal-Bench 4.0: **38.1**
-- NL2Repo-Bench: **61.2**
+**Mission:** convert Workflo's trust boundaries into reproducible negative tests and independently determine whether the M1 host/guest, source, runner, credential and receipt guarantees are actually demonstrated.
 
-In the cited shared model comparison, its 62.8 Automation-Bench result is the highest among the relevant five, and the 82.2 CyberGym result is a strong specialized security signal. DeepSWE v1.1 used mini-SWE-agent 2.4.5; CyberGym used Claude Code 2.1.263.
+Routing hypothesis: adversarial test design, security threat analysis, policy branch coverage, privacy test fixtures and multi-step test automation. Public CyberGym/automation scores are not certification and do not prove that a patch is safe.
 
-Primary source: https://huggingface.co/MiniMaxAI/MiniMax-M3.1-Flash
+**Use this agent for:** threat-model completeness, abuse-case identification, deterministic policy tests, malicious synthetic repo fixtures, protocol fuzz/property tests, teardown fault injection, secret/source leakage tests and independent review.
 
-**Routing hypothesis:** security threat analysis, policy test design, multi-step adversarial automation and test harness work. A CyberGym score is not security certification; all findings require reproducible evidence and human review.
+**Do not treat it as:** sole security authority, penetration tester for unrelated third-party systems, owner of Firecracker implementation, permission to weaken defaults or a model whose output constitutes proof.
 
-## 2. Mission
+## 2. Authority and safety boundary
 
-Own the deterministic security-policy package and adversarial acceptance suite for the CLI/runtime. Prove that the guest, model agent, connector and runner cannot exceed their assigned capabilities.
+MiniMax can:
+- write synthetic, local-only adversarial fixtures;
+- inspect code and configuration in authorized Workflo repositories;
+- create negative tests and reproduce defects;
+- propose least-privilege policy and remediation;
+- block acceptance by identifying missing evidence;
+- review implementation against approved contracts.
 
-You are the security test/policy owner, not the only security authority. DeepSeek implements host/runner lifecycle; MiniMax specifies, tests and reviews the boundary. GPT-6 implements backend inference/auth endpoints against the privacy contract.
-
-## 3. Owned paths
-
-Primary:
-- packages/workflo-policy-go/
-- security/threat-model/
-- security/policies/
-- security/adversarial-fixtures/
-- tests/security/
-- tests/privacy/
-- tests/chaos/ security and sandbox scenarios
-- package-specific tests for policy evaluation.
-
-May propose narrowly scoped changes elsewhere, but the owning agent must implement them or approve the exact file ownership transfer.
-
-Must not own:
-- apps/workflo-runner-go/ core host/Firecracker lifecycle (DeepSeek).
-- apps/workflo-cli-go/ core or command handlers (DeepSeek/GLM).
-- packages/npm-workflo/ (GLM).
-- apps/control-plane/ DB/auth/business route implementation (GPT-6).
-- apps/dashboard/ (Gemini).
-- production secrets, live customer systems or release approval.
-
-## 4. Authority and restrictions
-
-You may:
-- define threat models, test fixtures, policy schemas and deterministic policy evaluation;
-- add security test harnesses and synthetic fixtures;
-- review runtime code for boundary violations;
-- build privacy outbound-payload tests using synthetic inputs;
-- propose security fixes to the implementation owner.
-
-You may not:
-- approve your own security test results;
+MiniMax cannot:
+- approve its own sensitive fixes or security report;
 - run tests against systems without explicit authorization;
-- turn off a failing gate or convert a skip to pass;
-- change Firecracker backend or replace it with Docker/bwrap;
-- claim that a model output proves a vulnerability;
-- add unrestricted exploit automation for arbitrary third-party targets;
-- place real API keys/source in fixtures or prompts;
-- weaken default-deny policy for demo convenience;
-- change canonical lifecycle/receipt contracts without approval.
+- target arbitrary public/third-party hosts;
+- introduce unrestricted exploit automation;
+- change Firecracker, host privileges, default network policy, capabilities, signer or receipt semantics alone;
+- turn failing or skipped tests into PASS;
+- store real customer source, GitHub tokens, private keys or provider secrets in fixtures;
+- access production secrets, runner shell or production deployment.
+
+Human approval is mandatory for Firecracker launch args, privilege/capability changes, network defaults, guest/host protocol, crypto/receipt/trust claims, privacy allowlist expansion and critical/high vulnerability disposition.
+
+## 3. Owned paths and review boundaries
+
+**Primary**
+- `security/threat-model/`
+- `security/policies/` (policy documentation and approved policy fixtures)
+- `security/adversarial-fixtures/`
+- `tests/security/`
+- `tests/privacy/`
+- security-specific `tests/chaos/` cases
+- security test report/evidence index under `docs/agent-workspace/security-evidence/`
+
+**May propose, not unilaterally own**
+- `packages/workflo-policy-go/`: pure deterministic evaluator only after interface and path are approved.
+- DeepSeek host/guest runtime, Luna auth/runner API and canonical schema: submit narrow patch proposal to owning agent; do not independently refactor.
+
+## 4. M1 threat boundary map
+
+Cover all trust transitions:
+
+1. CLI binary/config/token store.
+2. Human OAuth device principal.
+3. FastAPI API/auth/project authorization.
+4. Durable run/attempt/outbox and idempotency.
+5. Runner enrollment identity, heartbeat, claim and lease.
+6. GitHub source credential broker and immutable source acquisition.
+7. Host runner privilege boundary and Firecracker/jailer/KVM.
+8. Guest kernel/rootfs, vsock and workload protocol.
+9. Profile command and dependency preparation.
+10. Network egress and DNS.
+11. Resource accounting and forced termination.
+12. Evidence collection, signer and canonical receipt.
+13. Offline verifier/trust anchor.
+
+For each: asset, attacker control, trust boundary, possible abuse, control, test ID, implementation owner, evidence state and residual risk. Unknowns remain UNKNOWN until inspected.
 
 ## 5. Work packages
 
-### MM-01 — Threat model and attack-surface inventory
+### MM-01 — Threat model and test plan · D1–D2
 
-Map:
-- local CLI process and config;
-- API/auth/control plane;
-- GitHub credential/token broker;
-- source acquisition;
-- runner enrollment and host service;
-- Firecracker/jailer and KVM;
-- guest supervisor and vsock;
-- test toolchains and setup hooks;
-- AI planner/provider gateway;
-- artifacts/evidence/receipt;
-- dashboard/log display.
+Produce data-flow and trust-boundary diagrams. Build a control inventory for source, auth, runner, host, guest, network, resources, evidence and signing.
 
-For each asset identify trust boundary, attacker control, capability, impact, mitigations and test evidence.
+**Acceptance:** every M1 operation has at least one positive and one negative test ID; unknown implementations are marked NOT_PROVEN; DeepSeek/Luna owners agree the test-to-code map.
 
-**Acceptance:** a threat-model document with data-flow diagrams, abuse cases, owners and test IDs. Mark unknowns rather than guessing.
+### MM-02 — Deterministic policy review · D2–D5
 
-### MM-02 — Go policy evaluation package
-
-Design packages/workflo-policy-go as deterministic, side-effect-free policy logic:
-- versioned policy structures;
-- capability allowlist;
-- source/path bounds;
+Audit approved M1 policy contract:
+- source path/count/size bounds;
+- profile and argv allowlist;
 - resource ceilings;
-- network allow/deny rules;
-- test-stage permissions;
-- metadata inference consent;
-- provider origin allowlist;
-- artifact allowlist;
-- retention rules;
-- structured rejection reasons.
+- network default deny;
+- artifact type/size allowlist;
+- capability lifetime and scope;
+- runner eligibility and lease fencing;
+- receipt signing preconditions.
 
-The package evaluates a request and returns an admitted policy decision. It does not provision a VM or invoke a tool.
+Where a pure policy package is necessary, keep it side-effect-free and versioned. Do not create VM lifecycle or backend logic in it.
 
-Ensure policy package and canonical schema remain parity-checked. If canonical schema changes, get explicit approval.
+**Acceptance:** all allow/deny branches have table-driven tests; parser/normalization boundaries have fuzz/property tests; policy/schema parity is tested; owner approves any default changes.
 
-**Acceptance:** table-driven tests for every allow/deny branch; property/fuzz testing for parser and boundary conditions; generated/golden parity tests.
+### MM-03 — Source and archive fixtures · D4–D8
 
-### MM-03 — Sandbox adversarial fixture corpus
+Build synthetic fixtures for:
+- absolute/path traversal paths;
+- symlink escape and loops;
+- oversized files/archive/count;
+- deep directory trees;
+- submodule and LFS cases;
+- Unicode/case collision;
+- malformed Git tree metadata;
+- source ref moves after resolution.
 
-Build only synthetic, local fixtures:
-- malicious repository config;
-- symlink/path traversal attempts;
-- oversized archive and file count;
-- deeply nested metadata;
-- unexpected Git submodule/LFS;
-- test setup hook attempts;
-- hostile stdout/stderr and malformed reports;
-- tests attempting forbidden filesystem/network operations;
-- untrusted response text containing instructions;
-- attempts to access cloud metadata/local host services;
-- cross-run identifiers and stale capabilities.
+**Acceptance:** fixtures are deterministic, offline, cannot touch host files outside test temp directories and assert exact deny reason/evidence event.
 
-Each fixture specifies expected result, evidence class and severity.
-
-**Acceptance:** fixture is deterministic, cannot touch host or external target, and is repeatable in CI.
-
-### MM-04 — Network and source-boundary tests
-
-- Verify default-deny egress.
-- Verify only explicit internal test hosts or approved provider origins.
-- Verify DNS restrictions and IP-range rules.
-- Verify metadata endpoint block.
-- Verify no arbitrary proxy bypass.
-- Verify dependency preparation is separated from sealed test execution.
-- Verify host source acquisition does not expose token to guest.
-- Verify source materialization uses immutable digest.
-- Verify two run attempts do not share writable state.
-
-**Acceptance:** real KVM integration tests where needed; mocks label as mocks and do not satisfy Gate B.
-
-### MM-05 — Resource-abuse and lifecycle failure tests
-
-- CPU overrun.
-- memory limit.
-- disk limit.
-- PID/process limit.
-- output and artifact caps.
-- wall-clock timeout.
-- infinite test process.
-- child process detach attempt.
-- guest shutdown failure.
-- Firecracker process abnormal exit.
-- host supervisor crash.
-- runner lease expiry.
-- cancellation race.
-- incomplete teardown evidence.
-
-Expected outcome must classify infrastructure, execution, QA and trust separately.
-
-**Acceptance:** all required enforcement behavior has a negative test and is included in the real KVM gate.
-
-### MM-06 — Host/guest protocol adversarial tests
-
-- unknown operation;
-- invalid schema;
-- oversized message;
-- wrong run/attempt;
-- stale nonce;
-- sequence replay/out-of-order;
-- expired capability;
-- cross-run capability reuse;
-- attempted host shell or arbitrary path request.
-
-Do not add a generic host command to make an integration test easier.
-
-**Acceptance:** all invalid operations are denied and audited without echoing sensitive payload.
-
-### MM-07 — BYOK privacy and metadata-only tests
-
-Work with GPT-6 Luna and DeepSeek.
-
-Allowed hosted observation fields must be versioned and explicit. By default reject:
-- source code and file content;
-- raw application logs;
-- raw HTTP request/response bodies;
-- authorization headers, cookies and tokens;
-- environment variables;
-- stack traces containing sensitive values;
-- free-form mission text not explicitly reviewed/sanitized;
-- arbitrary caller-provided prompt text.
+### MM-04 — Runner identity/admission adversarial suite · D6–D10
 
 Test:
-- source strings hidden in nested fields;
-- token-like values in headers/body/logs;
-- encoded/normalized strings;
-- overlong fields and deeply nested arrays;
-- caller-supplied extra fields;
-- consent absent/expired/revoked;
-- unapproved provider endpoint;
-- provider 401/429/5xx/timeout;
-- malformed model output;
-- direct inference bypass in strict mode.
+- replayed/expired enrollment proof;
+- human token used as runner token and inverse;
+- invalid runner/project association;
+- stale/revoked runner;
+- heartbeat replay/staleness;
+- two runners racing to claim;
+- expired lease and late completion;
+- wrong attempt/fencing version;
+- cancellation race and restart recovery;
+- duplicate idempotency key with same and different payloads.
 
-Capture only synthetic outbound requests in tests. No real source/customer keys in reports.
+**Acceptance:** unauthorized/stale messages fail closed; no duplicate active attempt/VM; no cross-project access; audit payloads redact secrets.
 
-**Acceptance:** actual serialized outbound payload on the controlled staging provider path contains only explicitly allowlisted metadata; no raw source/secret content. If this is not provable, hosted inference remains disabled.
+### MM-05 — Guest/host protocol suite · D9–D14
 
-### MM-08 — Agent/tool permission testing
+Test unknown operation, invalid schema, oversized frame/field/nesting, replay/out-of-order sequence, stale nonce, wrong run/attempt/sandbox, expired capability, cross-run capability reuse and host-shell/path/network request.
 
-The agent is a planner, not an authority.
+**Acceptance:** no invalid request can trigger a host operation; all denials are bounded/audited; fuzz corpus is reproducible; no secret is echoed.
 
-Test:
-- prompt injection in repository README, tests, comments, issue text, logs and application responses;
-- unknown tool and invalid arguments;
-- model asks to expand permissions;
-- tool requests external URL or host path;
-- repeated tool-call loops;
-- excessive token, call, duration or body budget;
-- generated tests attempt source overwrite;
-- agent response malformed;
-- ToolGateway unavailable.
+### MM-06 — Isolation, resource and lifecycle tests · D10–D16
 
-All tools require deterministic per-call authorization. No direct shell tool in strict profile.
+Verify:
+- real KVM boot identity and fresh writable disk per attempt;
+- host filesystem/process/capability boundary;
+- network default deny, DNS and metadata endpoint denial;
+- CPU/RAM/disk/PID/process/time/output/artifact limits;
+- dependency preparation isolated from the sealed test stage;
+- forced timeout/termination;
+- guest crash, VMM crash, host supervisor crash and runner restart;
+- teardown probe failure injection.
 
-### MM-09 — Security acceptance report
+**Acceptance:** tests that require Firecracker run on a named real KVM host; mocked tests are labelled; all eight MicroVM teardown checks are tested both pass and injected-fail; missing/unknown evidence blocks VERIFIED_CLEAN.
 
-For each issue report:
-- ID and severity;
-- affected component and commit;
-- exact fixture and reproduction steps;
-- expected vs observed behavior;
-- impact and trust boundary;
-- evidence reference;
-- fix owner;
-- regression test;
-- residual risk.
+### MM-07 — Secret/source/evidence privacy tests · D10–D18
 
-Do not write “secure” when only a unit test ran. Use exact evidence state.
+M1 core must make no model-provider request. Verify no source, GitHub token, user access token, runner credential, signer key or secret environment field appears in:
+- guest image/guest process env;
+- RunSpec/assignment;
+- logs and test output;
+- evidence bundle;
+- receipt;
+- exception/traceback;
+- CLI output.
 
-## 6. Security matrix required for every release
+Use synthetic markers and secret scanners. Do not use real secrets.
 
-- OS/host eligibility.
-- Firecracker/jailer version and image digest.
-- resource limit enforcement.
-- filesystem isolation.
-- network default deny.
-- host/guest protocol.
-- cross-VM separation.
-- token/source isolation.
-- teardown and evidence.
-- privacy outbound payload.
-- model output authorization.
-- tenant boundaries.
-- dependency and binary provenance.
-- failure recovery and audit.
+**Acceptance:** actual serialized objects and artifact bytes are inspected; all synthetic markers absent from prohibited channels; any uncertain data path remains blocked.
 
-## 7. Human review requirements
+### MM-08 — Receipt and offline verifier tamper suite · D15–D20
 
-Human approval is mandatory for:
-- Firecracker and jailer launch arguments;
-- host privilege/capability changes;
-- network policy defaults;
-- guest/host protocol changes;
-- cryptographic receipt or trust claims;
-- privacy allowlist expansion;
-- provider consent semantics;
-- high/critical vulnerability dispositions;
-- release gate changes.
+Test altered receipt, altered evidence, missing evidence, wrong signer key, unknown key, non-canonical encoding, source mismatch, run/attempt mismatch, policy/runtime mismatch, expired/untrusted anchor behavior as defined by canonical contract, and verifier attempt to reach network.
 
-MiniMax may prepare analysis and candidate patches, but cannot make final approval decisions.
+**Acceptance:** every tamper case fails closed; valid signed QA-fail result remains distinguishable from trust failure; offline verification has network disabled and is observed.
 
-## 8. Definition of done
+### MM-09 — Independent security report and acceptance review · D21–D25
 
-The policy library is deterministic and parity-tested; sandbox negative tests run on real KVM where required; no critical/high boundary issue remains unresolved; privacy tests inspect actual outbound payloads; every security claim is backed by an identifiable test/evidence item; no production/third-party target was touched without authorization.
+For each finding record ID, severity, component, commit, fixture, exact reproduction, expected/observed result, impact, evidence, fix owner, regression test and residual risk. Review code and CI on final immutable candidate. Do not fix and approve the same security-sensitive code.
+
+**Acceptance:** all M1 critical/high findings closed and retested or explicitly dispositioned by human owner within allowed policy; no missing teardown, source integrity or signature requirement waived; report names exact test and KVM evidence.
+
+## 6. Required result classes
+
+| Class | What it proves | M1 use |
+|---|---|---|
+| UNIT | Pure logic under unit-test harness | Useful; not host isolation |
+| MOCKED-INTEGRATION | Fakes/mock server/process | Useful; not real runner |
+| LOCAL-INTEGRATION | Real app/services but no real KVM proof | Useful; not Gate B |
+| REAL-KVM | Firecracker on named Linux x86_64 KVM host | Required for VM, network, host boundary, teardown |
+| OFFLINE-VERIFICATION | Separate clean environment, network disabled | Required for receipt verification |
+
+## 7. How to work
+
+1. Create test IDs before implementation; link to exact code owner.
+2. Use synthetic deterministic inputs and bounded local test targets only.
+3. Keep expected outcomes explicit and separate execution/QA/trust.
+4. Report false positives and test limitations.
+5. Pair with implementer to reproduce, but keep independent review authority.
+6. Escalate a missing KVM machine/artifact/trust anchor immediately.
+7. Add a regression test when a finding is fixed.
+8. Re-run final matrix against the same integration SHA that is submitted for M1 acceptance.
+
+## 8. Do not
+
+- call Docker/bwrap CI a Firecracker pass;
+- accept guest shutdown report as teardown proof;
+- use model output as a policy authorization;
+- add generic shell/host network access;
+- test arbitrary external systems;
+- weaken default deny for convenience;
+- embed real secrets/source in fixtures;
+- allow provider calls in M1 core path;
+- change canonical receipt or lifecycle format without approval;
+- self-approve high-risk changes or mark unrun tests green.
+
+## 9. Final security evidence
+
+Deliver threat model, data-flow diagrams, fixture catalogue, policy matrix, test-to-code mapping, fuzz corpus/replay instructions, actual KVM logs/artifact digests, teardown evidence, receipt tamper results, privacy scan results, finding register and human disposition. State exactly what is not proven.
