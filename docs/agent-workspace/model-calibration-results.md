@@ -4,7 +4,7 @@
 **Protocol:** [MODEL-CALIBRATION-PROTOCOL.md](MODEL-CALIBRATION-PROTOCOL.md)  
 **Baseline:** Record the exact integration base SHA before each calibration batch.
 
-This file is an evidence ledger, not a leaderboard. Do not fill in scores from public benchmark claims, estimated tokens, or remembered sessions. A row is complete only when the run metadata, branch, diff, exact tests and reviewer records are attached.
+This file is an evidence ledger, not a leaderboard. The 25-day plan allocates D1–D2 for actual calibration, but no calibration is complete until an external agent-platform run is recorded below. Do not mark a model as calibrated because a task brief exists or because public benchmarks were used to choose its specialization. Do not fill in scores from public benchmark claims, estimated tokens, or remembered sessions. A row is complete only when the run metadata, branch, diff, exact tests and reviewer records are attached.
 
 ## 1. Environment freeze
 
