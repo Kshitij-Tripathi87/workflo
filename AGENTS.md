@@ -37,7 +37,7 @@ These rules supplement the Turborepo-managed block above; do not remove or edit 
 7. Do not disable, skip, soften or mark continue-on-error for mandatory security or release gates.
 8. A model-generated claim is not test evidence. Record actual commands, exit codes, pass/fail/skip counts and artifact identities.
 9. A model cannot approve its own implementation, receipt, signature or security claim.
-10. Every implementation PR must use the task contract and meet the quality gates in agent-workspace/.
+10. Every implementation PR must follow docs/agent-workspace/AGENT-OPERATING-MODEL.md, the assigned detailed runbook, the exact task contract and docs/agent-workspace/QUALITY-RELEASE-GATES.md.
 
 ## Scope and status honesty
 
