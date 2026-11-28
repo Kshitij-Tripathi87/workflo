@@ -26,10 +26,10 @@ def test_run_state_dir_creates_owned_private_directories(tmp_path, monkeypatch):
     assert state_dir.stat().st_uid == os.geteuid()
 
 
-def test_run_state_dir_rejects_preexisting_group_accessible_root(tmp_path, monkeypatch):
+def test_run_state_dir_rejects_preexisting_group_writable_root(tmp_path, monkeypatch):
     root = tmp_path / "run" / "workflo"
     root.mkdir(parents=True)
-    root.chmod(0o755)
+    root.chmod(0o777)
     monkeypatch.setattr(network, "RUN_STATE_ROOT", root)
 
     with pytest.raises(PermissionError, match="unsafe private runtime directory"):
