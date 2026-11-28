@@ -703,3 +703,102 @@ asserts. Two things were wrong and both are fixed:
   `test_autopilot.py`).
 - No security gate, sandbox flag, receipt schema or claim count was softened
   to make any of this pass.
+
+### 15.8 Third follow-up: receipt assembly, evidence collector, teardown proof
+
+Scope: `supervisor._build_receipt` / `_teardown` / `_landlock_outcome`,
+`evidence.EvidenceCollector`, `teardown_proof`, `ephemeral_fs`,
+`network_policy`, and the Docker executor path that consumes them. The
+namespace runtime and the Docker executor are development/CI surfaces; this
+pass says nothing about the Firecracker/KVM production boundary, which it did
+not touch.
+
+#### Fixed: the receipt claimed a tmpfs wipe that may not have happened
+
+`ephemeral_fs.mount_tmpfs` mounts a real tmpfs only as root; everywhere else
+it falls back to a plain directory on the host filesystem and sets
+`_is_real_tmpfs = False`. Its own docstring promises that "the receipt MUST
+reflect that the ephemeral guarantee is degraded", but the executor built the
+proof with a literal:
+
+```python
+proof = build_teardown_proof(..., filesystem_wipe_method="tmpfs_umount")
+```
+
+Nothing read `_is_real_tmpfs`, so every non-root/CI/Windows run signed a
+receipt claiming the code was destroyed by unmounting a RAM-backed filesystem
+when it had actually sat on disk and been `rmtree`'d. That is the difference
+between the architectural claim "your code never existed on a persistent
+medium" and "we deleted a file".
+
+Fix: `EphemeralMount` now carries a real `real_tmpfs` field (replacing the
+`type: ignore` attribute poke) plus a `wipe_method` property, and the executor
+records `mount.wipe_method` — `tmpfs_umount` for a real mount, `host_rmtree`
+for the fallback. The field is a free-form string in the schema, so no
+contract change was needed, and the change can only ever report less than the
+old constant. Regression test:
+`test_ephemeral_fs_reports_the_wipe_that_actually_happened`.
+
+#### Recorded, not fixed (needs an owner decision)
+
+- **`security_attestation.seccomp_applied` is a hardcoded `True`.** The schema
+  documents it as "True when syscall allowlists were compiled and passed to
+  every sandbox", and the attestation model's docstring says these values are
+  "derived from observed outcomes … not from configuration intent". Every
+  current workload call site does pass
+  `seccomp_profile=get_seccomp_profile(...)`, so the literal is *currently*
+  accurate — but nothing verifies it, `bwrap.build_bwrap_args` treats seccomp
+  as optional (`if config.seccomp_profile is not None`), and any future call
+  site that omits a profile would still produce a receipt attesting `True`.
+  `network_isolated` has the same shape, derived as
+  `network_config is not None` rather than from observed netns/nftables state.
+  This is quoted evidence in a signed document, so per the path-ownership and
+  security-review rules it needs an owner-approved change with two reviews
+  rather than a drive-by edit. Suggested fix: thread the launched configs into
+  the attestation and set `seccomp_applied` only when every launch actually
+  carried a profile.
+- **Producer-side and verifier-side evidence checks disagree on blank lines.**
+  `evidence.compute_evidence_digests` / the outside verifier skip empty lines
+  in `events.jsonl`; `evidence.verify_evidence_bundle` does not, so a blank
+  line makes the producer-side check raise `JSONDecodeError` instead of
+  returning `False`, while the verifier accepts the bundle. The verifier is
+  the trust boundary and is currently the *more lenient* of the two; they
+  should be made to agree deliberately.
+- **Same-named evidence files are overwritten silently.**
+  `EvidenceCollector.write_log`/`write_artifact` truncate
+  `logs/<name>.log` and `artifacts/<name>`, so a second write inside one run
+  replaces the first with no ledger event. Only the final bytes are bound by
+  the bundle digest.
+- **`verify_container_gone(None)` returns `True`** ("vacuously gone"). Correct
+  for a run that never created a container, but it means a lost container id
+  reads as a successful teardown rather than an unknown. Its docstring also
+  says "three attempts with 200ms backoff" while the code sleeps 0.5s.
+- **The ephemeral fallback is not recorded in the lifecycle events** even
+  though `mount_tmpfs` says the executor must log it. The receipt field is now
+  honest; the ledger still has no `ephemeral_fallback` event.
+
+#### Verified sound
+
+- Receipt assembly fails closed on missing observations: with no teardown
+  verification the proof reports `container_removed=False` and
+  `filesystem_removed=False`, and with no canary result it reports
+  `request_succeeded=True`, which the verifier classifies as a hard failure.
+  Neither defaults to "probably fine".
+- `teardown_proof_fields` derives `container_removed` from three verified
+  facts (processes terminated, cgroup removed, netns deleted), not from a
+  cleanup command's exit status.
+- Cgroup teardown drains `cgroup.procs` **and** `cgroup.threads` against a
+  bounded deadline and reports `drained=False` with the surviving pids instead
+  of asserting success.
+- Redaction runs before `finalize()` and `build_binding()`, so the manifest and
+  the signed binding cover the redacted bundle that a verifier recomputes.
+- `network_policy.build_isolation_args` defaults to `network_mode: none`, adds
+  hosts only for a control-plane endpoint resolved at creation, refuses to
+  start when that resolution fails, and deliberately ignores
+  `allowed_egress_hosts`.
+
+#### Verification
+
+- `apps/sandbox-executor`: 55 passed (identical to the pre-change baseline).
+- `packages/sandbox-isolation`: 87 passed, including the new regression test.
+- No schema, canonicalization, gate or claim count was changed.

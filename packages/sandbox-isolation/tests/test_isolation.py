@@ -48,6 +48,31 @@ def test_ephemeral_fs_unmount_removes_mount():
     assert verify_ephemeral_gone(mount), "verify_ephemeral_gone should return True"
 
 
+def test_ephemeral_fs_reports_the_wipe_that_actually_happened():
+    """Only a real tmpfs may be reported as a tmpfs wipe.
+
+    On a non-privileged host mount_tmpfs falls back to a plain directory on
+    the host filesystem. The TeardownProof must say so instead of claiming
+    "tmpfs_umount", otherwise the receipt overstates the ephemeral guarantee.
+    """
+    mount = mount_tmpfs("test-wipe-method", size_mb=16)
+    try:
+        assert mount.real_tmpfs is True or mount.real_tmpfs is False
+        if mount.real_tmpfs:
+            assert mount.wipe_method == "tmpfs_umount"
+        else:
+            assert mount.wipe_method == "host_rmtree"
+    finally:
+        unmount_tmpfs(mount)
+
+    # A dataclass default must not accidentally assert a tmpfs.
+    from sandbox_isolation.ephemeral_fs import EphemeralMount
+    from pathlib import Path
+
+    assert EphemeralMount("x", Path("/nonexistent")).real_tmpfs is False
+    assert EphemeralMount("x", Path("/nonexistent")).wipe_method == "host_rmtree"
+
+
 def test_teardown_proof_refects_container_state(monkeypatch):
     """TeardownProof should reflect actual container state, not claims."""
 
