@@ -250,6 +250,11 @@ Any capability without real evidence remains disabled or labelled experimental. 
 - agent/gpt6-luna-backend-platform
 
 The agent branches are initialized from this plan. The integrator must merge/rebase the accepted planning PR before implementation PRs target main, or rebase each implementation branch on the updated main. Do not start implementation from the superseded branch names listed in REPOSITORY-STRUCTURE.md.
+## API and dashboard preparation
+
+- [M1 control-plane API contract audit and freeze proposal](API-CONTRACT-FREEZE-M1.md)
+- [Dashboard design-system preparation brief](DASHBOARD-DESIGN-SYSTEM-PREPARATION.md)
+
 ## First execution milestone
 
 - [Milestone 1 — Native CLI → Firecracker/KVM → independently verified receipt](MILESTONE-01-NATIVE-CLI-FIRECRACKER-RECEIPT.md)
