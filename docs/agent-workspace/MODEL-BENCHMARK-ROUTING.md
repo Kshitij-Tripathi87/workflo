@@ -21,6 +21,16 @@ Research focuses on terminal coding, long-horizon software engineering, automati
 
 ## 3. What the numbers do and do not mean
 
+
+### MiniMax Automation-Bench score discrepancy
+
+The MiniMax official model card currently reports **62.8** for Automation-Bench v1.0.6 in its comparative table. A secondary measured-score index reports **62.2** for MiniMax M3.1 Flash as of 12 November 2026, while another secondary November 8 table also reported 62.8. The available sources do not explain whether this reflects a score revision, task-set/configuration difference or tracker snapshot. For routing, quote the primary model-card value as **vendor-reported 62.8**, record the secondary 62.2 discrepancy, and do not treat a 0.6-point margin over DeepSeek as decisive. Workflo's same-harness calibration must decide the practical assignment.
+
+Sources:
+- Primary model card: https://huggingface.co/MiniMaxAI/MiniMax-M3.1-Flash
+- Secondary measured index snapshot: https://benchgap.net/b/automationbench/current
+- Secondary November snapshot: https://aicost.tools/benchmarks/automationbench/
+
 ### Terminal benchmarks are version-specific
 
 - DeepSeek reports Terminal-Bench **4.0** under the Claude Code harness.
