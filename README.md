@@ -66,7 +66,7 @@ runtime meets the production isolation boundary.
 
 The five-agent development plans, model benchmark evidence, repository ownership map,
 task contracts and enterprise quality gates live in
-[agent-workspace/README.md](agent-workspace/README.md). This workspace is for building
+[docs/agent-workspace/README.md](docs/agent-workspace/README.md). This workspace is for building
 Workflo itself; it is separate from future customer-facing Workflo QA model providers.
 
 ## Where to contribute

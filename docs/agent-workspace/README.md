@@ -15,7 +15,7 @@ The plan incorporates the following approved discovery answers:
 |---|---|
 | Initial load | 10–15 concurrent users, each able to submit multiple runs |
 | Execution placement | Both customer-controlled and future hosted; customer-controlled is the default |
-| CLI/runtime implementation | Native Rust or Go; this plan recommends Go |
+| CLI/runtime implementation | Go for native CLI and incremental customer-runner host migration (accepted ADR-0024) |
 | Client OS | Linux, macOS and Windows |
 | Initial language ecosystems | Python, Node.js, Go and Java |
 | Customer inference | Customer BYOK APIs; hosted prompts are metadata-only and require explicit consent |
@@ -79,9 +79,9 @@ This replaces the older assignment in the previous planning pack.
 
 The full numbers, benchmark versions, harnesses, limitations and sources are in [Model benchmark and routing analysis](MODEL-BENCHMARK-ROUTING.md). The assignments are priors, not guarantees. Every model must pass Workflo-specific calibration tasks before being trusted with high-impact implementation.
 
-## 5. Critical architecture choice: Go for the native CLI/runtime
+## 5. Accepted architecture choice: Go for the native CLI and incremental runner migration
 
-**Recommendation: use Go, not a mixed Go/Rust rewrite.**
+**Go is accepted by ADR-0024; it is no longer a Rust-versus-Go open question.**
 
 Reasons:
 
@@ -92,7 +92,7 @@ Reasons:
 - Mature CLI, testing, profiling and packaging ecosystem.
 - Garbage-collected memory-safe language by default; OS/KVM/Firecracker controls—not language choice—remain the primary sandbox boundary.
 
-Go is recommended for:
+Go is accepted for:
 - the native workflo CLI;
 - customer runner daemon/agent;
 - host-side Firecracker lifecycle control and protocol client;
@@ -249,7 +249,7 @@ Any capability without real evidence remains disabled or labelled experimental. 
 - agent/gemini-dashboard-frontend
 - agent/gpt6-luna-backend-platform
 
-The agent branches are initialized from this plan. The integrator must merge/rebase the accepted planning PR before implementation PRs target main, or rebase each implementation branch on the updated main. Do not start implementation from the superseded branch names listed in REPOSITORY-STRUCTURE.md.
+The agent branches are initialized from this plan. The integrator must merge/rebase accepted planning updates before implementation PRs target main, or rebase each implementation branch on updated main. Do not start implementation from superseded branch names listed in REPOSITORY-STRUCTURE.md.
 ## API and dashboard preparation
 
 - [M1 control-plane API contract audit and freeze proposal](API-CONTRACT-FREEZE-M1.md)
@@ -261,3 +261,19 @@ The agent branches are initialized from this plan. The integrator must merge/reb
 - [Model calibration result ledger](model-calibration-results.md)
 - Accepted Go language decision: [ADR-0024](../adr/ADR-0024-native-go-cli-and-runner.md)
 - Local agent worktree bootstrap: [Bash](../../scripts/dev/bootstrap-agent-worktrees.sh) · [PowerShell](../../scripts/dev/bootstrap-agent-worktrees.ps1)
+
+
+## 15. Runbook revision 2 — detailed execution plans
+
+The five canonical runbooks have been expanded into task-level execution instructions. Each runbook now specifies file/path ownership, non-owned files, interfaces, sequenced work packages, positive and negative tests, acceptance evidence, handoff responsibilities and stop-work criteria.
+
+- [Agent 01 — DeepSeek: Go CLI core and customer runner](agents/01-deepseek-native-cli-runner.md)
+- [Agent 02 — GLM: command handlers, connectors, language profiles and distribution](agents/02-glm-cli-connectors-distribution.md)
+- [Agent 03 — MiniMax: deterministic policy, sandbox security and adversarial QA](agents/03-minimax-sandbox-security-qa.md)
+- [Agent 04 — Gemini: dashboard design, frontend and browser QA](agents/04-gemini-web-frontend.md)
+- [Agent 05 — GPT-6 Luna: FastAPI, OpenAPI, identity, tenancy and backend reliability](agents/05-gpt6-luna-backend-platform.md)
+- [Agent dependency and handoff matrix](AGENT-DEPENDENCY-MATRIX.md)
+
+**Source-of-truth rule:** the `docs/agent-workspace/` folder is authoritative. The older root-level `agent-workspace/` folder is retained only for backwards-compatible links and points to these canonical documents. Accepted ADR-0024 controls the language choice; old references to a Rust recommendation are superseded.
+
+A model must not start implementation simply because a work package appears in a runbook. It must first receive a READY task contract with an immutable base SHA, exact path allowlist, reviewer, dependencies and executable acceptance criteria.
