@@ -25,6 +25,7 @@ upstream resolver (no-resolv), so only *.workflo.internal names resolve.
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 import time
 from pathlib import Path
@@ -32,18 +33,38 @@ from pathlib import Path
 from sandbox_runtime.config import NetworkConfig
 
 
-def _run_state_dir(config: NetworkConfig) -> Path:
-    """Root-only directory holding this run's transient network files.
+RUN_STATE_ROOT = Path("/run/workflo")
 
-    These used to sit at predictable ``/tmp/workflo-<id>-*`` paths. /tmp is
-    world-writable, so a local user could pre-create or symlink those names
-    and have this root-privileged code truncate an arbitrary file, or swap in
-    attacker-authored nftables rules. A per-run directory with mode 0700 is
-    neither readable nor writable by unprivileged users.
+
+def _ensure_private_dir(path: Path) -> None:
+    """Create a service-owned directory or reject an unsafe pre-existing path."""
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+
+    info = path.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or stat.S_IMODE(info.st_mode) != 0o700
+    ):
+        raise PermissionError(f"unsafe private runtime directory: {path}")
+
+
+def _run_state_dir(config: NetworkConfig) -> Path:
+    """Return a service-owned, non-symlink directory for transient run files.
+
+    Never chmod an existing directory: that would preserve an attacker's
+    ownership and make root consume files they can still replace. The parent
+    is established and checked before creating the per-run child.
     """
-    state_dir = Path("/run/workflo") / config.netns_name
-    state_dir.mkdir(parents=True, exist_ok=True)
-    os.chmod(state_dir, 0o700)
+    if os.name != "posix" or not hasattr(os, "geteuid"):
+        raise RuntimeError("private network state requires a POSIX runtime")
+
+    _ensure_private_dir(RUN_STATE_ROOT)
+    state_dir = RUN_STATE_ROOT / config.netns_name
+    _ensure_private_dir(state_dir)
     return state_dir
 
 
