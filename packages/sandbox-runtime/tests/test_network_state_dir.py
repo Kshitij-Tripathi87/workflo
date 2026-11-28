@@ -15,6 +15,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_run_state_dir_creates_owned_private_directories(tmp_path, monkeypatch):
     root = tmp_path / "run" / "workflo"
+    root.parent.mkdir(parents=True)
     monkeypatch.setattr(network, "RUN_STATE_ROOT", root)
 
     state_dir = network._run_state_dir(NetworkConfig(sandbox_id="test"))
