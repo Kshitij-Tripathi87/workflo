@@ -14,6 +14,7 @@ Numbering rule: **ADR-001…ADR-014 belong to the Product Engineering Brief v1.0
 | [0021](ADR-0021-patch-protocol.md) | Patch proposal/approval binding (exact bytes, base revision, one-time nonce); apply only in a new sandbox | Proposed |
 | [0022](ADR-0022-microvm-boundary.md) | Firecracker/KVM microVM per attempt is the only production execution boundary; Docker and bwrap paths are non-production | Accepted (mirrors brief ADR-001/002) |
 | [0023](ADR-0023-agent-runtime-and-capability-contracts.md) | Registered agent profiles, validated task DAGs, scoped capability grants, and assignment V2 binding | Proposed (Agentic Phase A) |
+| [0024](ADR-0024-native-go-cli-and-runner.md) | Native Go CLI and incremental Go customer-runner migration; FastAPI and guest adapters remain | Accepted (owner decision, 2026-11-28) |
 
 Status meanings: **Accepted** — in force; **Proposed** — implemented in this pass, awaiting owner ratification before dependent work is treated as stable; **Superseded** — replaced by a later ADR.
 
