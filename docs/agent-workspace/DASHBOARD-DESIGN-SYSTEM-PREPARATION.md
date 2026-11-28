@@ -150,7 +150,13 @@ All prototype views must display a persistent `SYNTHETIC DATA` indicator. Never 
 - Loading, empty, stale, partial, 401, 403, 404, 409, 429 and 5xx states are represented.
 - No fake live telemetry; refresh/polling/streaming behavior must match the approved API contract.
 
-## 9. Explicit implementation gate
+## 9. Twenty-five-day M1 boundary
+
+The M1 execution target is 23 December 2026. Gemini's pre-M1 deliverables are limited to the IA, design tokens, component contracts, synthetic prototype and browser/accessibility test plan described in its agent runbook. These outputs run in parallel with the CLI work but do not become dependencies of the CLI, API or Firecracker critical path.
+
+Production dashboard implementation starts only after the human owner signs the M1 acceptance record. The first production slice is read-only: authenticated shell, Runs list, Run detail/timeline, separate Execution/QA/Trust outcomes, and authorized evidence/receipt view. Team, role, analytics, provider settings and runner mutation screens remain later work. The UI must consume generated OpenAPI types and real API states; no endpoint or status may be guessed to accelerate the schedule.
+
+## 10. Explicit implementation gate
 
 Before Milestone 1 is accepted, Gemini may:
 - inspect current dashboard shell and dependencies;
