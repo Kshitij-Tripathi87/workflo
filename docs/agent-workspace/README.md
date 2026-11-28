@@ -218,3 +218,35 @@ Shared execution documents:
 A clean supported client installation can authenticate, connect a GitHub private repository or local repository, pin a full SHA, submit a policy-bound run, route it to an eligible customer-owned Linux/KVM runner, execute the requested core/deep/security profiles inside a fresh Firecracker microVM, collect evidence, verify teardown independently, produce a signed receipt, verify it offline and expose the same result through the web API/dashboard.
 
 Any capability without real evidence remains disabled or labelled experimental. The owner makes the final release decision.
+
+## 13. Documents and navigation
+
+### Architecture and shared contracts
+- [Model benchmark and task routing](MODEL-BENCHMARK-ROUTING.md)
+- [Product architecture](PRODUCT-ARCHITECTURE.md)
+- [Repository restructuring and worktrees](REPOSITORY-STRUCTURE.md)
+- [CLI product specification](CLI-PRODUCT-SPEC.md)
+- [API and web contract plan](API-WEB-CONTRACTS.md)
+
+### Delivery and governance
+- [Dependency-driven delivery roadmap](DELIVERY-ROADMAP.md)
+- [Quality, security and release gates](QUALITY-RELEASE-GATES.md)
+- [Agent operating model](AGENT-OPERATING-MODEL.md)
+- [Workflo-specific model calibration protocol](MODEL-CALIBRATION-PROTOCOL.md)
+
+### Five agent runbooks
+- [DeepSeek — native Go CLI and runner](agents/01-deepseek-native-cli-runner.md)
+- [GLM — CLI commands, connectors and distribution](agents/02-glm-cli-connectors-distribution.md)
+- [MiniMax — sandbox policy, security and adversarial QA](agents/03-minimax-sandbox-security-qa.md)
+- [Gemini — web frontend and UX](agents/04-gemini-web-frontend.md)
+- [GPT-6 Luna — control plane and backend](agents/05-gpt6-luna-backend-platform.md)
+
+## 14. Active agent branches
+
+- agent/deepseek-native-cli-runner
+- agent/glm-cli-connectors-distribution
+- agent/minimax-sandbox-security-qa
+- agent/gemini-dashboard-frontend
+- agent/gpt6-luna-backend-platform
+
+The agent branches are initialized from this plan. The integrator must merge/rebase the accepted planning PR before implementation PRs target main, or rebase each implementation branch on the updated main. Do not start implementation from the superseded branch names listed in REPOSITORY-STRUCTURE.md.
