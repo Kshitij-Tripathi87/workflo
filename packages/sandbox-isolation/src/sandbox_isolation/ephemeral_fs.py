@@ -29,10 +29,19 @@ class EphemeralMount:
     sandbox_id: str
     mount_point: Path
     size_mb: int = 512
+    # True only when a real tmpfs was mounted. False means the non-privileged
+    # fallback (a plain directory on the host filesystem) is in use, which the
+    # receipt must report honestly instead of claiming a tmpfs wipe.
+    real_tmpfs: bool = False
 
     @property
     def exists(self) -> bool:
         return self.mount_point.exists()
+
+    @property
+    def wipe_method(self) -> str:
+        """How this mount was actually destroyed — for TeardownProof."""
+        return "tmpfs_umount" if self.real_tmpfs else "host_rmtree"
 
     def path_for(self, relative: str) -> Path:
         return self.mount_point / relative
@@ -79,13 +88,13 @@ def mount_tmpfs(sandbox_id: str, size_mb: int = 512) -> EphemeralMount:
             shutil.rmtree(mount_point, ignore_errors=True)
             stderr_msg = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
             raise RuntimeError(f"tmpfs mount failed for {sandbox_id}: {stderr_msg}") from e
-        mount._is_real_tmpfs = True  # type: ignore[attr-defined]
+        mount.real_tmpfs = True
     else:
         # Non-privileged / non-Linux fallback (local dev, CI, macOS).
         # The mount_point still exists and is still sandbox-scoped, but it is
         # on the host filesystem. The executor MUST log this in lifecycle events
         # and the receipt MUST reflect that ephemeral guarantee is degraded.
-        mount._is_real_tmpfs = False  # type: ignore[attr-defined]
+        mount.real_tmpfs = False
 
     return mount
 
@@ -114,7 +123,7 @@ def unmount_tmpfs(mount: EphemeralMount) -> None:
     if not mount.exists:
         return
 
-    if getattr(mount, "_is_real_tmpfs", False):
+    if mount.real_tmpfs:
         try:
             subprocess.run(
                 ["umount", str(mount.mount_point)],

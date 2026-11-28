@@ -590,10 +590,13 @@ class SandboxExecutor:
             })
 
             # 7. Build teardown proof (fails closed)
+            # Report the wipe that actually happened: on a non-privileged host
+            # mount_tmpfs falls back to a directory on the host filesystem, and
+            # claiming "tmpfs_umount" there would overstate the guarantee.
             proof = build_teardown_proof(
                 sandbox_id=spec.sandbox_id,
                 container_id=container_id_for_proof,
-                filesystem_wipe_method="tmpfs_umount",
+                filesystem_wipe_method=mount_for_proof.wipe_method,
             )
             proof.filesystem_removed = fs_gone
             # Apply model inference teardown status (None = not applicable).
