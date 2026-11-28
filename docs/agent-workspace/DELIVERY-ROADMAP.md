@@ -223,3 +223,18 @@ At each phase exit, record:
 - protocol/schema compatibility;
 - rollback path;
 - owner decision.
+
+
+## 6. Runbook-level dependency control
+
+Use [AGENT-DEPENDENCY-MATRIX.md](AGENT-DEPENDENCY-MATRIX.md) as the detailed cross-agent handoff ledger. It identifies the producer, consumer, interface artifact and acceptance evidence for every critical boundary.
+
+Do not treat phases as five independent project plans. The key integration chain is:
+1. GPT-6 publishes the M1 API/runner contract and DeepSeek validates the Go client/runner shape.
+2. DeepSeek builds the native CLI and runner behind frozen interfaces; GLM supplies command handlers/connectors and package distribution against the agreed CLI core.
+3. MiniMax supplies deterministic policy and adversarial tests; DeepSeek implements only the host behavior required by those tests.
+4. M1 must prove the complete real KVM → guest → evidence → teardown → signed receipt → offline verification path.
+5. GPT-6 completes team membership/RLS and the 15×3 admission/queue tests required for the broader beta.
+6. Gemini begins substantial dashboard integration only after the CLI milestone and stable API/tenant gate.
+
+A producer cannot mark its interface "ready" without an agreed schema version, examples, negative cases and at least one consumer integration test.

@@ -11,15 +11,18 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 
 # Workflo multi-agent engineering rules
 
-Before any Workflo code change, read:
-- agent-workspace/README.md
-- agent-workspace/00_WORKSPACE_RESTRUCTURE.md
-- agent-workspace/01_MODEL_BENCHMARKS_AND_ROUTING.md
-- agent-workspace/02_AGENT_OPERATING_PROTOCOL.md
-- agent-workspace/03_TASK_CONTRACT_AND_HANDOFF.md
-- agent-workspace/04_QUALITY_GATES_AND_ENTERPRISE_CONTROLS.md
-- agent-workspace/05_PATH_OWNERSHIP_MATRIX.md
-- the assigned agent plan and task-board entry
+Before any Workflo code change, read the canonical planning package:
+- docs/agent-workspace/README.md
+- docs/agent-workspace/AGENT-OPERATING-MODEL.md
+- docs/agent-workspace/AGENT-DEPENDENCY-MATRIX.md
+- docs/agent-workspace/DELIVERY-ROADMAP.md
+- docs/agent-workspace/QUALITY-RELEASE-GATES.md
+- docs/agent-workspace/MILESTONE-01-NATIVE-CLI-FIRECRACKER-RECEIPT.md
+- docs/agent-workspace/API-CONTRACT-FREEZE-M1.md when touching CLI/API/runner
+- the assigned detailed runbook under docs/agent-workspace/agents/
+- the exact task/PR contract and acceptance tests
+
+The root-level agent-workspace/ folder is retained for legacy links only; it redirects to docs/agent-workspace/. Do not follow old model-role or Rust-era instructions from those compatibility pages.
 
 These rules supplement the Turborepo-managed block above; do not remove or edit that block.
 
@@ -29,7 +32,7 @@ These rules supplement the Turborepo-managed block above; do not remove or edit 
 2. One task has one implementation owner and one path allowlist. Use a separate branch/worktree per concurrent task.
 3. Do not move, rename or delete source directories as workspace cleanup. Require a migration manifest, dependency/CI impact analysis and owner approval.
 4. The production execution boundary is Firecracker/KVM per ADR-0022. Docker and bwrap/namespace execution is development/CI only. No fallback.
-5. Canonical contract authority and ADRs 0015–0021 are owner decisions. Do not silently treat proposed ADRs as ratified.
+5. Canonical contract authority and ADRs 0015–0023 retain their recorded statuses and owner-decision requirements. ADR-0024 is Accepted and selects Go for the native CLI and incremental customer-runner migration; do not reopen Rust-vs-Go or create a parallel Rust CLI without a new owner-approved ADR.
 6. Never expose secrets, customer data, signing key material or credential stores to an agent or external model provider.
 7. Do not disable, skip, soften or mark continue-on-error for mandatory security or release gates.
 8. A model-generated claim is not test evidence. Record actual commands, exit codes, pass/fail/skip counts and artifact identities.

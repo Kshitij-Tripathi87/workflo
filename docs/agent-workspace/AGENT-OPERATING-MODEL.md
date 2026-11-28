@@ -162,3 +162,19 @@ Stop implementation and raise a decision when:
 - Windows/macOS strict execution is being implied without a real backend;
 - a change would break old receipts or user config;
 - cost exceeds zero-budget assumptions.
+
+
+## 12. Canonical runbook authority
+
+The detailed model-specific plans are authoritative for each workstream:
+- DeepSeek: `docs/agent-workspace/agents/01-deepseek-native-cli-runner.md`
+- GLM: `docs/agent-workspace/agents/02-glm-cli-connectors-distribution.md`
+- MiniMax: `docs/agent-workspace/agents/03-minimax-sandbox-security-qa.md`
+- Gemini: `docs/agent-workspace/agents/04-gemini-web-frontend.md`
+- GPT-6 Luna: `docs/agent-workspace/agents/05-gpt6-luna-backend-platform.md`
+
+The plans follow the accepted workstream split: three CLI agents (DeepSeek, GLM, MiniMax) and two platform agents (Gemini frontend, GPT-6 backend). Agent assignments in older root-level `agent-workspace/agents/*/PLAN.md` files are superseded; those files must redirect to the canonical plans.
+
+ADR-0024 is Accepted and selects Go for the native CLI and incremental customer-runner migration. No agent may open a Rust-versus-Go implementation debate or create a parallel Rust CLI without a new owner-approved ADR.
+
+Before each task: reserve the exact paths, freeze the interface/version, record base SHA, create an isolated worktree, run baseline tests, and define a second reviewer. Never grant two agents simultaneous write access to the same files. A change touching shared contracts, receipt/trust semantics, auth/RLS, sandbox policy, Firecracker lifecycle or hosted-prompt data flow requires a human-approved task.

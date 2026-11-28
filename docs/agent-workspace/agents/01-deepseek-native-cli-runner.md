@@ -1,287 +1,431 @@
 # Agent 01 — DeepSeek V4.1 Flash-1017
 ## Native Go CLI Core, Customer Runner and Execution Runtime
 
-**Workstream:** CLI/runtime — critical path  
-**Branch:** agent/deepseek-native-cli-runner  
-**Primary owner:** DeepSeek V4.1 Flash-1017  
-**Reviewers:** GLM for command integration; MiniMax for security review; GPT-6 Luna for API/contract integration; human owner for architecture and release approval.
+**Workstream:** Critical path — native client and customer execution plane  
+**Primary branch:** `agent/deepseek-native-cli-runner`  
+**Implementation owner:** DeepSeek V4.1 Flash-1017  
+**Primary reviewers:** GPT-6 Luna (API/protocol), MiniMax M3.1 Flash (security), GLM-5.3 Flash (command/connector integration), human owner (architecture and release approval)  
+**Authority:** ADR-0022 (accepted Firecracker/KVM boundary), ADR-0024 (accepted Go CLI/runner decision), accepted M1 milestone specification, approved API/runner protocol revision.
 
-## 1. Why this model owns this work
+---
 
-The DeepSeek V4.1 Flash-1017 model card reports:
+## 1. Assignment and expected result
 
+Build the native Go Workflo executable and the customer-runner host agent in controlled stages. The executable is named `workflo`; it must start without Python, Node.js, a virtual environment or a model runtime. The runner is a separate long-lived Go process that connects outbound to the control plane and executes only authenticated, admitted attempts.
+
+Your work is the systems backbone; you do not own all CLI commands, connectors, security policy, control-plane business logic or dashboard UX. The interfaces between those workstreams must be agreed before parallel implementation begins.
+
+**First complete outcome (M1):** from a supported client, submit one exact GitHub commit through the native CLI; admit and dispatch it to a customer-controlled eligible Linux x86_64 KVM runner; create one fresh Firecracker microVM; execute one pinned deterministic Python/pytest profile; collect bounded evidence; independently verify teardown; create a valid signed receipt; and verify that receipt plus evidence offline from a separate clean environment.
+
+The M1 result is a deterministic execution milestone. It does **not** mean Deep AI, Security, the four-language launch matrix, dashboard or managed execution are complete. Those are later beta workstreams and release gates.
+
+## 2. Why this model owns this work
+
+DeepSeek V4.1 Flash-1017's published model card reports:
 - DeepSWE v1.1: **77.0**
 - Terminal-Bench 4.0: **42.3**
 - NL2Repo-Bench: **68.2**
 - Automation-Bench v1.0.6: **60.5**
 
-Within the exact model set being assigned, 77.0 is the strongest cited DeepSWE v1.1 result, and 42.3 is higher than MiniMax's 38.1 on the same Terminal-Bench 4.0 comparison table. DeepSeek reports Mini-SWE-V2 for DeepSWE and Claude Code as the Terminal-Bench 4.0 harness.
+The same exact-model source identifies the DeepSWE harness as Mini-SWE-V2 and Terminal-Bench 4.0 as Claude Code. The result is a routing prior for repository engineering and terminal implementation, not proof of correctness or safe behavior.
 
-Primary source: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+Source: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
 
-**Routing hypothesis:** strongest candidate for long-horizon repository engineering, terminal-oriented implementation and multi-file system work. This does not make it the security authority or contract owner.
+## 3. Authority, ownership and file boundaries
 
-## 2. Mission
+### 3.1 Files/directories owned by DeepSeek
 
-Build the native Workflo CLI core and customer runner foundation in Go. Deliver a cross-platform executable named workflo and a customer-managed Linux runner that can execute a policy-bound run through the existing Workflo lifecycle.
+| Path | Ownership |
+|---|---|
+| `apps/workflo-cli-go/cmd/workflo/` | Native executable entry point, bootstrap and version metadata |
+| `apps/workflo-cli-go/internal/app/` | Core application lifecycle and command invocation interface |
+| `apps/workflo-cli-go/internal/runtime/` | Local client/runtime orchestration, cancellation and process supervision |
+| `apps/workflo-cli-go/internal/api/` | Typed HTTP/API client, auth transport abstraction and retry policy |
+| `apps/workflo-cli-go/internal/config/` | Core config loader, version handling and validation interface; command UX belongs to GLM |
+| `apps/workflo-cli-go/internal/output/` | Stable output primitives and JSON/TTY renderer interface |
+| `apps/workflo-cli-go/internal/platform/` | OS/architecture/process/credential-store interfaces and platform adapters |
+| `apps/workflo-runner-go/cmd/workflo-runner/` | Runner daemon entry point |
+| `apps/workflo-runner-go/internal/agent/` | Runner lifecycle, startup, drain and shutdown |
+| `apps/workflo-runner-go/internal/claim/` | Claim, lease, heartbeat and assignment validation |
+| `apps/workflo-runner-go/internal/firecracker/` | Firecracker lifecycle adapter |
+| `apps/workflo-runner-go/internal/jailer/` | Jailer configuration and invocation adapter |
+| `apps/workflo-runner-go/internal/guestchannel/` | Typed vsock protocol client and message fencing |
+| `apps/workflo-runner-go/internal/resources/` | Resource reservation, measurement and limit application |
+| `apps/workflo-runner-go/internal/network/` | Host-side egress/network lifecycle adapter |
+| `apps/workflo-runner-go/internal/teardown/` | Expected-resource inventory and host teardown probes |
+| `apps/workflo-runner-go/internal/evidence/` | Host-observed evidence collection and assembly |
+| `packages/workflo-protocol-go/` | Generated/validated Go bindings and protocol compatibility tests only |
 
-The agent must not optimize for code volume. It must produce a small number of integrated, reproducible vertical slices.
+A task contract may narrow these directories to exact files. Do not assume directory ownership grants permission to change shared contracts.
 
-## 3. Owned paths
+### 3.2 Shared and protected paths
 
-### Primary implementation ownership
-- apps/workflo-cli-go/
-  - cmd/workflo/
-  - internal/app/
-  - internal/runtime/
-  - internal/api/
-  - internal/config/ (core schema/loading only)
-  - internal/output/
-  - internal/update/ (binary update safety, not package manifest)
-- apps/workflo-runner-go/
-  - cmd/workflo-runner/
-  - internal/agent/
-  - internal/claim/
-  - internal/firecracker/
-  - internal/jailer/
-  - internal/guestchannel/
-  - internal/resources/
-  - internal/network/
-  - internal/teardown/
-  - internal/evidence/
-- packages/workflo-protocol-go/ (generated or parity-validated bindings only)
-- current worker/ Python host source only for read-only audit, compatibility adapters and approved staged migration PRs.
+| Path | Rule |
+|---|---|
+| `apps/workflo-cli-go/internal/commands/` | GLM owns command handlers, flags and command help |
+| `apps/workflo-cli-go/internal/connectors/` | GLM owns GitHub/local connector adapters |
+| `apps/workflo-cli-go/internal/source/` | Shared interface: DeepSeek owns immutable source/snapshot primitives only after interface review; GLM owns provider/local source acquisition adapters |
+| `profiles/` | GLM owns Python/Node/Go/Java profile manifests and detection |
+| `packages/npm-workflo/`, `scripts/release/install/` | GLM owns package/installer distribution |
+| `packages/workflo-policy-go/`, `security/`, `tests/security/`, `tests/privacy/` | MiniMax owns policy/test source; DeepSeek supplies testable host interfaces |
+| `apps/control-plane/`, migrations, `db/rls/` | GPT-6 Luna owns backend implementation |
+| `apps/dashboard/` | Gemini owns frontend implementation |
+| `packages/workflo-schema/` | Canonical Pydantic contract source; read-only to DeepSeek unless the human owner authorizes a schema task |
+| `worker/` | Existing Python host is the compatibility/reference path; no mass rewrite or second production manager |
+| `apps/worker-engine/` | Existing guest engine remains fit-for-purpose; guest migration requires a separate task |
+| `packages/contracts/` | TypeScript compatibility mirror; do not create a competing state model |
 
-### Must not own
-- apps/control-plane/ backend business logic and DB migrations (GPT-6 Luna).
-- apps/dashboard/ (Gemini).
-- packages/workflo-policy-go/, security/ and tests/security/ (MiniMax).
-- CLI command handlers, GitHub connector and package distribution files owned by GLM:
-  - apps/workflo-cli-go/internal/commands/
-  - apps/workflo-cli-go/internal/connectors/
-  - packages/npm-workflo/
-  - profiles/
-- canonical Pydantic/TypeScript lifecycle, RunSpec, policy, receipt and evidence semantics without owner approval.
+### 3.3 Must never do
 
-## 4. Operating boundary and authority
+- Do not rewrite the FastAPI control plane in Go.
+- Do not change lifecycle, RunSpec, policy, assignment, evidence or receipt semantics without an approved versioned contract.
+- Do not build a generic shell, host filesystem, Docker socket or arbitrary privileged operation into the guest protocol.
+- Do not implement a Docker/bwrap/native-process fallback for strict production execution.
+- Do not send GitHub tokens, BYOK keys, host credentials, signing keys or source code to a guest or hosted model.
+- Do not sign or declare a verified-clean receipt before independent host-side teardown/evidence validation.
+- Do not move/delete the Python CLI, `worker/`, guest engine or canonical schema during migration.
+- Do not edit GLM command handlers/package manifests, MiniMax policy rules, GPT-6 backend logic or Gemini dashboard code except through a reviewed interface task.
+- Do not deploy production or operate customer infrastructure.
 
-You may:
-- design and implement the Go binary, core command dispatcher interfaces and runtime client;
-- implement a host runner that only calls the approved Firecracker/jailer APIs;
-- implement typed guest/host protocol clients and host lifecycle probes;
-- write unit/integration tests for owned code;
-- add Go module/workspace configuration when the architecture proposal is accepted;
-- propose API/contract improvements to the human owner and GPT-6 Luna.
+## 4. System architecture you must preserve
 
-You may not:
-- grant yourself permission to run arbitrary host commands;
-- expose a generic shell, Docker socket, host filesystem or privileged API to the guest;
-- add an automatic Docker/bwrap fallback for strict mode;
-- sign or attest the receipt before trusted teardown verification;
-- change the meaning of an existing lifecycle state or receipt claim;
-- store GitHub/BYOK credentials in guest environment variables;
-- operate on production hosts/secrets or deploy to production;
-- make a broad rename/move of worker/ or existing Python packages;
-- silently change native install package names or public CLI flags owned by GLM.
+### Client process
+- Parses requests through a command interface owned jointly with GLM.
+- Resolves config and local platform requirements.
+- Uses a typed API client, stable errors and idempotency.
+- Displays exact source SHA, profile, stages, runner target and effective policy before submission.
+- Never reaches directly into PostgreSQL or the runner's local admin socket.
+- Supports TTY and machine-readable JSON modes.
 
-## 5. Recommended Go architecture
+### Runner process
+- Enrolls with a one-time, expiring token and obtains a distinct runner workload identity.
+- Claims a lease and verifies signed/expiring attempt assignment.
+- Reports hardware/runtime capability and reserves resources before accepting work.
+- Uses one attempt identity and one sandbox identity per run attempt.
+- Performs source acquisition through GLM/GPT-6-approved host-side interface; GitHub credentials do not cross into the guest.
+- Runs the existing approved Firecracker/jailer boundary and typed guest channel.
+- Collects host-observed lifecycle/evidence and independently verifies teardown.
+- Sends bounded metadata/evidence references to the control plane; does not trust guest assertions for trust state.
 
-Use a single Go codebase family rather than separate language runtimes for every host function.
+### Guest
+- Is a fresh Firecracker microVM per attempt.
+- Receives the exact immutable source snapshot, pinned image and declared argv.
+- Has bounded CPU, memory, disk, PID, output and wall-clock budgets.
+- Receives only explicit capabilities.
+- Has no host shell, host filesystem, Docker socket, signing key, runner identity secret, GitHub token or generic outbound network.
 
-Suggested responsibilities:
-- CLI process: command lifecycle, config, auth client, run planning, status polling, receipt verification interface and JSON output.
-- Runner process: authenticated claim/heartbeat, assignment validation, capacity reporting, Firecracker lifecycle, guest channel, host evidence and teardown.
-- Protocol library: generated and version-checked structs/models from accepted contracts.
-- Policy library: consumed from the MiniMax-owned package; do not fork or duplicate the policy evaluator.
+## 5. Delivery sequence and task contracts
 
-Avoid CGO unless a required library makes it unavoidable. Every CGO/native dependency needs a documented cross-platform and supply-chain review.
+Do not start later tasks merely because earlier code compiles. Each work package has a separate PR, owner, reviewer and acceptance record.
 
-Go is selected to simplify static distribution and the cross-platform build matrix. The language is not itself the sandbox. KVM, Firecracker, jailer, kernel controls, network enforcement and independent evidence remain the boundary.
+### DS-00 — Workflo calibration and source audit
+**Goal:** establish what is already implemented before creating a new Go surface.
 
-## 6. Work packages
+Actions:
+1. Record the current main SHA, exact Go version, build host and available cross-compilation targets.
+2. Read ADR-0022, ADR-0024, M1 acceptance, API contract freeze, CLI specification, repository structure, current Python CLI, npm shim, schema, control plane dispatch, `worker/`, guest engine and current CI.
+3. Inventory every existing command/flag/config value/output/exit code and caller of the Python CLI.
+4. Trace the existing execution path from CLI to API/outbox/dispatcher/worker/guest/evidence/receipt.
+5. Trace every host process/file/network operation in the existing worker and classify it as enforced, requested, mocked, development-only or unverified.
+6. Record a fresh baseline for Go/Python/CLI/worker suites and all skips.
 
-### DS-01 — Repository and execution audit
+Deliverables: `DS-00-current-state.md`, CLI compatibility table, source flow, host operation inventory, test baseline and blockers.
 
-- Read README, PRODUCT_BOUNDARIES, ADR-0022, Phase 0 reconciliation, P4_ACCEPTANCE, worker/, apps/worker-engine/, apps/workflo-cli/, package shim, schema and dispatch service.
-- Produce exact source-to-run data flow and state machine.
-- Classify each current component as production candidate, development-only, mock-only, compatibility or unproven.
-- Capture exact base commit SHA and command/test inventory.
-- Identify all host operations and all existing direct/indirect shell call sites.
+Acceptance: no source edits; every claim cites a path/symbol or executable test. Do not re-use old November 22 task counts as current status.
 
-**Acceptance:** a file-level architecture map, a list of missing gates, and no code refactor during the audit.
+### DS-01 — Go module and integration architecture
+**Goal:** establish the Go implementation seam without duplicating existing runtime behavior.
 
-### DS-02 — Go architecture and migration ADR
+Actions:
+1. Define module boundaries for `apps/workflo-cli-go`, `apps/workflo-runner-go` and `packages/workflo-protocol-go`.
+2. Choose dependencies deliberately; record package, exact version, licence, reason and alternatives.
+3. Establish Go toolchain version and workspace/module layout consistent with repository build.
+4. Define interfaces that GLM command handlers and connectors call.
+5. Define API transport and runner client interfaces against GPT-6's approved OpenAPI/runner protocol.
+6. Define how Go uses MiniMax-owned policy decisions without copying the evaluator.
+7. Define an incremental adapter to the current Python Firecracker host. No second manager.
+8. Record platform build targets, CGO policy, process model and logging/redaction standard.
+9. Submit an architecture PR and obtain owner approval before expanding the implementation.
 
-- Propose Go module boundaries and dependency graph.
-- Define CLI-core interface that GLM command handlers will consume.
-- Define runner agent interface that GPT-6 API endpoints will consume.
-- Define contract-generation/parity flow.
-- Define compatibility strategy with Python CLI and worker.
-- Record cross-platform build targets and CGO policy.
-- Get approval before creating the new Go workspace/module layout.
+Acceptance: no conflicting interfaces, documented import graph, generated/validated contract decision, one owner per shared interface and migration rollback.
 
-**Acceptance:** accepted Go migration ADR; no duplicate implementation of the current Firecracker manager is created before the target boundary is agreed.
-
-### DS-03 — Native CLI skeleton
+### DS-02 — Native binary skeleton
+**Goal:** build a useful native executable with no Python/Node bootstrap.
 
 Implement:
-- cmd/workflo entrypoint.
-- version/build metadata.
-- root help/completion plumbing.
-- signal handling and graceful cancellation.
-- config loading and schema validation.
-- OS key-store abstraction (platform-specific adapter interfaces; GLM handles package/installer integration).
-- common authenticated HTTP client abstraction.
-- typed error taxonomy and structured JSON output contract.
-- telemetry disabled by default and no raw source/secret payload.
+- `workflo --help`, `--version`, `doctor`;
+- build metadata (version, commit, toolchain, platform, protocol versions);
+- process signal handling and graceful cancellation;
+- config discovery and versioned parsing interface;
+- stable error taxonomy;
+- JSON and human output modes;
+- request/correlation ID generation and propagation;
+- structured logs with redaction and bounded fields;
+- timeout and cancellation primitives;
+- OS/architecture capability report.
 
-**Acceptance:** build and unit tests on Linux, macOS and Windows; workflo --help and --version work without Python or Node execution dependencies.
+Acceptance:
+- Linux x86_64, macOS arm64/x64 and Windows x64 builds compile;
+- all target binaries start and run help/version/doctor on actual or valid hosted target runners;
+- CLI startup requires neither Python nor Node;
+- invalid config and unsupported platform fail deterministically;
+- TTY and non-TTY snapshots pass;
+- logs contain no secret values.
 
-### DS-04 — Run client and lifecycle core
+### DS-03 — Core API client and command host
+**Goal:** provide the typed, stable substrate used by GLM's command handlers.
 
-- Consume GPT-6-approved API schemas.
-- Resolve RunSpec to a versioned request.
-- Require idempotency key on mutating run submission.
-- Enforce response size/time limits.
-- Distinguish accepted/queued/admitted/running/complete/rejected.
-- Keep run and attempt identities separate.
-- Support status, cancellation request and event pagination.
-- Map canonical execution/QA/trust outcomes without inventing states.
-- Implement bounded retry only for safe/idempotent calls.
+Implement:
+- base URL and TLS verification;
+- human-user auth transport interface;
+- request ID/correlation header;
+- idempotency key on mutation;
+- bounded response body and timeout;
+- retry only for safe requests or mutations with an idempotency key;
+- exponential backoff/jitter with maximum elapsed time;
+- pagination primitives;
+- server Retry-After handling;
+- structured error envelope parser;
+- status/attempt separation;
+- server version and protocol compatibility check.
 
-**Acceptance:** exact golden API fixtures, duplicate POST tests and cancellation/status tests pass against the control-plane integration environment.
+Acceptance:
+- fake API tests cover 200/201/202, 400, 401, 403, 404, 409, 422, 429, 500/502/503, timeout, connection reset and oversized body;
+- duplicate submission returns the existing run or a deterministic conflict;
+- client never retries a non-idempotent operation blindly;
+- TLS validation is never disabled in production.
 
-### DS-05 — Native runner service
+### DS-04 — Local runtime and cancellation model
+**Goal:** make CLI commands predictable across three client OS families.
 
-- Add enrollment bootstrap using one-time expiring token.
-- Exchange enrollment token for runner workload identity/cert.
-- Report capabilities and hardware profile.
-- Claim work using lease and attempt identity.
-- Heartbeat at bounded interval.
-- Respect drain, revoke, pause and offline states.
-- Recover expired leases without double execution.
-- Expose no inbound public admin endpoint by default.
-- Use outbound authenticated control-plane communication.
+Implement:
+- context propagation and cancellation tree;
+- child-process lifecycle only for explicitly permitted local helper commands;
+- no repository-controlled host command execution in preflight/detection;
+- bounded temporary files and cleanup;
+- safe path normalization and symlink handling;
+- platform signal handling;
+- shutdown order and timeout;
+- no orphan process on CLI exit.
 
-**Acceptance:** enrollment, claim, heartbeat, lease expiry, revocation, restart recovery and duplicate-claim tests pass.
+Acceptance: cancellation tests on Linux/macOS/Windows, path edge-case tests, process interruption tests, no host-side project setup hooks.
 
-### DS-06 — Firecracker lifecycle integration
+### DS-05 — Run and attempt lifecycle adapter
+**Goal:** use the approved API/run contracts without redefining them.
 
-Continue the existing canonical host implementation under worker/ until the approved Go migration milestone. Do not create a second production manager while the old manager is still the only candidate.
+Implement:
+- typed client request construction from approved RunSpec bindings;
+- exact source revision binding;
+- profile/policy/runtime digest references;
+- run ID and attempt ID separation;
+- accepted/queued/admitted/running/completed/rejected mapping;
+- execution, QA and trust outcomes as separate fields;
+- status polling/streaming via approved interface;
+- idempotent cancel request;
+- bounded logs and evidence metadata access;
+- offline verification invocation path.
 
-Then:
-- implement Go host lifecycle behind the existing assignment protocol;
-- verify Firecracker/jailer binary versions and hashes;
-- verify kernel/rootfs digest allowlist;
-- create a fresh writable disk per attempt;
-- create host-owned resource/cgroup/network scopes;
-- launch through jailer with restricted permissions;
-- deliver capabilities over typed vsock only;
-- bind every message to run ID, attempt ID, sandbox ID, sequence and nonce;
-- reject unknown/oversized/replayed operations;
-- enforce vCPU, memory, disk, PID, output and wall-clock limits;
-- apply default-deny egress;
-- implement graceful shutdown, bounded grace and force termination.
+Acceptance: golden JSON/fixture parity with Python; no invented enum/state; cancellation is not displayed as VM-stopped until host evidence confirms; no successful test can override trust failure.
 
-**Acceptance:** real KVM boot and guest workload on exact pinned artifacts. Mocks and capability probes do not pass Gate B.
+### DS-06 — Runner enrollment, claim and service lifecycle
+**Goal:** create the customer runner control process that accepts only authentic, eligible assignments.
 
-### DS-07 — Source materialization contract
+Implement:
+- one-time enrollment bootstrap;
+- runner identity/certificate storage and rotation interface;
+- capability inventory (OS, architecture, kernel, KVM, Firecracker/jailer, image digests, resource availability);
+- online/offline/draining/revoked state;
+- outbound runner registration and heartbeat;
+- claim request with bounded wait;
+- lease expiry and fencing token verification;
+- duplicate claim prevention;
+- safe process/service startup/restart;
+- clean shutdown and drain.
 
-Work with GLM on GitHub and local source acquisition and GPT-6 on the API contract.
+Acceptance: expired/revoked enrollment denied; two runners cannot own the same attempt; stale fencing token rejected; runner restart does not duplicate active execution; no public admin endpoint exposed by default.
 
-Runner must:
-- obtain source at exact full commit SHA;
-- validate repository/installation authorization;
-- reject unsupported submodule/LFS behavior unless policy explicitly allows it;
-- hash a canonical source inventory;
-- avoid host working-tree mutation;
-- deliver a read-only source artifact to a fresh guest disk;
-- remove or expire acquisition capability before guest starts;
-- never pass GitHub token into the guest.
+### DS-07 — M1 deterministic execution bridge
+**Goal:** complete the first real vertical slice using the current approved Firecracker lineage.
 
-**Acceptance:** branch-movement, private-repo scope, malicious symlink, oversized repository, token expiry and source hash tests.
+Actions:
+1. Confirm current Python host capabilities and gaps by running actual code/tests.
+2. Use the existing worker implementation as the single production candidate while building a typed Go integration seam.
+3. Do not start a duplicate Firecracker manager merely to make the code appear Go-native.
+4. Wire admitted assignment → runner claim → source acquisition → VM provision → guest execution → evidence → teardown → receipt verification.
+5. Keep the M1 profile to one pinned deterministic Python/pytest workload.
+6. Mark all local/dev executor paths development-only; strict request must fail closed when KVM is unavailable.
 
-### DS-08 — Guest channel and workload integration
+Acceptance: all M1-01…M1-15 cases in the milestone specification, with real KVM for the strict cases. No mocks count for VM boot, egress enforcement, teardown or offline receipt acceptance.
 
-- Use the narrow approved host operations only.
-- Implement protocol version negotiation and attempt fencing.
-- Reject malformed/unknown operations.
-- Ensure guest does not decide host cleanup status.
-- Integrate the approved deterministic guest worker first.
-- Connect language profile adapters through structured argv and immutable image versions.
-- Collect test reports through bounded channels and independently validate hashes/schema on host.
+### DS-08 — Host resource and Firecracker lifecycle migration
+**Goal:** incrementally replace the Python runner host only after the Go control/contract seam is stable.
 
-**Acceptance:** same exact test fixture produces deterministic results; malformed reports and wrong-attempt messages fail closed.
+Work sequence:
+1. map current Firecracker/jailer invocation inputs and outputs;
+2. pin Firecracker and jailer binaries by digest/version;
+3. pin kernel/rootfs and guest image manifest;
+4. model resource reservation and cleanup inventory;
+5. implement host operations behind narrow typed interfaces;
+6. create a fresh writable disk per attempt;
+7. implement jailer/cgroup/seccomp/filesystem/network setup;
+8. enforce vCPU/RAM/disk/PID/output/time limits;
+9. handle launch errors and partial provisioning rollback;
+10. implement graceful shutdown, bounded grace and force termination;
+11. verify all expected host resources were removed;
+12. run parity against Python implementation;
+13. switch production ownership only after real Gate B and owner approval.
 
-### DS-09 — Evidence, teardown and receipt handoff
+Acceptance: no overlapping production managers; Python compatibility remains until Gate B and receipt parity pass.
 
-- Host observes VMM/jailer process removal.
-- Verify cgroup, namespace, network, vsock/listener, disk and workspace resources removed.
-- Record one of the accepted teardown outcomes.
-- Send host evidence and guest evidence separately to the trusted verifier.
-- Do not sign before evidence/teardown validation.
-- Ensure retry gets a new attempt and a new sandbox identity.
+### DS-09 — Guest channel and protocol hardening
+**Goal:** every host/guest request is authenticated, typed and attempt-bound.
 
-**Acceptance:** teardown fault causes trust failure/incomplete and never produces a false verified-clean receipt.
+Requirements:
+- protocol version negotiation;
+- run ID, attempt ID, sandbox ID and policy digest in every relevant exchange;
+- monotonic sequence number;
+- nonce/expiry and replay prevention;
+- bounded message length and field size;
+- strict schema validation;
+- unknown critical operation rejected;
+- no arbitrary host shell, path or network operation;
+- guest cannot report a host teardown pass;
+- timeout and disconnect behavior is deterministic.
 
-### DS-10 — Cross-platform client release
+Acceptance: wrong-run, wrong-attempt, stale nonce, replay, oversized payload, unknown operation, malformed JSON and guest restart cases fail closed and are audited without logging sensitive payload contents.
 
-- Build Linux x64, macOS arm64/x64 and Windows x64 first.
-- Add ARM64 targets only after CI and dependency support exist.
-- Verify static/dynamic dependency profile.
-- Run install smoke test and CLI command tests on each OS.
-- Provide platform/runner eligibility messaging.
-- Ensure macOS/Windows client does not claim strict local execution.
+### DS-10 — Source and evidence boundaries
+**Goal:** ensure the VM receives the exact permitted source snapshot and produces bounded evidence.
 
-**Acceptance:** clean-machine binary executes help/auth/client commands on each claimed OS; no Python dependency.
+Actions:
+- integrate with GLM connector source interface and MiniMax source policy;
+- accept only full commit identity for M1;
+- validate repo/install identity and source acquisition authorization;
+- enforce submodule/LFS policy explicitly;
+- build canonical file manifest/digest;
+- reject path traversal, symlink escape, hardlink ambiguity and oversized tree;
+- deliver an immutable guest-visible source artifact;
+- remove source acquisition credential before guest start;
+- collect host/guest evidence separately;
+- validate output size, file count, artifact types and hash manifest;
+- keep source, secret and raw log data out of hosted prompts.
 
-### DS-11 — Handoff
+Acceptance: source hash fixtures, changed branch after admission, malicious symlink/archive, oversize source, secret canaries and malformed evidence reports.
 
-Deliver:
-- Go module map.
-- build/release command list.
-- runtime lifecycle documentation.
-- protocol compatibility matrix.
-- KVM acceptance report.
-- known limitations.
-- migration/deprecation recommendation for Python host/CLI.
+### DS-11 — Receipt and offline verifier integration
+**Goal:** preserve historical compatibility and prove the M1 receipt path.
 
-## 7. Required test matrix
+Actions:
+- consume canonical Python contract and approved Go bindings;
+- maintain v1-v4 legacy receipt verification;
+- reconcile v5 writer/verifier status against actual current code;
+- preserve canonical JSON encoding and duplicate-key rejection rules;
+- verify envelope signature, trust anchor and signer identity;
+- verify run/attempt/source/policy/image/evidence binding;
+- distinguish signature valid from evidence complete and trust verified;
+- produce a deterministic verifier report and nonzero exit code on any invalid binding.
 
-- CLI core argument and config loading.
-- process signal/cancellation behavior.
-- API timeout/retry/idempotency.
-- token expiry/revocation.
-- run/attempt lifecycle parity.
-- runner enrollment/claim/lease/heartbeat/recovery.
-- real Firecracker boot/guest run/teardown.
-- resource/network enforcement.
-- wrong attempt/replay/oversize vsock.
-- host and guest crash.
-- force terminate.
-- no source/credential in guest.
-- offline receipt compatibility.
-- cross-platform binary build/test.
+Acceptance: valid, tampered, wrong-key, missing artifact, wrong source SHA, altered manifest, replayed attempt and incomplete teardown fixtures; offline run succeeds without control-plane/provider connectivity.
 
-## 8. Performance and scalability
+### DS-12 — Cross-platform build and runtime acceptance
+**Initial client targets:** Linux x86_64, macOS arm64/x64, Windows x64.  
+**Runner target:** eligible Linux x86_64 KVM first. Linux ARM64 and Windows ARM64 are conditional, not assumed.
 
-- Runner heartbeat and polling must not hold DB connections while VM runs.
-- Work claims are bounded and lease-based.
-- Host should reserve CPU/memory/disk before claim acceptance.
-- Avoid goroutine-per-event without limits.
-- Cap API response, log and evidence sizes.
-- Keep local command startup responsive.
-- Support 15 CLI clients and 45 burst run submissions at the control-plane contract level; actual VM parallelism is runner capacity-based.
-- Benchmark 1, 5, 10, 15 and 30 concurrent VMs only on safe owned KVM infrastructure, recording hardware and guest profile.
+Actions:
+- prefer `CGO_ENABLED=0` for CLI if dependencies allow;
+- inspect actual binary dynamic dependencies before calling it static;
+- build reproducibly in CI;
+- verify artifact checksums and provenance;
+- test spaces/unicode paths, shell quoting and Ctrl-C;
+- test credential store adapter and fallback disclosure;
+- test update/rollback interface with GLM packaging;
+- ensure Mac/Windows client never reports local strict runner eligibility.
 
-## 9. Stop/escalation rules
+Acceptance: clean machine installation/run on every claimed target; no hidden Python dependency; runner eligibility and unsupported profiles accurately shown.
 
-Stop and ask for owner decision if:
-- protocol/schema must change;
-- assignment includes generic shell or host paths;
-- source credentials must enter guest;
-- strict execution would fall back to Docker/bwrap;
-- no real KVM host or pinned guest artifacts exist;
-- independent teardown evidence cannot be gathered;
-- Go migration would require removing current compatibility code before parity;
-- platform build requires an unreviewed native dependency.
+### DS-13 — Operational performance and reliability
+Measure:
+- CLI startup and memory;
+- API latency/retry behavior;
+- runner startup and heartbeat overhead;
+- claim/lease timing;
+- VM provision and teardown duration;
+- cancellation-to-verified-termination delay;
+- goroutine count and leak tests;
+- process/file descriptor limits;
+- bounded output/evidence memory;
+- concurrency at 1/5/10/15 users and runner slots 1/2/4 on an owned KVM lab.
+
+The 15-user/45-submission test measures durable admission/queue behavior. Do not claim 45 simultaneous VMs. Any VM throughput claim must state runner hardware, kernel, Firecracker version, guest image and workload profile.
+
+Acceptance: p50/p95 and resource measurements with exact environment, no unbounded queue/goroutine growth, lease recovery and no cross-run evidence mix-up.
+
+## 6. Required test matrix
+
+| Area | Minimum tests | Acceptance environment |
+|---|---|---|
+| CLI core | help/version/doctor/config, invalid flags, TTY/JSON | Linux/macOS/Windows |
+| API client | auth, timeout, 429, retries, idempotency, pagination | fake server + real control plane |
+| process | cancellation, child cleanup, restart | OS-specific CI |
+| runner | enroll, claim, lease, heartbeat, drain, revoke | synthetic test control plane |
+| source | full SHA, branch movement, symlink/archive/submodule/LFS policy | synthetic repositories |
+| VM | boot, isolation, resource caps, egress, crash, force stop | real KVM for Gate B |
+| guest protocol | replay, wrong attempt, oversized, malformed, unknown op | unit + real guest |
+| evidence | size/hash/schema/tamper/attempt binding | unit + integration |
+| teardown | VMM/jailer/cgroup/network/disk/vsock/resource inventory | real KVM for Gate B |
+| receipt | legacy versions, valid/tampered/wrong-key/offline | clean separate verifier machine |
+| distribution | OS/architecture builds, no Python dependency | clean machines with GLM packaging |
+| performance | 15 clients/45 submissions, runner saturation/recovery | customer-owned test environment |
+
+## 7. Required handoffs
+
+### To GLM
+- stable command-host interface;
+- API client method surface;
+- config interface and error types;
+- source connector interface and source snapshot contract;
+- version/target artifact naming and checksums;
+- compatibility matrix for previous CLI behavior.
+
+### To GPT-6 Luna
+- exact OpenAPI and runner protocol gaps;
+- required endpoint names/fields and error mapping;
+- request/idempotency/fencing behavior;
+- evidence/receipt references;
+- API contract tests and client expectations.
+
+### To MiniMax
+- host/guest operation list;
+- policy decision request/response schema;
+- exact test hooks for cgroup/egress/resource/teardown enforcement;
+- all negative tests and known unobservable gaps.
+
+### To Gemini
+- stable CLI command behavior and actual API states for UI integration;
+- status, error, event and evidence fields;
+- runner capability model;
+- limitations that must be exposed in UI.
+
+## 8. Mandatory handoff report
+
+Every PR must include:
+- task ID and milestone;
+- base SHA and result SHA;
+- model identifier and toolchain version;
+- changed file inventory and reason;
+- commands executed and exit codes;
+- pass/fail/skip/not-run counts;
+- host OS/architecture and KVM availability;
+- exact real vs mocked evidence classification;
+- benchmark/model cost/latency only when actually visible;
+- compatibility impact;
+- security/privacy impact;
+- known limitations and follow-on task IDs.
+
+## 9. Stop conditions
+
+Stop and mark BLOCKED if a protocol/schema change is required but unapproved; the task crosses another agent's path boundary; guest requires a host capability not in the allowlist; source token would enter the guest; KVM/image/jailer prerequisites are missing; teardown cannot be independently observed; strict mode would fall back to a development executor; a compatibility change would invalidate old receipts/config without migration; or a required test is being skipped/softened to get a green result.
+
+## 10. Definition of done
+
+The native Go CLI and customer-runner path produce one reproducible M1 run on real customer-owned Linux x86_64 KVM, execute the pinned deterministic profile, preserve source identity, enforce host/guest boundaries, independently verify cleanup, issue a correctly bound signed receipt and pass offline verification on a clean machine. The old Python path remains intact until the Go migration is independently accepted.
