@@ -242,3 +242,27 @@ class TestReceiptBinding:
             receipt_fingerprint(receipt.canonical_payload()),
             proof["leaf_index"], proof["tree_size"], proof["proof"], proof["root"],
         )
+
+
+def test_concurrent_instances_append_without_colliding(tmp_path):
+    """Two live instances must not both append the same seq.
+
+    The control plane constructs a fresh LocalTransparencyLog per append and
+    per proof request, so the in-instance lock alone never serialises them.
+    Before the shared file lock, the second instance wrote its own seq 0 /
+    tree_size 1 checkpoint on top of the first record, and every later load
+    then failed its integrity check ("history was altered").
+    """
+    path = tmp_path / "receipts.log"
+    first = LocalTransparencyLog(path)
+    second = LocalTransparencyLog(path)  # loads while the file is still empty
+
+    record_a = first.append("a" * 64)
+    record_b = second.append("b" * 64)
+
+    assert (record_a.seq, record_a.tree_size) == (0, 1)
+    assert (record_b.seq, record_b.tree_size) == (1, 2)
+
+    reopened = LocalTransparencyLog(path)  # raises if the checkpoints disagree
+    assert reopened.tree_size == 2
+    assert reopened.leaf_index("b" * 64) == 1

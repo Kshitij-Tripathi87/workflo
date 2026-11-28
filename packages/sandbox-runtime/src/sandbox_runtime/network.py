@@ -24,11 +24,27 @@ upstream resolver (no-resolv), so only *.workflo.internal names resolve.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from pathlib import Path
 
 from sandbox_runtime.config import NetworkConfig
+
+
+def _run_state_dir(config: NetworkConfig) -> Path:
+    """Root-only directory holding this run's transient network files.
+
+    These used to sit at predictable ``/tmp/workflo-<id>-*`` paths. /tmp is
+    world-writable, so a local user could pre-create or symlink those names
+    and have this root-privileged code truncate an arbitrary file, or swap in
+    attacker-authored nftables rules. A per-run directory with mode 0700 is
+    neither readable nor writable by unprivileged users.
+    """
+    state_dir = Path("/run/workflo") / config.netns_name
+    state_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(state_dir, 0o700)
+    return state_dir
 
 
 def setup_private_network(config: NetworkConfig) -> dict:
@@ -147,7 +163,7 @@ table inet workflo {{
 def _setup_egress_blocking(config: NetworkConfig) -> None:
     """Install the workload-flow policy inside the network namespace."""
     _netns_run(config, ["nft", "flush", "ruleset"], check=False)
-    rules_path = Path(f"/tmp/workflo-{config.sandbox_id}-nftables.nft")
+    rules_path = _run_state_dir(config) / "nftables.nft"
     rules_path.write_text(build_nftables_rules(config))
     _netns_run(config, ["nft", "-f", str(rules_path)])
 
@@ -163,6 +179,7 @@ def _start_dnsmasq(config: NetworkConfig, retries: int = 3) -> None:
     Retries on startup failure: a stale dnsmasq from a just-torn-down
     run may still hold :53 for a moment.
     """
+    state_dir = _run_state_dir(config)
     dnsmasq_conf = f"""
 interface={config.veth_host}
 except-interface=lo
@@ -177,10 +194,10 @@ address=/test.workflo.internal/{config.test_ip}
 no-resolv
 no-hosts
 log-queries
-log-facility=/tmp/workflo-{config.sandbox_id}-dnsmasq.log
-pid-file=/tmp/workflo-{config.sandbox_id}-dnsmasq.pid
+log-facility={state_dir / "dnsmasq.log"}
+pid-file={state_dir / "dnsmasq.pid"}
 """
-    conf_path = Path(f"/tmp/workflo-{config.sandbox_id}-dnsmasq.conf")
+    conf_path = state_dir / "dnsmasq.conf"
     conf_path.write_text(dnsmasq_conf)
 
     last_error = None
@@ -203,7 +220,7 @@ pid-file=/tmp/workflo-{config.sandbox_id}-dnsmasq.pid
             if proc.poll() is not None:
                 last_error = (
                     f"dnsmasq died during startup (exit {proc.returncode}); "
-                    f"see /tmp/workflo-{config.sandbox_id}-dnsmasq.log"
+                    f"see {state_dir / 'dnsmasq.log'}"
                 )
                 break
             time.sleep(0.1)
@@ -267,13 +284,16 @@ def teardown_network(config: NetworkConfig) -> None:
         ["ip", "link", "del", config.veth_host],
         capture_output=True, check=False,
     )
-    for suffix in ("dnsmasq.conf", "dnsmasq.pid", "dnsmasq.log",
-                   "nftables.nft"):
-        p = Path(f"/tmp/workflo-{config.sandbox_id}-{suffix}")
+    state_dir = Path("/run/workflo") / config.netns_name
+    for name in ("dnsmasq.conf", "dnsmasq.pid", "dnsmasq.log", "nftables.nft"):
         try:
-            p.unlink(missing_ok=True)
+            (state_dir / name).unlink(missing_ok=True)
         except OSError:
             pass
+    try:
+        state_dir.rmdir()
+    except OSError:
+        pass  # not empty or already gone
 
     # 4. Per-netns resolver config (written by setup)
     netns_etc = Path(f"/etc/netns/{config.netns_name}")

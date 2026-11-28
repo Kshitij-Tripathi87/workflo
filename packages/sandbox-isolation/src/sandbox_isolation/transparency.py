@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -155,6 +156,49 @@ class LocalTransparencyLog:
         if self.path.exists():
             self._load()
 
+    @contextmanager
+    def _file_lock(self):
+        """Exclusive lock shared by every instance/process using this file.
+
+        The instance lock alone is insufficient: each append/proof builds a
+        fresh LocalTransparencyLog, so two concurrent appends would both load
+        tree_size N, both write seq N, and leave a last checkpoint that does
+        not match the recomputed leaves — which then makes every later load
+        raise "history was altered".
+        """
+        lock_path = self.path.with_name(self.path.name + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+
+    def _reload(self) -> None:
+        """Re-read the leaf set from disk (call while holding the file lock)."""
+        self._leaves = []
+        if self.path.exists():
+            self._load()
+
     def _load(self) -> None:
         for line in self.path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -183,7 +227,9 @@ class LocalTransparencyLog:
         """Append a receipt fingerprint. Returns the checkpoint record."""
         from datetime import datetime, timezone
 
-        with self._lock:
+        with self._lock, self._file_lock():
+            # Another process may have appended since this instance loaded.
+            self._reload()
             self._leaves.append(leaf_sha256)
             record = LogRecord(
                 seq=len(self._leaves) - 1,
