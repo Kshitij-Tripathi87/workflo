@@ -257,3 +257,38 @@ A branch is integration-ready only when:
 - exact base SHA and test commands are included;
 - a different agent reviews the implementation;
 - human approval exists for high-impact boundaries.
+
+## 11. Worktree bootstrap commands
+
+Run once from the canonical integration checkout after this planning PR is merged or the remote planning branch has been fetched:
+
+~~~bash
+git fetch origin --prune
+mkdir -p ../.workflo-worktrees
+
+git worktree add --track -b agent/deepseek-native-cli-runner \
+  ../.workflo-worktrees/deepseek-native-cli-runner \
+  origin/agent/deepseek-native-cli-runner
+
+git worktree add --track -b agent/glm-cli-connectors-distribution \
+  ../.workflo-worktrees/glm-cli-connectors-distribution \
+  origin/agent/glm-cli-connectors-distribution
+
+git worktree add --track -b agent/minimax-sandbox-security-qa \
+  ../.workflo-worktrees/minimax-sandbox-security-qa \
+  origin/agent/minimax-sandbox-security-qa
+
+git worktree add --track -b agent/gemini-dashboard-frontend \
+  ../.workflo-worktrees/gemini-dashboard-frontend \
+  origin/agent/gemini-dashboard-frontend
+
+git worktree add --track -b agent/gpt6-luna-backend-platform \
+  ../.workflo-worktrees/gpt6-luna-backend-platform \
+  origin/agent/gpt6-luna-backend-platform
+
+git worktree list
+~~~
+
+The five remote branches are initialized from this planning revision. If a local branch already exists, do not repeat the -b creation; inspect and attach to its existing worktree. A local branch may be checked out in only one worktree.
+
+Each agent starts in its own folder under .workflo-worktrees. The canonical workflo checkout is reserved for the integrator. Do not let five agents share one mutable Git index/working tree.
