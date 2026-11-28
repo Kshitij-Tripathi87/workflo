@@ -250,3 +250,9 @@ Any capability without real evidence remains disabled or labelled experimental. 
 - agent/gpt6-luna-backend-platform
 
 The agent branches are initialized from this plan. The integrator must merge/rebase the accepted planning PR before implementation PRs target main, or rebase each implementation branch on the updated main. Do not start implementation from the superseded branch names listed in REPOSITORY-STRUCTURE.md.
+## First execution milestone
+
+- [Milestone 1 — Native CLI → Firecracker/KVM → independently verified receipt](MILESTONE-01-NATIVE-CLI-FIRECRACKER-RECEIPT.md)
+- [Model calibration result ledger](model-calibration-results.md)
+- Accepted Go language decision: [ADR-0024](../adr/ADR-0024-native-go-cli-and-runner.md)
+- Local agent worktree bootstrap: [Bash](../../scripts/dev/bootstrap-agent-worktrees.sh) · [PowerShell](../../scripts/dev/bootstrap-agent-worktrees.ps1)
