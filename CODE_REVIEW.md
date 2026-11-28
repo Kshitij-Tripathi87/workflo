@@ -594,3 +594,112 @@ and are recorded, not fixed:
   `user_id`, `organization_id` and `device_id`, so it is an anonymous
   identifier-enumeration surface for anyone holding a key id.
 - `GET /v1/inference/health` discloses the configured upstream model name.
+
+### 15.7 Second follow-up: sandbox isolation and the evidence/receipt path
+
+Scope: `sandbox_runtime` network/teardown/bwrap/Landlock code,
+`sandbox_isolation` transparency, receipt signing/verification, evidence
+binding and the key directory, plus the control-plane dispatch path that
+feeds them. Default Docker and bwrap behaviour is dev/CI only; the
+Firecracker/KVM path is the production boundary and was **not** re-reviewed
+here (unchanged by this pass).
+
+#### Flaky transparency API test — root cause, not a test defect
+
+`test_completed_run_appends_and_proves_inclusion` passed alone and failed in
+the full suite. `DispatchService._finalize_success` called
+`RunService.complete_run()` (committing `status = "completed"`) **before**
+appending to the transparency log, so a reader polling in that window saw a
+completed run whose ledger entry did not exist yet — exactly what the test
+asserts. Two things were wrong and both are fixed:
+
+- The append now happens **before** the completion commit. It stays
+  best-effort (exceptions swallowed and surfaced in the audit trail), so a
+  ledger write failure still cannot fail a finished run.
+- `LocalTransparencyLog` serialised appends with an **instance** lock, but
+  the control plane builds a fresh instance per append/proof call, so the
+  lock never covered the real contention. Appends now take a cross-process
+  file lock (`fcntl`/`msvcrt`) and reload the log under that lock before
+  appending, so neither a second process nor a second instance can drop an
+  entry. `merkle_root` / `verify_inclusion` were re-checked against RFC 6962
+  and are correct; they are unchanged. Regression test:
+  `test_concurrent_instances_append_without_colliding`.
+
+#### Sandbox isolation fixes
+
+- **Predictable `/tmp` network state.** nftables ruleset, dnsmasq conf, log
+  and pid files used `/tmp/workflo-<sandbox_id>-*` names, which another local
+  user could pre-create (symlink or clobber) between setup and use. They now
+  live in a per-netns directory `/run/workflo/<netns>`, removed during
+  teardown. A follow-up commit on the same branch strengthened this from
+  "create and chmod 0700" to "create and then verify": an existing path that
+  is not a directory, is not owned by the service uid, or is not exactly
+  `0700` is rejected with `PermissionError` instead of being chmod'ed (chmod
+  would preserve an attacker's ownership and keep the files replaceable), and
+  the state directory now requires a POSIX runtime. Covered by
+  `test_network_state_dir.py`.
+- **Teardown verification misread empty output.**
+  `verify_network_namespace_removed` treated empty `nft list` output as a
+  live namespace; empty output now means "no rules", not "namespace
+  present". The check still fails closed on anything it cannot parse.
+- **Duplicated `_RULE_OPEN_FLAGS` block** in `sandbox_runtime/landlock.py`
+  (two identical definitions, a merge artifact). Behaviour was unaffected —
+  the second shadowed the first with the same value — but the dead copy is
+  removed so the file has one source of truth for the `O_PATH|O_CLOEXEC`
+  open flags.
+
+#### Verified sound (no change)
+
+- `landlock_exec.py` fails closed in both directions: `hardened` refuses to
+  exec when Landlock is unavailable, invalid **or** apply-failed, and
+  `compatible` continues loudly while recording the reduced isolation. An
+  unreadable rules file returns 125 in both modes rather than degrading to
+  "no Landlock". ABI masking happens before ruleset creation, and file rules
+  are masked to file-rights so `/dev/null` no longer fails `ENOTDIR`.
+- `Supervisor._landlock_outcome()` is fail-closed: no status files at all,
+  an unreadable file, or any non-`LANDLOCK_APPLIED` status all reduce the
+  attestation instead of reporting success.
+- `receipt_signer` covers the key fingerprint in the signed payload, so a
+  receipt cannot be re-attributed to a different key.
+- `verify_receipts` rejects duplicate JSON keys, keeps `UNSUPPORTED_VERSION`
+  distinct from `CORRUPT`, and treats an unrecognised failed check as a
+  **hard** failure rather than downgrading it.
+
+#### Recorded, not fixed
+
+- **Evidence directory digests do not cover file names.**
+  `evidence_binding._hash_directory` hashes file *contents* in sorted walk
+  order, so renaming a file inside `logs/`, `traces/` or `artifacts/` keeps
+  every digest valid, and a missing directory is indistinguishable from an
+  empty one (both hash to the genesis constant). Cross-directory moves *are*
+  caught, because both directory digests and the bundle digest change.
+  Fixing this means hashing relative paths too, which changes the receipt
+  format and invalidates every receipt already produced; it needs a version
+  bump, not a quiet patch.
+- **Claim #7 trusts the directory's `status` field alone.**
+  `key_directory.check_key_status` reports `active`/`revoked` from the
+  response body without comparing the directory's published key material to
+  the fingerprint that actually signed the receipt. Unless the caller also
+  passes `--fingerprint`, a directory answering `active` for a key id whose
+  key differs from the signer still passes. The fingerprint comparison
+  itself is correct when supplied.
+- **`--key-directory` accepts any scheme and follows redirects.**
+  `urllib.request.urlopen` will also open `file://` bases and follow HTTP
+  redirects to another host. Only a locally supplied verifier argument is
+  affected (the sandbox never reaches this code), so this is a hardening
+  note, not an isolation hole.
+- **Receipt parsing read the file twice** (strict duplicate-key scan after
+  the main parse), which allowed the two checks to describe different bytes
+  if the file were swapped between reads. Fixed in this pass: the file is
+  read once and both parses use the same text.
+
+#### Verification
+
+- `apps/control-plane`: 185 passed, 1 skipped.
+- `packages/sandbox-runtime`: 313 passed, 36 skipped.
+- `packages/sandbox-isolation`: 85 passed (22 in `test_transparency.py`).
+- Windows-only known gaps were unchanged by this pass (`os.getuid` in
+  worker-engine, a missing `llama-server` binary, `chromadb` in
+  `test_autopilot.py`).
+- No security gate, sandbox flag, receipt schema or claim count was softened
+  to make any of this pass.
