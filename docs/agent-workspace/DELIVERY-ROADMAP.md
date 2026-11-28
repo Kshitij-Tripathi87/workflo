@@ -1,225 +1,121 @@
-# Workflo Delivery Roadmap — Dependency-Driven, No Fixed Launch Date
+# Workflo Delivery Roadmap — M1 First, Dependency-Gated Expansion
 
-## 1. Release posture
+**Current priority:** M1 native CLI → real Firecracker/KVM → independently verified receipt  
+**M1 target:** 23 December 2026 (25-day programme beginning 29 November)  
+**Release posture:** quality gates outrank calendar; no mock or waiver can substitute for real KVM and offline verification.
 
-No calendar deadline overrides the quality gates. Deliver the CLI and runner first. Design API contracts and dashboard UX in parallel, but defer substantial web application implementation until the CLI vertical slice is accepted.
+## 1. Roadmap hierarchy
 
-## 2. Phase map
+The delivery plan is split into three scopes. The 25-day target applies to **M1 only**. It does not silently promise the entire beta platform in 25 days.
 
-### Phase 0 — Workspace, audits and decisions
+| Scope | Target | Release outcome |
+|---|---|---|
+| **M1 — trusted vertical slice** | 25 days, target 23 Dec 2026 | Native Go CLI submits one exact GitHub commit; current FastAPI admits it; customer Linux/KVM runner uses existing Firecracker host; one pinned pytest profile runs in a fresh microVM; independent teardown; signed receipt; offline verifier |
+| **M1.1 — client/runner parity and usability** | After M1 acceptance | Incremental Go customer-runner parity; local source connector; native packaging/upgrade; additional profiles; better operational recovery |
+| **M2 — product beta expansion** | Re-estimate after M1 evidence | Team/org roles, 4 language profiles, deep AI/BYOK, security mode productization, dashboard, 15-user/45-submission admission test, GitHub PR checks and operator UX |
 
-Owners: all five agents; GPT-6 consolidates system map; human owner ratifies architecture.
+No phase advances because the calendar date arrived. Each phase requires the stated evidence.
 
-Exit:
-- exact main SHA recorded;
-- all five specialization tasks calibrated;
-- Go CLI/runtime ADR approved;
-- current CLI/npm/Python worker migration map accepted;
-- CLI command tree and run contract frozen;
-- runner assignment protocol frozen;
-- source, network and BYOK threat models accepted;
-- OpenAPI baseline and web screen map approved;
-- separate Git worktrees ready.
+## 2. Binding M1 architecture
 
-### Phase 1 — Native CLI foundation
+- **Go CLI:** new native executable, no Python, Node or model runtime dependency.
+- **Control plane:** keep FastAPI/Python; add versioned M1 endpoints and preserve V1.
+- **Runner:** use the current Python Firecracker host under `worker/` as the M1 reference through a narrow adapter. ADR-0024 makes Go runner migration incremental; do not create a second Firecracker manager.
+- **Guest:** keep existing guest engine and canonical schema; one pinned pytest profile only.
+- **Isolation:** fresh Firecracker/KVM microVM per attempt. No Docker, bwrap, namespace-only or host-execution fallback.
+- **Identity:** existing human device-flow identity and server-resolved project scope; separate runner identity.
+- **Evidence:** existing canonical receipt and MicroVM teardown semantics; no new receipt format.
+- **AI and dashboard:** no inference in the M1 critical path; Gemini design prep only until M1 acceptance.
 
-Owners: DeepSeek core, GLM command handlers, MiniMax policy tests.
+The authoritative details are in [M1 25-day execution plan](M1-25-DAY-EXECUTION-PLAN.md), [M1 interface registry](M1-INTERFACE-REGISTRY.md), [M1 milestone specification](MILESTONE-01-NATIVE-CLI-FIRECRACKER-RECEIPT.md), [ADR-0024](../adr/ADR-0024-native-go-cli-and-runner.md) and the [API contract freeze](API-CONTRACT-FREEZE-M1.md).
 
-Deliver:
-- workflo Go binary;
-- help/version/completion;
-- config and credential-store interfaces;
-- doctor and strict/dev eligibility output;
-- init and project selection;
-- auth client and workspace context;
-- dry-run plan;
-- typed API client;
-- JSON output and stable error taxonomy;
-- Go unit/contract tests;
-- CI cross-compilation.
+## 3. M1 critical dependency chain
 
-Exit:
-- Linux/macOS/Windows client builds run help/version/doctor without Python;
-- no API/receipt contract drift;
-- local and remote command behavior is documented.
+1. Audit baseline, calibrate agents and confirm actual KVM/signing/GitHub test environment.
+2. Freeze semantic interfaces and publish generated OpenAPI/client fixtures.
+3. Build native Go CLI core and command contract.
+4. Implement additive FastAPI run admission, runner enrollment/claim/lease/state and artifact metadata.
+5. Bridge strict dispatch to the existing Firecracker host adapter, not the legacy `SandboxExecutor`.
+6. Pin exact GitHub source, guest image, Firecracker/jailer and Python pytest profile.
+7. Prove guest/host protocol, resource/network enforcement and evidence collection.
+8. Independently verify all eight MicroVM teardown checks.
+9. Sign canonical receipt; verify offline on a clean disconnected machine.
+10. Complete negative tests, evidence packet and human acceptance.
 
-### Phase 2 — Connectors and install distribution
+The calendar and daily exit evidence live in the 25-day plan. No independent agent may reorder steps or substitute a mock for a dependency.
 
-Owners: GLM, with DeepSeek core interface and GPT-6 GitHub server API.
+## 4. Post-M1 work packages
 
-Deliver:
-- local source connector;
-- GitHub App install/repository picker;
-- private repo scope and token expiry behavior;
-- exact commit resolution;
-- source manifest and size/symlink/submodule policies;
-- npm/pnpm/Bun packages with platform binaries;
-- native macOS/Windows/Linux archives;
-- checksum/provenance and upgrade/rollback.
+### M1.1 — Go runner migration
 
-Exit:
-- all claimed package managers install on clean machines;
-- GitHub private repo and local repo submit exact SHA;
-- GitHub tokens never reach guest, RunSpec, logs or receipt.
+**Owner:** DeepSeek; **review:** MiniMax + human security owner; **API compatibility:** Luna.
 
-### Phase 3 — Customer runner and Firecracker execution
+- Add Go runner implementation beside the Python host.
+- Reuse the approved assignment, guest protocol, policy, evidence and receipt contracts.
+- Run the same positive/negative fixtures against both implementations.
+- Prove real KVM parity, teardown and offline receipt verification.
+- Cut over only after parity evidence and rollback are approved.
+- Keep Python as fallback/reference until the Go path is accepted; never run two authorities for one attempt.
 
-Owners: DeepSeek, MiniMax test owner, GPT-6 backend API.
+### M1.1 — Client completion and distribution
 
-Deliver:
-- runner enroll/claim/lease/heartbeat/revoke;
-- capacity advertisement and resource reservation;
-- Go runner agent;
-- Firecracker/jailer/guest images pinned;
-- fresh microVM per attempt;
-- typed vsock channel;
-- source materialization;
-- resource and egress enforcement;
-- independent teardown;
-- evidence/receipt integration.
+**Owner:** GLM; **review:** DeepSeek + Luna.
 
-Exit:
-- real KVM Gate B passes on exact commit/artifact digests;
-- no strict-to-dev fallback;
-- one deterministic run end-to-end from CLI to offline receipt verification.
+- Local source connector and clean/dirty worktree semantics.
+- Complete supported Python/Node/Go/Java profiles as separate pinned profile releases.
+- npm/pnpm/Bun wrappers carrying native platform binaries; no Python virtualenv bootstrap.
+- Signed/checksummed archives, provenance, upgrade/rollback and clean-machine tests.
+- No package is publicly published until owner approves name, versioning and supply-chain release workflow.
 
-### Phase 4 — Four-language core QA
+### M2 — Backend/platform expansion
 
-Owners: GLM profiles, DeepSeek runtime, MiniMax security matrix.
+**Owner:** GPT-6 Luna; **review:** MiniMax + DeepSeek + human owner.
 
-Deliver:
-- Python/pytest profile;
-- Node/npm/pnpm/Bun profile;
-- Go/go test profile;
-- Java/Maven/Gradle profile;
-- pinned toolchains and preparation images;
-- deterministic app readiness profile;
-- test output/evidence parsers;
-- resource/time/size bounds.
+- Organization membership, invitations, Owner/Admin/Developer/Viewer and project role matrix.
+- Broader RLS/tenant model after data-model review.
+- GitHub App installation/webhooks and commit/PR checks.
+- BYOK provider profile, consent, metadata-only gateway and usage budgets.
+- Capacity/fair scheduling, observability and 15-user/45-submission admission test.
+- Backup/restore, operations, retention and incident response hardening.
 
-Exit:
-- one passing and one failing fixture per language;
-- dependency preparation isolated from sealed testing;
-- all results and evidence bound to exact SHA and policy.
+### M2 — Dashboard
 
-### Phase 5 — Deep AI and security modes
+**Owner:** Gemini; **API:** Luna; **UX/CLI parity:** GLM.
 
-Owners: MiniMax privacy/security tests, GPT-6 inference API, DeepSeek runner integration, GLM CLI UX.
+- Start production UI only after signed M1 acceptance.
+- Build in slices against generated API types and actual backend states.
+- Begin with read-only Runs list/detail, lifecycle and evidence/receipt.
+- Then projects/repositories, runner management, integrations, team, policy/privacy and audit.
+- Never use fake operational metrics or frontend-only authorization.
 
-Deliver:
-- BYOK provider profile;
-- OS secret store integration;
-- per-org/project and per-run consent;
-- runner-side metadata allowlist and sanitizer;
-- external provider egress allowlist;
-- model output schema validation;
-- deterministic ToolGateway authorization;
-- AI deep exploration;
-- security profile and scoped security tests;
-- token/time/cost/tool budgets.
+### M2 — Deep AI and security modes
 
-Exit:
-- actual outbound payload tests prove no source/secrets are transmitted;
-- no consent means no hosted request;
-- AI provider failure has no direct fallback;
-- prompt injection cannot widen capabilities;
-- core mode works without model credentials.
+**Owners:** MiniMax (security/policy tests), Luna (API/business logic), DeepSeek (runner integration), GLM (CLI UX).
 
-### Phase 6 — Web application implementation
+- Explicit per-run consent and data categories.
+- Allowlisted metadata only for hosted requests in metadata-only mode.
+- BYOK secrets write-only and never present in the guest.
+- ToolGateway deterministic authorization and per-call capability checks.
+- Core test mode remains independent of model credentials.
+- No hosted provider call if consent/policy is absent; no direct fallback on provider failure.
 
-Owners: Gemini frontend, GPT-6 backend.
+## 5. Scope guardrails
 
-Precondition: CLI/run/receipt contract and runner gate pass.
+Not M1: local-folder connector, multiple VCS, all four language profiles, deep AI, hosted inference, customer BYOK, organization/team membership, GitHub PR checks, dashboard implementation, npm publishing, native installer release, hosted fleet, marketplace, billing, autonomous patch/merge/deploy or 15-user concurrency claim.
 
-Deliver:
-- authentication and workspace selection;
-- overview;
-- projects/repositories;
-- run list/detail/timeline;
-- runner management;
-- findings/evidence/receipt viewer;
-- team/role management;
-- GitHub integration settings;
-- BYOK/privacy settings;
-- audit and quota views.
+Every deferred item must receive an owner, acceptance criteria and dependency after M1. Do not let future scope enter a critical-path PR without an owner-approved change.
 
-Exit:
-- real API data only;
-- role/tenant enforcement;
-- failure, loading, empty, partial and stale states;
-- browser and accessibility checks pass.
+## 6. Phase review record
 
-### Phase 7 — Scale, reliability and beta
+At each gate record:
 
-All owners; GPT-6 Luna consolidates acceptance.
+- exact base and integration commit;
+- code paths and contracts changed;
+- test commands and pass/fail/skip counts;
+- UNIT / MOCKED-INTEGRATION / LOCAL-INTEGRATION / REAL-KVM / OFFLINE-VERIFICATION classification;
+- artifacts and SHA-256 digests;
+- security/privacy findings and owners;
+- compatibility and rollback evidence;
+- scope changes and human decision.
 
-Deliver:
-- 15 authenticated concurrent clients;
-- 45 submission burst;
-- multi-tenant fairness and capacity tests;
-- runner outage/recovery;
-- PostgreSQL restart/recovery;
-- provider timeout/quota tests;
-- receipt/evidence tamper matrix;
-- clean install/upgrade/uninstall;
-- SBOM and build provenance;
-- incident, rollback, support and retention runbooks.
-
-Exit:
-- all release gates in QUALITY-RELEASE-GATES pass;
-- no critical/high unresolved security/privacy finding;
-- exact release binary, runner image and guest image identities recorded;
-- human owner approves beta.
-
-## 3. Critical dependency chain
-
-~~~text
-Go CLI core + API contract
-        |
-        +------ GitHub/local connectors + distribution
-        |
-Control-plane auth/tenancy + durable run admission
-        |
-Runner enrollment/claim/lease
-        |
-Go customer runner + Firecracker/KVM
-        |
-Guest workload + four language profiles
-        |
-Evidence + independent teardown + signed receipt
-        |
-Core CLI release gate
-        |
-Deep AI/BYOK + security stage acceptance
-        |
-Dashboard implementation and end-to-end integration
-        |
-15-user/45-submission + adversarial + release gates
-        |
-Controlled beta
-~~~
-
-The web design system, API design and browser journey mapping happen during the CLI work. Full dashboard build does not block or distract from the critical CLI/sandbox path.
-
-## 4. Resource and scope controls
-
-- No fixed launch date.
-- No Workflo-funded execution fleet.
-- Customer-owned Linux/KVM compute is default.
-- Hosted execution remains disabled until funded.
-- BYOK is customer-paid.
-- No marketplace, autonomous merge/deploy, multi-VCS, billing or public plugin ecosystem in the first beta.
-- Prioritize a dependable single-run vertical slice before adding throughput.
-- Measure concurrency and resource usage before publishing capacity claims.
-
-## 5. Phase review checklist
-
-At each phase exit, record:
-- exact commit and build;
-- changed modules;
-- acceptance tests and pass/fail/skip;
-- real vs mocked test classification;
-- open issues and risk owners;
-- protocol/schema compatibility;
-- rollback path;
-- owner decision.
+The main programme index is [Agent Workspace README](README.md).
