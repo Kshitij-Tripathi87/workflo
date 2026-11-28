@@ -1,271 +1,205 @@
-# Agent 02 — GLM-5.3-Flash
-## CLI Command Experience, Connectors, Language Profiles and Distribution
+# Agent 02 — GLM-5.3 Flash
+## CLI Command Experience, GitHub Source Connector, Profiles and Distribution Design
 
-**Workstream:** CLI productization  
-**Branch:** agent/glm-cli-connectors-distribution  
-**Primary owner:** GLM-5.3-Flash  
-**Reviewers:** DeepSeek (CLI-core interface), GPT-6 Luna (API and GitHub server contracts), MiniMax (credential/security tests), human owner (public UX and package namespace).
+**Branch:** `agent/glm-cli-connectors-distribution`  
+**Primary owner:** GLM  
+**Reviewers:** DeepSeek (CLI core/interfaces), GPT-6 Luna (API/GitHub server auth), MiniMax (source/path security), human owner (scope/package release)  
+**M1 priority:** P0 client integration; package publishing is deferred
 
-## 1. Why this model owns this work
+## 1. Mission and expected capability fit
 
-Z.ai's GLM-5.3-Flash release reports:
-- Terminal-Bench 2.1: **84.3**
-- Toolathlon Verified: **78.4**
-- DeepSWE v1.1: **63.4**
-- AutomationBench v1.0.6: **48.8**
+**Mission:** turn the Go CLI core into a predictable command-line product and implement the GitHub source-selection/ref-resolution experience consumed by M1.
 
-Z.ai states Toolathlon Verified results use the official evaluation service and pass@1 averaged over three independent runs. The Terminal-Bench 2.1 score is a different benchmark version from the Terminal-Bench 4.0/4.1 results reported by other labs.
+Routing hypothesis: command UX, tool/workflow integration, validation, connector fixtures, profile metadata and package distribution design. Published tool-use benchmark results support the task hypothesis, not a guarantee of Workflo-specific correctness.
 
-Primary source: https://z.ai/blog/glm-5.3-flash
+**Use this agent for:** command syntax and help, flag validation, JSON/human output, exit codes, GitHub ref resolution, source metadata and safe connector test matrices.
 
-**Routing hypothesis:** command orchestration, multi-tool workflows, connectors, installer/package-manager integration and repeated edge-case handling. Do not treat 84.3 on Terminal-Bench 2.1 as higher than a 42.3 on Terminal-Bench 4.0.
+**Do not treat it as:** owner of Go CLI entrypoint/core transport, Firecracker runtime, backend auth/DB, security sign-off or permission to publish packages.
 
-## 2. Mission
+## 2. M1 architecture and ownership boundary
 
-Make Workflo feel like a polished native developer tool:
-- commands are discoverable and consistent;
-- connectors resolve exact repository identity and commit;
-- local and GitHub workflows behave predictably;
-- Python/Node/Go/Java test profiles are explicit and auditable;
-- npm, pnpm, Bun and native installers deliver the Go binary without Python runtime setup;
-- installation and update are verifiable and reversible.
+- DeepSeek owns executable entrypoint, API transport/core, auth client contract, verifier and runner client.
+- GLM owns command packages, connector packages, presentation/error UX and CLI golden fixtures.
+- Luna owns server-side GitHub App/auth broker and FastAPI operations.
+- MiniMax owns policy/security test specification and independent review.
+- M1 target source is GitHub only, pinned by a full immutable commit.
+- Local-folder connector, multiple VCS and broad package-manager publishing are post-M1.
+- The CLI binary must not install or invoke Python, Node, Docker or a model provider as a runtime dependency.
+- Never leak GitHub installation credentials into guest, RunSpec, stdout, logs, receipt or evidence.
 
 ## 3. Owned paths
 
-Primary:
-- apps/workflo-cli-go/internal/commands/
-- apps/workflo-cli-go/internal/connectors/
-- apps/workflo-cli-go/internal/source/ connector adapters only (coordinate interface with DeepSeek)
-- packages/npm-workflo/
-- profiles/python/
-- profiles/node/
-- profiles/go/
-- profiles/java/
-- scripts/release/install/
-- tests/installation/
-- connector-specific CLI tests.
+**Primary**
+- `apps/workflo-cli-go/internal/commands/`
+- `apps/workflo-cli-go/internal/connectors/github/`
+- `apps/workflo-cli-go/internal/clioutput/`
+- `apps/workflo-cli-go/internal/profiles/` (M1 metadata for the single pinned pytest profile only)
+- `apps/workflo-cli-go/tests/golden/`
+- connector/command documentation and fixtures under the agreed CLI docs path.
 
-Shared CLI boundary:
-- DeepSeek owns root entrypoint, CLI app lifecycle, core API client, runtime and low-level config interface.
-- GLM owns user-facing command handlers/flags/help and connector adapters.
-- Do not modify files under DeepSeek's runtime packages without a reviewed interface PR.
+**Not owned**
+- `cmd/workflo/`, CLI app lifecycle, API transport/auth implementation, core state machine, runner client and receipt verifier (DeepSeek).
+- FastAPI routes, OAuth, GitHub App private key storage, database and dispatch (Luna).
+- `worker/`, guest runtime, policy enforcement defaults and receipt signer (DeepSeek + human).
+- Security acceptance and exploit disposition (MiniMax + human).
+- Dashboard UI (Gemini).
+- Public npm publishing, installer release and production credentials without separate owner approval.
 
-Must not own:
-- apps/workflo-runner-go/ and Firecracker implementation.
-- packages/workflo-policy-go/ and security/ policy implementation.
-- apps/control-plane/ backend routes/DB (GPT-6).
-- apps/dashboard/ (Gemini).
-- canonical schemas without owner approval.
+**Shared interface:** agree exported Go types/functions with DeepSeek before implementation. Do not write around internal implementation details or use reflection/dynamic maps to evade type ownership.
 
-## 4. Authority and constraints
+## 4. M1 command behavior
 
-You may:
-- implement commands that call existing typed interfaces;
-- implement connector clients for GitHub and local repositories;
-- write test profile manifests and detection logic;
-- replace Python-based npm distribution with platform-specific native-binary packages;
-- add installer documentation and smoke tests;
-- propose API scope/permission requirements to GPT-6.
+| Command | GLM deliverable | Required behavior |
+|---|---|---|
+| `auth login/status/logout` | UX/flags/help/errors | Use DeepSeek auth client; never print token or auth code after exchange |
+| `doctor` | Output sections and JSON schema presentation | Client vs strict runner eligibility; show why KVM is unavailable without implying local fallback |
+| `run` | Flag model/help/golden transcript | Exact GitHub repo + full SHA, pinned profile, runner, idempotency; invalid combinations rejected pre-submit |
+| `status` | Human/JSON rendering | Execution, QA and trust shown separately; unknown values remain unknown |
+| `cancel` | UX and confirmation | Explicitly says cancellation requested, not termination proven |
+| `verify` | Flag/help/error UX | Offline mode explicit; no provider/API call |
 
-You may not:
-- create a second Go CLI or a Python sidecar dependency;
-- execute project setup scripts during host-side discovery;
-- put GitHub tokens into argv, environment dumps, guest or receipts;
-- ask for broad GitHub permissions;
-- silently turn a dev runner into strict runner;
-- merge source or publish release packages;
-- alter user-facing command behavior without compatibility/release notes;
-- introduce a marketplace, arbitrary connector plugin loader or automatic repository write access.
+Command flags and outputs are frozen on D2 with DeepSeek, Luna and MiniMax.
 
 ## 5. Work packages
 
-### GLM-01 — Current CLI and package audit
+### GLM-01 — Existing client/package audit · D1
 
-Inspect:
-- current Python CLI command/flag set and exit codes;
-- CLI configuration schema and existing workflo.yaml behavior;
-- packages/npm-workflo/bin/workflo.js;
-- postinstall.js, build-wheels.py and vendor manifest;
-- GitHub auth/device flow and existing connector code;
-- current workflo-schema RunRequest/RunStatus structures;
-- current installer scripts and CI workflows.
+Inspect Python CLI, npm wrapper, Go target plan and GitHub integration paths.
 
-The current npm wrapper launches a package-local Python venv and requires Python >=3.11. That is the migration target, not the desired final UX.
+Deliver:
+- command/flag compatibility inventory;
+- current Python and npm dependency map;
+- GitHub auth/read-scope inventory;
+- unsupported/ambiguous command semantics;
+- proposed minimal M1 command tree.
 
-**Acceptance:** command/flag compatibility inventory, current package dependency map, installer support table, connector API gap report.
+**Acceptance:** exact paths/symbols and a list of behavior to preserve vs intentionally defer. No rewrite during audit.
 
-### GLM-02 — Command tree and UX
+### GLM-02 — Command and output contract · D2–D3
 
-Implement handlers against DeepSeek's CLI app/core interfaces.
+Freeze:
+- commands/subcommands/flags;
+- defaults and required inputs;
+- argument validation order;
+- human output and JSON output schema;
+- stable exit-code taxonomy;
+- cancellation and timeout semantics;
+- help examples and shell completion requirements only where cheap.
 
-Required command groups:
-- init, doctor, version/help/completion;
-- auth login/logout/status/whoami;
-- org/workspace selection;
-- connect github/disconnect/status;
-- repo/project list/select;
-- run with profile stages and safe dry-run;
-- runs/status/cancel/logs;
-- evidence/verify/inspect/explain;
-- runner enrollment/status/drain/revoke client workflows;
-- config get/set/validate.
+**Acceptance:** golden transcripts and table-driven invalid-input cases; command handlers compile against DeepSeek's approved interfaces; no hand-maintained duplicate state machine.
 
-For each command define:
-- syntax and flags;
-- required scope;
-- preflight checks;
-- API call(s);
-- success output;
-- error cases;
-- JSON output schema;
-- idempotency and retry behavior;
-- exit code class;
-- example.
+### GLM-03 — GitHub source/ref resolution · D4–D8
 
-Help output is part of the product contract.
+Implement the M1 GitHub-only connector through the approved auth/broker flow:
+- canonical repository identity;
+- resolve branch/tag/ref to full object ID;
+- display the resolved full SHA before submission;
+- verify repository and commit access;
+- distinguish 404/no permission from not found where provider behavior allows;
+- handle revoked/expired auth and rate limit;
+- never accept abbreviated commit ID as immutable identity;
+- do not download source to the CLI host unless the approved interface explicitly requires it.
 
-**Acceptance:** golden CLI transcript tests; stable human and JSON output; invalid flag combinations fail before API submission.
+Coordinate with Luna on GitHub installation/repository selection and DeepSeek on RunSpec input.
 
-### GLM-03 — Safe project detection
+**Acceptance:** public repo fixture and private repo fixture (when authorized installation is available) resolve exact SHAs; branch-move-after-resolution test remains pinned; missing/revoked scopes fail closed; credential scanning finds no token in request/log/evidence.
 
-- Detect Python, Node, Go and Java manifests without executing any project code.
-- Display detected candidates and ask for explicit profile when ambiguous.
-- Discover lockfiles and toolchain hints.
-- Identify frameworks only as hints until a profile is selected.
-- Respect existing project config location after a source audit.
-- Do not introduce a conflicting .workflo configuration path.
-- Never run preinstall/postinstall hooks on the developer host during detection.
+### GLM-04 — Safe source metadata and UX · D7–D11
 
-**Acceptance:** malicious repo fixtures cannot cause host-side script execution; detection output is deterministic.
+Prepare client-visible source metadata and validate server responses. Source archive policy is enforced by host/policy implementation; GLM provides test cases for:
+- path traversal and absolute path names;
+- symlink escape;
+- large file/count/total archive;
+- submodule and LFS declaration;
+- case normalization and Unicode path collisions;
+- dirty/uncommitted state only if local connector is later enabled.
 
-### GLM-04 — Local repository connector
+**Acceptance:** connector rejects unsupported source states before admission where it can know them; server/host rejects them authoritatively; tests cover the handoff.
 
-- Validate path and Git repository safely.
-- Read current HEAD and working-tree state.
-- User must choose whether to run against committed revision or explicit working-tree snapshot.
-- Canonicalize file inventory and exclude unsafe/sensitive paths according to policy.
-- Detect symlinks, submodules, LFS and nested repositories.
-- Bound file count, total bytes, per-file size and traversal depth.
-- Produce a source manifest/digest for the runner.
-- Do not copy source to the control plane by default.
+### GLM-05 — M1 profile registry · D10–D12
 
-**Acceptance:** source snapshot tests for clean repo, uncommitted work, branch move, symlink/path escape, oversize files, submodule and secret fixtures.
+Expose only the approved `python-pytest@PINNED_VERSION` profile:
+- stable profile ID/version;
+- structured argv contract;
+- image/toolchain identity;
+- supported test report schema;
+- time/resource bounds displayed to user.
 
-### GLM-05 — GitHub client connector
+Do not invent language detection that suggests unsupported profiles are runnable.
 
-- Integrate GitHub App installation workflow and device/browser authorization.
-- List only repositories visible to the selected installation.
-- Distinguish public/private repository and permission errors.
-- Resolve selected ref to full immutable SHA before admission.
-- Store only installation identity and short-lived credential references.
-- Request no Contents write permission.
-- PR/commit checks require Checks:write and are published by the control plane.
-- Show clear status when check write is not authorized.
-- Handle revoked installation, expired token and repository removed from installation.
+**Acceptance:** CLI profile list has exactly the approved M1 profile; golden RunSpec binds correct profile/version/policy digest; profile mismatch is rejected before VM provisioning.
 
-**Acceptance:** public/private selection, no-permission, revoked app, expired token, moved branch and PR check test matrix.
+### GLM-06 — CLI end-to-end tests · D12–D20
 
-### GLM-06 — Language profile registry
+Build a fixture-driven CLI suite:
+- valid run;
+- full vs abbreviated SHA;
+- auth expired/revoked;
+- unauthorized repository;
+- duplicate idempotency key;
+- runner unavailable/ineligible;
+- queued/claimed/running/completed state;
+- test failure vs infrastructure failure vs trust failure;
+- cancel request vs confirmed termination;
+- tampered evidence and wrong trust key;
+- no-KVM strict failure.
 
-Profiles initially:
-- Python + pytest; app profiles for FastAPI/Flask/Django where explicit.
-- Node.js with npm/pnpm/Bun and approved Jest/Vitest/Playwright profile.
-- Go modules with go test ./....
-- Java Maven/Gradle profile.
+**Acceptance:** test transcript and exact commands are attached; all mock-server tests are labelled MOCKED-INTEGRATION; only real CLI+KVM acceptance is credited as REAL-KVM.
 
-Each profile declares:
-- profile ID/version;
-- supported OS/guest image digest;
-- language/runtime version;
-- manifest/lockfile requirements;
-- dependency preparation command arrays;
-- test command arrays;
-- output report schema;
-- default time/resource limits;
-- network/dependency policy;
-- known limitations.
+### GLM-07 — Native distribution design and smoke tests · D18–D22
 
-Profile selection is not permission to run arbitrary host commands. The execution engine resolves commands inside the guest image.
+For M1:
+- help DeepSeek verify clean Go binary launch on supported CI targets;
+- ensure no Python or Node dependency is added;
+- produce archive/checksum/provenance design and clean-machine test procedure;
+- verify CLI behavior does not depend on repository working directory or a local virtualenv.
 
-**Acceptance:** every profile has a minimal passing and failing fixture; command arrays and profile digest appear in RunSpec.
+Post-M1:
+- npm/pnpm/Bun platform packages;
+- installers and update/rollback;
+- signature/provenance release workflows;
+- public package publishing after owner approves scope/name.
 
-### GLM-07 — Native binary package distribution
+**Acceptance:** clean target machines run `--help`, `--version` and eligible client `doctor`; unsupported strict execution is reported correctly. Do not claim production distribution until signed release acceptance.
 
-Target UX:
-~~~bash
-npm install -g @workflo/cli
-pnpm add -g @workflo/cli
-bun add -g @workflo/cli
-workflo --help
-~~~
+### GLM-08 — Handoff · D23–D25
 
-Proposed implementation:
-- small JS shim package;
-- platform-specific optional dependency packages carrying the Go binary;
-- no Python wheels/venv;
-- no unverified network download from postinstall;
-- npm/pnpm/Bun compatibility test;
-- exact @workflo scope verified before first publish;
-- maintain old @cortexstudio/workflo package only as an explicit compatibility/deprecation path if there are users.
+Deliver:
+- command contract and golden transcript paths;
+- connector API and auth sequence;
+- source/SHA behavior;
+- profile registry entry;
+- test report with mock vs real labels;
+- compatibility/deferred-command list;
+- packaging design and known limitations.
 
-Platform packages initially:
-- darwin-arm64, darwin-x64;
-- linux-x64;
-- win32-x64.
-Linux ARM64 and Windows ARM64 only after actual build/test runners are available.
+**Acceptance:** DeepSeek and Luna can maintain the command/connector interface without undocumented knowledge from GLM.
 
-### GLM-08 — Native installers
+## 6. How to work
 
-- macOS: signed archive; Homebrew formula/tap after release validation.
-- Windows: verified ZIP/archive and optional signed MSI; Scoop/WinGet manifest after test.
-- Linux: signed tarball first; .deb/.rpm when install/upgrade/uninstall matrix is stable.
-- customer runner: Linux KVM-specific installer, separate from CLI client installer.
+1. D1 audit first; do not start package rewrite.
+2. Freeze exported interfaces with DeepSeek before parallel coding.
+3. Implement one command and one connector path per PR.
+4. Prefer static types and exhaustive enum handling.
+5. Add positive and negative golden tests in the same PR.
+6. Rebase daily and report blockers before they cost a full day.
+7. Use synthetic repositories and mock GitHub server tests; never run adversarial tests against unrelated public targets.
+8. Link each PR to GLM task IDs and interface version.
 
-Installers must:
-- validate checksum and provenance;
-- install to user-owned location where possible;
-- avoid root requirement for CLI client;
-- support explicit version pin;
-- prevent partial install;
-- preserve config on upgrade;
-- remove binary without deleting user receipts/config unless asked;
-- support rollback.
+## 7. Do not
 
-### GLM-09 — UX and platform test
+- create a second `main.go` or duplicate API/auth client;
+- introduce Python or Node as a CLI runtime dependency;
+- fabricate unsupported profile availability;
+- accept a branch name as final source identity;
+- send source/GitHub token to hosted inference or guest;
+- store credentials in CLI config as plaintext;
+- write a generic shell wrapper around repository-supplied strings;
+- change FastAPI contracts without Luna/owner approval;
+- alter receipt/trust semantics;
+- publish npm/native packages or claim installer support before clean-machine proof;
+- approve own security-sensitive behavior.
 
-Test:
-- zsh/bash/fish/PowerShell;
-- spaces/unicode in paths;
-- proxy and offline network;
-- PATH setup;
-- antivirus/SmartScreen warning path;
-- package-manager script disabled path;
-- package cache and reinstall;
-- Windows Ctrl-C and Unix signals;
-- upgrade while CLI process is active;
-- broken/corrupt binary checksum;
-- incorrect CPU architecture.
+## 8. Completion evidence
 
-**Acceptance:** a clean machine can install the binary with each claimed method, run help/version and perform authenticated non-execution commands without Python.
-
-### GLM-10 — Handoff
-
-Deliver command reference, profile reference, connector permission table, installer matrix, package namespace record, compatibility/deprecation notes and CI evidence.
-
-## 6. Security rules
-
-- Never print bearer token, private key, PAT, provider key or refresh token.
-- Do not place secrets in command-line arguments.
-- Use OS credential store.
-- Do not send source archive to control plane.
-- Do not execute repository code in local project detection.
-- No PR or branch write capability in initial GitHub App.
-- Use short-lived installation token for source acquisition.
-- No untrusted postinstall script that downloads arbitrary binary.
-- Verify downloaded and packaged binary.
-- No automatic fallback from GitHub private access to public/anonymous clone.
-- No repo content in telemetry.
-
-## 7. Definition of done
-
-A developer on each claimed OS can install Workflo using npm, pnpm, Bun or native channel, run help, authenticate, connect a private GitHub repository or local project, pin an exact SHA, select a supported profile, submit a run, inspect status and verify the receipt without needing Python. Every connector/install negative case has a test.
+Every PR includes command tree, changed-file list, API/schema impact, golden test command and counts, fixture provenance, exact mock/real classification, known limitations and handoff owner.
