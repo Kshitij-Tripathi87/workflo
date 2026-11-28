@@ -33,13 +33,19 @@ from pathlib import Path
 from sandbox_runtime.config import NetworkConfig
 
 
-RUN_STATE_ROOT = Path("/run/workflo")
+# The runtime owns a DEDICATED child, never /run/workflo itself: that directory
+# is shared with the supervisor socket (workflod.sock) and the worker host
+# (vmm/, vsock/, config.json). Requiring or chmod'ing /run/workflo to 0700
+# would fight those components on any host where it already exists.
+RUN_STATE_ROOT = Path("/run/workflo/sandbox-network")
 
 
 def _ensure_private_dir(path: Path) -> None:
     """Create a service-owned directory or reject an unsafe pre-existing path."""
     try:
-        os.mkdir(path, 0o700)
+        # parents=True: only the leaf is ours to own and lock down; the shared
+        # parent is created with default permissions if it is missing.
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
     except FileExistsError:
         pass
 
@@ -311,7 +317,7 @@ def teardown_network(config: NetworkConfig) -> None:
         ["ip", "link", "del", config.veth_host],
         capture_output=True, check=False,
     )
-    state_dir = Path("/run/workflo") / config.netns_name
+    state_dir = RUN_STATE_ROOT / config.netns_name
     for name in ("dnsmasq.conf", "dnsmasq.pid", "dnsmasq.log", "nftables.nft"):
         try:
             (state_dir / name).unlink(missing_ok=True)

@@ -739,6 +739,42 @@ contract change was needed, and the change can only ever report less than the
 old constant. Regression test:
 `test_ephemeral_fs_reports_the_wipe_that_actually_happened`.
 
+#### Fixed: the private network-state directory collided with `/run/workflo`
+
+`main` was red on `linux-gate` at `f04a67a` — not from this review's changes,
+and I had wrongly reported `main` green before checking that workflow
+specifically. Two defects in the run-state hardening turned up there:
+
+1. **The runtime claimed a directory four other components use.**
+   `RUN_STATE_ROOT` was `/run/workflo`, the same directory that holds the
+   supervisor's `workflod.sock` (`supervisor/src/workflo_supervisor/ipc.py`),
+   the worker host's `vmm/`, `vsock/` and `config.json`, and it was then
+   required to be service-owned and exactly `0700` (or silently chmod'ed to
+   it). On any host where those components created `/run/workflo` first, the
+   sandbox network setup either refused to start or changed the mode out from
+   under the daemon. The runtime now owns a dedicated child,
+   `/run/workflo/sandbox-network`, and checks only that leaf; the shared
+   parent is created with default permissions when missing and never
+   inspected. Regression test:
+   `test_run_state_dir_tolerates_a_shared_parent_directory`.
+2. **The check failed on a nested root.** `_ensure_private_dir` used
+   `os.mkdir`, so a `RUN_STATE_ROOT` whose parent did not exist raised
+   `FileNotFoundError` instead of creating it — which is exactly what the
+   owner's own
+   `test_run_state_dir_creates_owned_private_directories` asserts against, so
+   the unit suite failed and every downstream golden-run step failed with it
+   (`CGROUP_ATTACH_FAILED`, then `TimeoutError`). Now `mkdir(parents=True,
+   exist_ok=True)`, with the ownership/mode `lstat` checks unchanged.
+
+`teardown_network` also resolved the old hardcoded `/run/workflo/<netns>`
+path instead of the same directory setup used, so on the previous layout it
+could delete from a directory setup never wrote to. It now uses
+`RUN_STATE_ROOT`, so setup and teardown cannot disagree.
+
+These are POSIX-only paths: they skip on the Windows development host, so
+this pass **verified them on Linux CI only** and cannot claim they ran
+locally.
+
 #### Recorded, not fixed (needs an owner decision)
 
 - **`security_attestation.seccomp_applied` is a hardcoded `True`.** The schema
@@ -801,4 +837,7 @@ old constant. Regression test:
 
 - `apps/sandbox-executor`: 55 passed (identical to the pre-change baseline).
 - `packages/sandbox-isolation`: 87 passed, including the new regression test.
+- `packages/sandbox-runtime`: 313 passed, 40 skipped on Windows (the POSIX
+  network-directory tests are among the skips); the Linux `linux-gate` run is
+  the evidence for those, not this host.
 - No schema, canonicalization, gate or claim count was changed.
