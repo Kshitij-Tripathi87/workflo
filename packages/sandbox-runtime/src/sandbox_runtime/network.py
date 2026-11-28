@@ -44,12 +44,18 @@ def _ensure_private_dir(path: Path) -> None:
         pass
 
     info = path.lstat()
+    mode = stat.S_IMODE(info.st_mode)
     if (
         not stat.S_ISDIR(info.st_mode)
         or info.st_uid != os.geteuid()
-        or stat.S_IMODE(info.st_mode) != 0o700
+        or mode & 0o022
     ):
         raise PermissionError(f"unsafe private runtime directory: {path}")
+    # A service-owned directory that is readable but not writable by others
+    # can be tightened safely. Never chmod a directory an attacker owns or
+    # one that allowed untrusted writes.
+    if mode != 0o700:
+        os.chmod(path, 0o700)
 
 
 def _run_state_dir(config: NetworkConfig) -> Path:
