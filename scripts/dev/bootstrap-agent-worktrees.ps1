@@ -51,6 +51,11 @@ foreach ($spec in $specs) {
 
     git -C $repoRoot show-ref --verify --quiet "refs/heads/$branch"
     if ($LASTEXITCODE -eq 0) {
+        $localSha = (git -C $repoRoot rev-parse "refs/heads/$branch").Trim()
+        $remoteSha = (git -C $repoRoot rev-parse "refs/remotes/$remote/$branch").Trim()
+        if ($localSha -ne $remoteSha) {
+            throw "Local branch '$branch' is not at '$remote/$branch'. Preserve local commits, then fast-forward or recreate it explicitly; refusing stale/diverged branch."
+        }
         git -C $repoRoot worktree add $target $branch
     } else {
         git -C $repoRoot worktree add --track -b $branch $target "$remote/$branch"

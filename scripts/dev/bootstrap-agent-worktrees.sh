@@ -47,6 +47,13 @@ for spec in "${SPECS[@]}"; do
   fi
 
   if git show-ref --verify --quiet "refs/heads/$branch"; then
+    local_sha="$(git rev-parse "refs/heads/$branch")"
+    remote_sha="$(git rev-parse "refs/remotes/$REMOTE/$branch")"
+    if [ "$local_sha" != "$remote_sha" ]; then
+      echo "Local branch $branch is not at $REMOTE/$branch." >&2
+      echo "Refusing to attach a stale/diverged branch. Preserve any local commits, then fast-forward or recreate it explicitly." >&2
+      exit 5
+    fi
     git worktree add "$target" "$branch"
   else
     git worktree add --track -b "$branch" "$target" "$REMOTE/$branch"
