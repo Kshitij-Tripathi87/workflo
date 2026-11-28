@@ -75,7 +75,8 @@ def verify_network_namespace_removed(network_config: Optional[NetworkConfig]) ->
     # `ip netns list` output: one netns per line, optionally with extra
     # annotations (e.g. "workflo-abc (id: 0)").
     for line in result.stdout.splitlines():
-        if line.split()[0] == netns_name:
+        parts = line.split()
+        if parts and parts[0] == netns_name:
             return False
     return True
 

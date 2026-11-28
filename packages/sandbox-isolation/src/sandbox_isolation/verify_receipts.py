@@ -100,11 +100,16 @@ def verify_receipt(
     from sandbox_isolation import verify_receipt_signature, fingerprint_public_key
 
     # -- parse ---------------------------------------------------------------
+    # Read the receipt exactly ONCE: re-reading for the strict duplicate-key
+    # scan would let the two checks describe different documents if the file
+    # is replaced between reads.
     try:
-        data = json.loads(Path(receipt_path).read_text())
+        raw = Path(receipt_path).read_text()
     except (OSError, UnicodeDecodeError) as e:
         return VerifyResult(
             VerifyStatus.CORRUPT, detail=f"cannot read receipt file: {e}")
+    try:
+        data = json.loads(raw)
     except json.JSONDecodeError as e:
         return VerifyResult(
             VerifyStatus.CORRUPT, detail=f"receipt is not valid JSON: {e}")
@@ -112,14 +117,12 @@ def verify_receipt(
     receipt_data = data.get("receipt", data)
 
     # Duplicate JSON keys parse silently in stdlib — a receipt carrying
-    # them is structurally suspect. Reject via the strict hook (R-3).
+    # them is structurally suspect. Reject via the strict hook (R-3), over
+    # the same bytes that produced `data` above.
     try:
-        raw = Path(receipt_path).read_text()
         json.loads(raw, object_pairs_hook=_reject_duplicate_keys)
     except ValueError as e:
         return VerifyResult(VerifyStatus.CORRUPT, detail=str(e))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        pass  # already classified above
 
     try:
         receipt = SignedReceipt(**receipt_data)

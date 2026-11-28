@@ -272,6 +272,15 @@ async def _finalize_success(
             await db_module.set_tenant_context(db, run.project_id)
         was_cancelled = bool(run is not None and run.status == "cancelled")
         result_json = json.loads(result.to_json())
+        # Transparency append happens BEFORE the run becomes observable as
+        # completed. Appending afterwards raced any client that polls until
+        # `completed` and then immediately asks for the inclusion proof — a
+        # legitimate run would answer 404 "receipt not present". The append
+        # stays best-effort (a logging outage must not fail a customer run),
+        # but the ordering is now causal rather than a timing coincidence.
+        receipt_dict = extract_receipt_dict(result_json)
+        if receipt_dict:
+            append_receipt_to_transparency_log(receipt_dict, run_id)
         service = RunService(db)
         await service.complete_run(
             run_id, {"status": "completed", "receipt": result_json}
@@ -293,9 +302,6 @@ async def _finalize_success(
             cancelled=was_cancelled,
         )
         await complete_outbox(db, outbox_id)
-        receipt_dict = extract_receipt_dict(result_json)
-        if receipt_dict:
-            append_receipt_to_transparency_log(receipt_dict, run_id)
 
 
 async def _finalize_failure(

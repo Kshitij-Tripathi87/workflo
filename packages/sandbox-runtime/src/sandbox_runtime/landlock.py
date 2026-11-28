@@ -52,16 +52,6 @@ _RULE_OPEN_FLAGS = (
     else (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
 )
 
-# How to open rule paths: O_PATH|O_CLOEXEC per man landlock_add_rule —
-# accepts files AND directories (the older O_RDONLY|O_DIRECTORY approach
-# made file rules like /dev/null fail with ENOTDIR -> INVALID_POLICY,
-# which in compatible mode silently DROPPED Landlock for that workload).
-_RULE_OPEN_FLAGS = (
-    (os.O_PATH | getattr(os, "O_CLOEXEC", 0))
-    if hasattr(os, "O_PATH")
-    else (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-)
-
 # Access rights (bit -> minimum kernel Landlock ABI that supports it)
 LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0       # ABI 1
 LANDLOCK_ACCESS_FS_WRITE_FILE = 1 << 1    # ABI 1

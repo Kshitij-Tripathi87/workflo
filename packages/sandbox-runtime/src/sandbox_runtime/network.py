@@ -24,11 +24,54 @@ upstream resolver (no-resolv), so only *.workflo.internal names resolve.
 
 from __future__ import annotations
 
+import os
+import stat
 import subprocess
 import time
 from pathlib import Path
 
 from sandbox_runtime.config import NetworkConfig
+
+
+RUN_STATE_ROOT = Path("/run/workflo")
+
+
+def _ensure_private_dir(path: Path) -> None:
+    """Create a service-owned directory or reject an unsafe pre-existing path."""
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+
+    info = path.lstat()
+    mode = stat.S_IMODE(info.st_mode)
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or mode & 0o022
+    ):
+        raise PermissionError(f"unsafe private runtime directory: {path}")
+    # A service-owned directory that is readable but not writable by others
+    # can be tightened safely. Never chmod a directory an attacker owns or
+    # one that allowed untrusted writes.
+    if mode != 0o700:
+        os.chmod(path, 0o700)
+
+
+def _run_state_dir(config: NetworkConfig) -> Path:
+    """Return a service-owned, non-symlink directory for transient run files.
+
+    Never chmod an existing directory: that would preserve an attacker's
+    ownership and make root consume files they can still replace. The parent
+    is established and checked before creating the per-run child.
+    """
+    if os.name != "posix" or not hasattr(os, "geteuid"):
+        raise RuntimeError("private network state requires a POSIX runtime")
+
+    _ensure_private_dir(RUN_STATE_ROOT)
+    state_dir = RUN_STATE_ROOT / config.netns_name
+    _ensure_private_dir(state_dir)
+    return state_dir
 
 
 def setup_private_network(config: NetworkConfig) -> dict:
@@ -147,7 +190,7 @@ table inet workflo {{
 def _setup_egress_blocking(config: NetworkConfig) -> None:
     """Install the workload-flow policy inside the network namespace."""
     _netns_run(config, ["nft", "flush", "ruleset"], check=False)
-    rules_path = Path(f"/tmp/workflo-{config.sandbox_id}-nftables.nft")
+    rules_path = _run_state_dir(config) / "nftables.nft"
     rules_path.write_text(build_nftables_rules(config))
     _netns_run(config, ["nft", "-f", str(rules_path)])
 
@@ -163,6 +206,7 @@ def _start_dnsmasq(config: NetworkConfig, retries: int = 3) -> None:
     Retries on startup failure: a stale dnsmasq from a just-torn-down
     run may still hold :53 for a moment.
     """
+    state_dir = _run_state_dir(config)
     dnsmasq_conf = f"""
 interface={config.veth_host}
 except-interface=lo
@@ -177,10 +221,10 @@ address=/test.workflo.internal/{config.test_ip}
 no-resolv
 no-hosts
 log-queries
-log-facility=/tmp/workflo-{config.sandbox_id}-dnsmasq.log
-pid-file=/tmp/workflo-{config.sandbox_id}-dnsmasq.pid
+log-facility={state_dir / "dnsmasq.log"}
+pid-file={state_dir / "dnsmasq.pid"}
 """
-    conf_path = Path(f"/tmp/workflo-{config.sandbox_id}-dnsmasq.conf")
+    conf_path = state_dir / "dnsmasq.conf"
     conf_path.write_text(dnsmasq_conf)
 
     last_error = None
@@ -203,7 +247,7 @@ pid-file=/tmp/workflo-{config.sandbox_id}-dnsmasq.pid
             if proc.poll() is not None:
                 last_error = (
                     f"dnsmasq died during startup (exit {proc.returncode}); "
-                    f"see /tmp/workflo-{config.sandbox_id}-dnsmasq.log"
+                    f"see {state_dir / 'dnsmasq.log'}"
                 )
                 break
             time.sleep(0.1)
@@ -267,13 +311,16 @@ def teardown_network(config: NetworkConfig) -> None:
         ["ip", "link", "del", config.veth_host],
         capture_output=True, check=False,
     )
-    for suffix in ("dnsmasq.conf", "dnsmasq.pid", "dnsmasq.log",
-                   "nftables.nft"):
-        p = Path(f"/tmp/workflo-{config.sandbox_id}-{suffix}")
+    state_dir = Path("/run/workflo") / config.netns_name
+    for name in ("dnsmasq.conf", "dnsmasq.pid", "dnsmasq.log", "nftables.nft"):
         try:
-            p.unlink(missing_ok=True)
+            (state_dir / name).unlink(missing_ok=True)
         except OSError:
             pass
+    try:
+        state_dir.rmdir()
+    except OSError:
+        pass  # not empty or already gone
 
     # 4. Per-netns resolver config (written by setup)
     netns_etc = Path(f"/etc/netns/{config.netns_name}")
